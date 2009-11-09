@@ -1,0 +1,12 @@
+Index: varnish-2.0.5/man/vcl.7so
+===================================================================
+--- varnish-2.0.5.orig/man/vcl.7so	2009-11-09 11:35:59.095034412 +0000
++++ varnish-2.0.5/man/vcl.7so	2009-11-09 11:36:11.576283898 +0000
+@@ -96,7 +96,6 @@
+ To avoid overloading backend servers,
+ .Fa .max_connections
+ can be set to limit the maximum number of concurrent backend connections.
+-.Ed
+ .Pp
+ The timeout parameters can be overridden in the backend declaration.
+ The timeout parameters are

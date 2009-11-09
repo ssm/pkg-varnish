@@ -1,0 +1,41 @@
+#!/bin/sh
+
+# Postinst script for varnish.
+# Stig Sandbeck Mathisen <ssm@debian.org>
+
+# Settings
+user=varnish
+group=$user
+dir=/var/lib/varnish/$(uname -n)
+
+# Get return code from getent to check if user exists
+getent passwd $user >/dev/null
+getent=$?
+
+# For the remainder of the script, exit if we encounter an error
+set -e
+
+varnish_setup_user() {
+	if [ "$getent" = "0" ]; then
+		# user exists, do nothing
+		:
+        elif [ "$getent" = "2" ]; then
+		# user does not exist, create it
+                adduser --quiet --system --no-create-home --group $user
+	else
+		# getent could not figure out if the user exists or not, this
+		# is an error, see getent(1) for more information.  Exit with
+		# getent's exit code
+		return $getent
+        fi
+}
+varnish_create_storagedir() {
+	if ! [ -d "$dir" ]; then
+		install -o $user -g $group -d $dir
+	fi
+}
+
+varnish_setup_user
+varnish_create_storagedir
+
+#DEBHELPER#
