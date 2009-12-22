@@ -103,10 +103,6 @@ libvarnishapi.so.1 libvarnish1 #MINVER#
  base64_init@Base 2.0~rc1
  varnish_instance@Base 2.0~rc1
 libvarnishcompat.so.1 libvarnish1 #MINVER#
- backtrace@Base 2.0.5
- backtrace_symbols@Base 2.0.5
- getframeaddr@Base 2.0.5
- getreturnaddr@Base 2.0.5
  setproctitle@Base 2.0~rc1
  srandomdev@Base 2.0~rc1
  strlcat@Base 2.0~rc1

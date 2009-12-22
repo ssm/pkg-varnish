@@ -1,3 +1,12 @@
+varnish (2.0.6-1) unstable; urgency=low
+
+  * New upstream version (Closes: #561506)
+  * debian/patches/vcl.7.patch: Remove patch, no longer needed
+  * debian/libvarnish1.symbols: Removed some symbols for libvarnishcompat.so.1
+  * init scripts: Add "status" argument (Closes: #561538)
+
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Tue, 22 Dec 2009 15:38:53 +0000
+
 varnish (2.0.5-1) unstable; urgency=low
 
   * New upstream release
