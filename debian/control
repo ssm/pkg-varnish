@@ -1,8 +1,8 @@
 Source: varnish
 Section: web
 Priority: optional
-Maintainer: Stig Sandbeck Mathisen <ssm@debian.org>
-Uploaders: Lars Bahner <bahner@debian.org>, Fabio Tranchitella <kobold@debian.org>
+Maintainer: Varnish Package Maintainers <pkg-varnish-devel@lists.alioth.debian.org>
+Uploaders: Stig Sandbeck Mathisen <ssm@debian.org>, Lars Bahner <bahner@debian.org>, Fabio Tranchitella <kobold@debian.org>
 Build-Depends: debhelper (>= 5), autotools-dev, automake1.9, libtool, autoconf, libncurses-dev, xsltproc, groff-base
 Vcs-Browser: http://svn.debian.org/viewsvn/pkg-varnish/packages/varnish/
 Vcs-Svn: svn://svn.debian.org/pkg-varnish/packages/varnish
@@ -11,7 +11,7 @@ Standards-Version: 3.8.3
 
 Package: varnish
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, gcc ( >= 3.3), libc6-dev | libc6.1-dev | libc-dev, adduser
+Depends: ${shlibs:Depends}, ${misc:Depends}, libvarnish1 (= ${binary:Version}), gcc ( >= 3.3), libc6-dev | libc6.1-dev | libc-dev, adduser
 Description: a state-of-the-art, high-performance HTTP accelerator
  Varnish is a state-of-the-art, high-performance HTTP accelerator.  It uses the
  advanced features in Linux 2.6, FreeBSD 6/7 and Solaris 10 to achieve its high

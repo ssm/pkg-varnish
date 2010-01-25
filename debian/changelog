@@ -1,3 +1,11 @@
+varnish (2.0.6-2) unstable; urgency=low
+
+  * Set the mailing list address as maintainer, and the members as uploaders
+  * Fix "Varnish 2.0.6 incompatible with libvarnish1 2.0.5" by adding a
+    versioned dependency on libvarnish1 (Closes: #566756)
+
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Mon, 25 Jan 2010 07:07:54 +0000
+
 varnish (2.0.6-1) unstable; urgency=low
 
   * New upstream version (Closes: #561506)
