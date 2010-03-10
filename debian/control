@@ -6,7 +6,7 @@ Uploaders: Stig Sandbeck Mathisen <ssm@debian.org>, Lars Bahner <bahner@debian.o
 Build-Depends: debhelper (>= 5), autotools-dev, automake1.9, libtool, autoconf, libncurses-dev, xsltproc, groff-base
 Vcs-Browser: http://svn.debian.org/viewsvn/pkg-varnish/packages/varnish/
 Vcs-Svn: svn://svn.debian.org/pkg-varnish/packages/varnish
-XBS-Homepage: http://varnish.projects.linpro.no/
+XBS-Homepage: http://varnish-cache.org/
 Standards-Version: 3.8.3
 
 Package: varnish
