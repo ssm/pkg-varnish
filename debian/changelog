@@ -1,8 +1,9 @@
 varnish (2.1.0-1) unstable; urgency=low
 
   * New upstream version
+  * Fix small error in man/vcl.7so
 
- -- Stig Sandbeck Mathisen <ssm@debian.org>  Wed, 24 Mar 2010 12:16:44 +0100
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Wed, 24 Mar 2010 13:26:08 +0000
 
 varnish (2.0.6-2) unstable; urgency=low
 
