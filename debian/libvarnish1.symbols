@@ -1,6 +1,16 @@
 libvarnish.so.1 libvarnish1 #MINVER#
  BackSlash@Base 2.0.5
  BackSlashDecode@Base 2.0.5
+ CLI_response@Base 2.1.0
+ CLS_AddFd@Base 2.1.0
+ CLS_AddFunc@Base 2.1.0
+ CLS_Destroy@Base 2.1.0
+ CLS_New@Base 2.1.0
+ CLS_Poll@Base 2.1.0
+ CLS_PollFd@Base 2.1.0
+ CLS_func_close@Base 2.1.0
+ CLS_func_help@Base 2.1.0
+ CLS_func_ping@Base 2.1.0
  FreeArgv@Base 2.0~rc1
  ParseArgv@Base 2.0~rc1
  SHA256_Final@Base 2.0.3
@@ -12,6 +22,7 @@ libvarnish.so.1 libvarnish1 #MINVER#
  TCP_close@Base 2.0~rc1
  TCP_connect@Base 2.0~rc1
  TCP_filter_http@Base 2.0~rc1
+ TCP_hisname@Base 2.1.0
  TCP_linger@Base 2.0.5
  TCP_myname@Base 2.0~rc1
  TCP_name@Base 2.0~rc1
@@ -22,11 +33,15 @@ libvarnish.so.1 libvarnish1 #MINVER#
  TIM_parse@Base 2.0~rc1
  TIM_real@Base 2.0~rc1
  TIM_sleep@Base 2.0~rc1
+ VLU_Data@Base 2.1.0
  VLU_Destroy@Base 2.0~rc1
  VLU_Fd@Base 2.0~rc1
  VLU_File@Base 2.0~rc1
  VLU_New@Base 2.0~rc1
  VLU_SetTelnet@Base 2.0.4
+ VRE_compile@Base 2.1.0
+ VRE_exec@Base 2.1.0
+ VRE_free@Base 2.1.0
  VSS_bind@Base 2.0~rc1
  VSS_connect@Base 2.0~rc1
  VSS_listen@Base 2.0~rc1
@@ -37,22 +52,23 @@ libvarnish.so.1 libvarnish1 #MINVER#
  binheap_insert@Base 2.0~rc1
  binheap_new@Base 2.0~rc1
  binheap_root@Base 2.0~rc1
- cli_concat@Base 2.0~rc1
- cli_dispatch@Base 2.0~rc1
- cli_func_help@Base 2.0~rc1
- cli_func_ping@Base 2.0~rc1
+#MISSING: 2.1.0# cli_concat@Base 2.0~rc1
+#MISSING: 2.1.0# cli_dispatch@Base 2.0~rc1
+#MISSING: 2.1.0# cli_func_help@Base 2.0~rc1
+#MISSING: 2.1.0# cli_func_ping@Base 2.0~rc1
  cli_out@Base 2.0~rc1
- cli_param@Base 2.0~rc1
+#MISSING: 2.1.0# cli_param@Base 2.0~rc1
  cli_quote@Base 2.0~rc1
  cli_readres@Base 2.0~rc1
  cli_result@Base 2.0~rc1
  cli_writeres@Base 2.0~rc1
- crc32@Base 2.0~rc1
- crc32_l@Base 2.0~rc1
+#MISSING: 2.1.0# crc32@Base 2.0~rc1
+#MISSING: 2.1.0# crc32_l@Base 2.0~rc1
  flopen@Base 2.0~rc1
- inxorcise@Base 2.0.4
+#MISSING: 2.1.0# inxorcise@Base 2.0.4
  lbv_assert@Base 2.0~rc1
  str2bytes@Base 2.0~rc1
+ svn_version@Base 2.1.0
  varnish_version@Base 2.0~rc1
  vct_typtab@Base 2.0~rc1
  vev_add@Base 2.0~rc1
@@ -89,6 +105,7 @@ libvarnish.so.1 libvarnish1 #MINVER#
  vtmpfile@Base 2.0~rc1
 libvarnishapi.so.1 libvarnish1 #MINVER#
  VSL_Arg@Base 2.0~rc1
+ VSL_Close@Base 2.1.0
  VSL_Dispatch@Base 2.0~rc1
  VSL_H_Print@Base 2.0~rc1
  VSL_Name@Base 2.0~rc1
@@ -119,7 +136,7 @@ libvcl.so.1 libvarnish1 #MINVER#
  Fi@Base 2.0~rc1
  IsMethod@Base 2.0~rc1
  TlAlloc@Base 2.0~rc1
- TlFree@Base 2.0~rc1
+#MISSING: 2.1.0# TlFree@Base 2.0~rc1
  VCC_Compile@Base 2.0~rc1
 #MISSING: 2.0.3# VCC_CompileFile@Base 2.0~rc1
  VCC_InitCompile@Base 2.0~rc1
@@ -157,7 +174,7 @@ libvcl.so.1 libvarnish1 #MINVER#
  vcc_ParseRoundRobinDirector@Base 2.0~rc1
  vcc_ProcAction@Base 2.0~rc1
  vcc_RTimeVal@Base 2.0~rc1
- vcc_RateVal@Base 2.0~rc1
+#MISSING: 2.1.0# vcc_RateVal@Base 2.0~rc1
  vcc_ResetFldSpec@Base 2.0~rc1
  vcc_SizeVal@Base 2.0~rc1
  vcc_StringVal@Base 2.0~rc1
