@@ -7,7 +7,7 @@ Build-Depends: debhelper (>= 5), autotools-dev, automake1.9, libtool, autoconf, 
 Vcs-Browser: http://svn.debian.org/viewsvn/pkg-varnish/packages/varnish/
 Vcs-Svn: svn://svn.debian.org/pkg-varnish/packages/varnish
 XBS-Homepage: http://varnish-cache.org/
-Standards-Version: 3.8.3
+Standards-Version: 3.8.4
 
 Package: varnish
 Architecture: any
