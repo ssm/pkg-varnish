@@ -7,6 +7,7 @@
 user=varnish
 group=$user
 dir=/var/lib/varnish/$(uname -n)
+secret_file=/etc/varnish/secret
 
 # Get return code from getent to check if user exists
 getent passwd $user >/dev/null
@@ -35,7 +36,14 @@ varnish_create_storagedir() {
 	fi
 }
 
+varnish_create_secret() {
+	if ! [ -f "${secret_file}" ]; then
+		install -m 0600 /proc/sys/kernel/random/uuid "${secret_file}"
+	fi
+}
+
 varnish_setup_user
 varnish_create_storagedir
+varnish_create_secret
 
 #DEBHELPER#

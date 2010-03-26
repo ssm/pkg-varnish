@@ -1,0 +1,14 @@
+varnish (2.1.0-2) unstable; urgency=low
+
+  Varnish 2.1.0 provides authentication for the management port.  The
+  packaging defaults now use this functionality.
+
+  The secret is used by "varnishd" and "varnishadm", and is stored in
+  the file /etc/varnish/secret by default.  This file has been created
+  for you by the post installation script.
+
+  If you use varnishadm manually to manage your varnish instance, or
+  have changed /etc/default/varnish, you will need to add the option
+  "-S /etc/varnish/secret" to "varnishd" and "varnishadm".
+
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Fri, 26 Mar 2010 10:38:21 +0100

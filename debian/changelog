@@ -1,3 +1,9 @@
+varnish (2.1.0-2) unstable; urgency=low
+
+  * Require authentication for the varnishd management port
+
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Fri, 26 Mar 2010 11:38:19 +0100
+
 varnish (2.1.0-1) unstable; urgency=low
 
   * New upstream version
