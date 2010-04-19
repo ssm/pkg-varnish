@@ -41,7 +41,7 @@ msg_secret_not_there="Error: Secret file %s does not exist\n"
 # kernel random uuid generator, fallback to timestamp
 if [ -f /proc/sys/kernel/random/uuid ]
 then
-    read uuid < /proc/sys/kernel/random/uuid
+    uuid=$(cat /proc/sys/kernel/random/uuid)
     vcl_label="${LOGNAME}${LOGNAME:+:}${uuid}"
 else
     vcl_label="$($date +${LOGNAME}${LOGNAME:+:}%s.%N)"
