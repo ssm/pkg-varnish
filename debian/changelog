@@ -1,8 +1,10 @@
 varnish (2.1.1-1) UNRELEASED; urgency=low
 
   * New upstream version
+  * Fix issue with "/etc/init.d/varnish reload" not working more than a few
+    times when /bin/sh is provided by "dash"
 
- -- Stig Sandbeck Mathisen <ssm@debian.org>  Mon, 26 Apr 2010 13:48:08 +0200
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Mon, 26 Apr 2010 15:28:39 +0200
 
 varnish (2.1.0-2) unstable; urgency=low
 
