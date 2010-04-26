@@ -181,6 +181,7 @@ libvcl.so.1 libvarnish1 #MINVER#
  vcc_Teq@Base 2.0~rc1
  vcc_TimeVal@Base 2.0~rc1
  vcc_UintVal@Base 2.0~rc1
+ vcc_VarVal@Base 2.1.1
  vcc__ErrInternal@Base 2.0~rc1
  vcc__Expect@Base 2.0~rc1
  vcc_regexp@Base 2.0~rc1
