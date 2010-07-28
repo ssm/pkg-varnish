@@ -11,7 +11,7 @@ Build-Depends: debhelper (>= 5), autotools-dev, automake1.9, libtool,
 Vcs-Browser: http://git.debian.org/?p=pkg-varnish/pkg-varnish.git;a=summary
 Vcs-Git: git://git.debian.org/pkg-varnish/pkg-varnish.git
 Homepage: http://varnish-cache.org/
-Standards-Version: 3.8.4
+Standards-Version: 3.9.1
 
 Package: varnish
 Architecture: any
