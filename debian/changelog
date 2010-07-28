@@ -1,3 +1,9 @@
+varnish (2.1.3-1) UNRELEASED; urgency=low
+
+  * New upstream version
+
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Wed, 28 Jul 2010 15:39:09 +0200
+
 varnish (2.1.2-1) unstable; urgency=low
 
   * New upstream version
