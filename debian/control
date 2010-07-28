@@ -2,11 +2,15 @@ Source: varnish
 Section: web
 Priority: optional
 Maintainer: Varnish Package Maintainers <pkg-varnish-devel@lists.alioth.debian.org>
-Uploaders: Stig Sandbeck Mathisen <ssm@debian.org>, Lars Bahner <bahner@debian.org>, Fabio Tranchitella <kobold@debian.org>
-Build-Depends: debhelper (>= 5), autotools-dev, automake1.9, libtool, autoconf, libncurses-dev, xsltproc, groff-base,libpcre3-dev,pkg-config
-Vcs-Browser: http://svn.debian.org/viewsvn/pkg-varnish/packages/varnish/
-Vcs-Svn: svn://svn.debian.org/pkg-varnish/packages/varnish
-XBS-Homepage: http://varnish-cache.org/
+Uploaders: Stig Sandbeck Mathisen <ssm@debian.org>,
+ Lars Bahner <bahner@debian.org>,
+ Fabio Tranchitella <kobold@debian.org>
+Build-Depends: debhelper (>= 5), autotools-dev, automake1.9, libtool,
+ autoconf, libncurses-dev, xsltproc, groff-base, libpcre3-dev,
+ pkg-config, tcl8.5 | tclsh
+Vcs-Browser: http://git.debian.org/?p=pkg-varnish/pkg-varnish.git;a=summary
+Vcs-Git: git://git.debian.org/pkg-varnish/pkg-varnish.git
+Homepage: http://varnish-cache.org/
 Standards-Version: 3.8.4
 
 Package: varnish
