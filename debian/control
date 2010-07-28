@@ -23,7 +23,7 @@ Description: a state-of-the-art, high-performance HTTP accelerator
   * Load balancing with health checking of backends
   * Partial support for ESI - Edge Side Includes
   * URL rewriting
-  * Graceful handling of "dead" backends 
+  * Graceful handling of "dead" backends
 
 Package: libvarnish1
 Section: libs

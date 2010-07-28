@@ -228,7 +228,7 @@ varnish (1.0.4-1) unstable; urgency=low
 
 varnish (1.0.3-2) unstable; urgency=low
 
-  * Added postrm to partially solve 400384 
+  * Added postrm to partially solve 400384
 
  -- Lars Bahner <bahner@debian.org>  Tue, 27 Feb 2007 20:41:10 +0100
 
@@ -281,4 +281,3 @@ varnish (1.0.1-1) unstable; urgency=low
   * Initial release (Closes: #382451)
 
  -- Lars Bahner <bahner@debian.org>  Fri,  6 Oct 2006 16:26:57 +0200
-

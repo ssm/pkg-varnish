@@ -3,8 +3,8 @@
 set -e
 
 case "$1" in
-	upgrade)
-	;;
+        upgrade)
+        ;;
 
         remove|failed-upgrade|abort-install|abort-upgrade|disappear)
 
@@ -15,7 +15,7 @@ case "$1" in
         fi
 
         if test -e /var/lib/varnish; then
-        
+
                 rm -r /var/lib/varnish > /dev/null 2>&1 || exit 78
         fi
 
@@ -23,14 +23,14 @@ case "$1" in
 
         purge)
 
-        if test -e /var/log/varnish; then 
+        if test -e /var/log/varnish; then
 
                 rm -r /var/log/varnish > /dev/null 2>&1 || exit 78
-                
+
         fi
 
         if test -e /var/lib/varnish; then
-        
+
                 rm -r /var/lib/varnish > /dev/null 2>&1 || exit 78
         fi
 
