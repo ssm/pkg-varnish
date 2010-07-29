@@ -1,106 +1,37 @@
 #!/usr/bin/make -f
-# -*- makefile -*-
-# Sample debian/rules that uses debhelper.
-# This file was originally written by Joey Hess and Craig Small.
-# As a special exception, when this file is copied by dh-make into a
-# dh-make output file, you may use that output file without restriction.
-# This special exception was added by Craig Small in version 0.37 of dh-make.
 
-# Uncomment this to turn on verbose mode.
-#export DH_VERBOSE=1
+DH_VERBOSE=1
 
-# These are used for cross-compiling and for saving the configure script
-# from having to guess our platform (since we know it already)
-DEB_HOST_GNU_TYPE   ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
-DEB_BUILD_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
-DEB_HOST_ARCH_CPU   := $(shell dpkg-architecture -qDEB_HOST_ARCH_CPU 2>/dev/null)
-
-CFLAGS = -Wall -g
-
-ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
-	CFLAGS += -O0
-else
-	CFLAGS += -O2
-endif
+# Set local state dir for FHS
+LOCAL_CONFIGURE_FLAGS = --localstatedir=/var/lib
 
 # Disable jemalloc for architectures that lack *_2POW definitions
 ifneq (,$(findstring :$(DEB_HOST_ARCH_CPU):,:hppa:s390:sparc:m68k:))
-	ARCH_CONFIG_FLAGS="--disable-jemalloc"
+LOCAL_CONFIGURE_FLAGS += --disable-jemalloc
 endif
 
-configure:
-	./autogen.sh
+%:
+	dh $@
 
-config.status: configure
-	dh_testdir
-	# The boilerplate linker flags won't allow varnish to compile :(
-	# There are circular dependencies in the varnish libraries, but
-	# the core developers have OK'ed that we don't check.
-	[ -r /usr/share/misc/config.sub ] && \
-	    cp -f /usr/share/misc/config.sub config.sub || true
-	[ -r /usr/share/misc/config.guess ] && \
-	    cp -f /usr/share/misc/config.guess config.guess || true
-	./configure \
-	    --host=$(DEB_HOST_GNU_TYPE) \
-	    --build=$(DEB_BUILD_GNU_TYPE) \
-	    $(ARCH_CONFIG_FLAGS) \
-	    --prefix=/usr \
-		--mandir=\$${prefix}/share/man \
-		--infodir=\$${prefix}/share/info \
-		CFLAGS="$(CFLAGS)" --localstatedir=/var/lib
+# Override to add local configure flags
+override_dh_auto_configure:
+	dh_auto_configure -- $(LOCAL_CONFIGURE_FLAGS)
 
-build: build-stamp
+# Override to rewrite default.vcl
+override_dh_auto_install:
+	dh_auto_install -a
+	sed -i '/backend default {/,/}/ s/^#[[:space:]]//'  \
+		$(CURDIR)/debian/tmp/etc/varnish/default.vcl
 
-build-stamp: config.status
-	dh_testdir
-	$(MAKE)
-	touch $@
+# Override to add the "reload-vcl" script
+override_dh_install:
+	dh_install -a
+	install -o root -g root -m 755 \
+		$(CURDIR)/debian/reload-vcl \
+		$(CURDIR)/debian/varnish/usr/share/varnish/reload-vcl
 
-clean:
-	dh_testdir
-	dh_testroot
-	rm -f build-stamp
-	[ -f config.sub.orig ] && mv config.sub.orig config.sub || true
-	[ -f config.guess.orig ] && mv config.sub.orig config.guess || true
-	if [ -f Makefile ]; then make distclean ; fi
-	dh_clean
-
-install: build
-	dh_testdir
-	dh_testroot
-	dh_clean -k
-	dh_installdirs
-	$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp
-	dh_install --sourcedir=$(CURDIR)/debian/tmp
-	sed '/backend default {/,/}/ s/^#//' $(CURDIR)/etc/default.vcl > $(CURDIR)/debian/varnish/etc/varnish/default.vcl
-	install -m 644 $(CURDIR)/debian/varnish.logrotate $(CURDIR)/debian/varnish/etc/logrotate.d/varnish
-	install -m 755 $(CURDIR)/debian/reload-vcl $(CURDIR)/debian/varnish/usr/share/varnish/reload-vcl
-
-# Build architecture-independent files here.
-binary-indep: build install
-# We have nothing to do by default.
-
-# Build architecture-dependent files here.
-binary-arch: build install
-	dh_testdir
-	dh_testroot
-	dh_installchangelogs ChangeLog
-	dh_installdocs
-	dh_installinit
+# Override 
+override_dh_installinit:
+	dh_installinit -a
 	dh_installinit --name=varnishlog
 	dh_installinit --name=varnishncsa
-	dh_installman
-	dh_installexamples
-	dh_link
-	dh_strip
-	dh_compress
-	dh_fixperms
-	dh_makeshlibs
-	dh_installdeb
-	dh_shlibdeps
-	dh_gencontrol
-	dh_md5sums
-	dh_builddeb
-
-binary: binary-indep binary-arch
-.PHONY: build clean binary-indep binary-arch binary install

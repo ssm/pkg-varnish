@@ -5,7 +5,7 @@ Maintainer: Varnish Package Maintainers <pkg-varnish-devel@lists.alioth.debian.o
 Uploaders: Stig Sandbeck Mathisen <ssm@debian.org>,
  Lars Bahner <bahner@debian.org>,
  Fabio Tranchitella <kobold@debian.org>
-Build-Depends: debhelper (>= 5), autotools-dev, automake1.9, libtool,
+Build-Depends: debhelper (>= 7.0.50~), autotools-dev, automake1.9, libtool,
  autoconf, libncurses-dev, xsltproc, groff-base, libpcre3-dev,
  pkg-config, tcl8.5 | tclsh
 Vcs-Browser: http://git.debian.org/?p=pkg-varnish/pkg-varnish.git;a=summary
