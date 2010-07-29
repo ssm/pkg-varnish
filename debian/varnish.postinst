@@ -3,47 +3,61 @@
 # Postinst script for varnish.
 # Stig Sandbeck Mathisen <ssm@debian.org>
 
+set -e
+set -u
+
 # Settings
-user=varnish
-group=$user
-dir=/var/lib/varnish/$(uname -n)
+daemon_user="varnish"
+log_user="varnishlog"
+daemon_dir=/var/lib/varnish/$(uname -n)
+log_dir="/var/log/varnish"
 secret_file=/etc/varnish/secret
 
-# Get return code from getent to check if user exists
-getent passwd $user >/dev/null
-getent=$?
-
-# For the remainder of the script, exit if we encounter an error
-set -e
-
 varnish_setup_user() {
-	if [ "$getent" = "0" ]; then
-		# user exists, do nothing
-		:
-        elif [ "$getent" = "2" ]; then
-		# user does not exist, create it
-                adduser --quiet --system --no-create-home --group $user
-	else
-		# getent could not figure out if the user exists or not, this
-		# is an error, see getent(1) for more information.  Exit with
-		# getent's exit code
-		return $getent
-        fi
+    if ! getent passwd $1 2>&1 >/dev/null; then
+        adduser --quiet --system --no-create-home --group $1
+    fi
 }
+
 varnish_create_storagedir() {
-	if ! [ -d "$dir" ]; then
-		install -o $user -g $group -d $dir
-	fi
+    if ! [ -d "$daemon_dir" ]; then
+        install -o $daemon_user -g $daemon_user -d $daemon_dir
+    fi
+}
+
+varnish_setup_logdir() {
+    if ! dpkg-statoverride --list $log_dir >/dev/null; then
+        dpkg-statoverride --update --add $log_user $log_user 0750 $log_dir
+    fi
 }
 
 varnish_create_secret() {
-	if ! [ -f "${secret_file}" ]; then
-		install -m 0600 /proc/sys/kernel/random/uuid "${secret_file}"
-	fi
+    if ! [ -f "${secret_file}" ]; then
+        install -m 0600 /proc/sys/kernel/random/uuid "${secret_file}"
+    fi
 }
 
-varnish_setup_user
-varnish_create_storagedir
-varnish_create_secret
+# varnish version 2.1.3-1 and older ran the log demons as root, we
+# need to change the owner of the old logs for upgrading clients
+upgrade_change_log_permissions() {
+    chown -Rhf ${log_user}: ${log_dir}
+}
+
+case ${1:-} in
+    configure)
+
+        varnish_setup_user $daemon_user
+        varnish_setup_user $log_user
+        
+        varnish_create_storagedir
+        varnish_setup_logdir
+
+        varnish_create_secret
+
+        if dpkg --compare-versions "2.1.3-2" "gt-nl" "${2:-}" ; then
+            upgrade_change_log_permissions
+        fi
+        ;;
+esac
 
 #DEBHELPER#
