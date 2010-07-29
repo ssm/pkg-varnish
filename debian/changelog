@@ -1,3 +1,13 @@
+varnish (2.1.3-2) unstable; urgency=low
+
+  * Install all the needed library symlinks (Closes: #585128) (LP:
+    #488258)
+  * Use a different user for the varnish log daemons (LP: #461593)
+  * Do not start automatically when installed (LP: #569060)
+  * Clean up rules file, use debhelper v7
+
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Thu, 29 Jul 2010 23:36:35 +0200
+
 varnish (2.1.3-1) unstable; urgency=low
 
   * New upstream version
