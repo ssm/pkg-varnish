@@ -1,3 +1,14 @@
+varnish (2.1.3-2) lucid; urgency=low
+
+  Varnish will no longer start by default when installed.  Edit
+  /etc/default/varnish, and set START=yes to enable varnishd at boot.
+
+  This may also affect you after upgrading if you never have changed
+  /etc/default/varnish, or if you accepted changes to /etc/default/varnish
+  during upgrade.
+
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Thu, 29 Jul 2010 01:02:21 +0200
+
 varnish (2.1.0-2) unstable; urgency=low
 
   Varnish 2.1.0 provides authentication for the management port.  The
