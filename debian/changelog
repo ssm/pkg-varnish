@@ -1,3 +1,10 @@
+varnish (2.1.3-4) unstable; urgency=low
+
+  * Make sure we do not run the build tests on "armel" (by specifying
+    "arm" instead of "armel")
+
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Fri, 06 Aug 2010 01:59:40 +0200
+
 varnish (2.1.3-3) unstable; urgency=low
 
   * Disable build tests for some architectures (Closes: #591256)
