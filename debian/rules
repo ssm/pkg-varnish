@@ -11,7 +11,7 @@ LOCAL_CONFIGURE_FLAGS += --disable-jemalloc
 endif
 
 # Disable build tests for some architectures
-ifneq (,$(findstring :$(DEB_HOST_ARCH_CPU):,:armel:hppa:ia64:sparc:))
+ifneq (,$(findstring :$(DEB_HOST_ARCH_CPU):,:arm:hppa:ia64:sparc:))
 override_dh_auto_test:
 endif
 
