@@ -40,6 +40,9 @@ ulimit -l ${MEMLOCK:-82000}
 # installed application server.)
 DAEMON_OPTS=${DAEMON_OPTS:--b localhost}
 
+# Ensure we have a PATH
+export PATH="${PATH:+$PATH:}/usr/sbin:/usr/bin:/sbin:/bin"
+
 start_varnishd() {
     log_daemon_msg "Starting $DESC" "$NAME"
     output=$(/bin/tempfile -s.varnish)
