@@ -1,3 +1,13 @@
+varnish (2.1.3-7) unstable; urgency=high
+
+  [ Faidon Liambotis ]
+  * Fix FTBFS race condition in tests/v00014.vtc (Closes: #594777)
+
+  [ Stig Sandbeck Mathisen ]
+  * Urgency "high" due to FTBFS RC bug during squeeze freeze
+
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Thu, 09 Sep 2010 21:03:24 +0200
+
 varnish (2.1.3-6) unstable; urgency=low
 
   * Install only libvarnishapi.so (Closes: #592244)
