@@ -33,7 +33,13 @@ varnish_setup_logdir() {
 
 varnish_create_secret() {
     if ! [ -f "${secret_file}" ]; then
-        install -m 0600 /proc/sys/kernel/random/uuid "${secret_file}"
+        if [ -f /proc/sys/kernel/random/uuid ]; then
+            install -m 0600 /proc/sys/kernel/random/uuid "${secret_file}"
+        else
+            install -m 0600 /dev/null "${secret_file}"
+            dd if=/dev/urandom count=1 bs=128 2>/dev/null \
+                | tr -dc "A-Za-z0-9" > "${secret_file}"
+        fi
     fi
 }
 
