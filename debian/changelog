@@ -1,3 +1,10 @@
+varnish (2.1.3-8) unstable; urgency=high
+
+  * Fix random secret creation on non-Linux kernels (Closes: #596373)
+  * Urgency "high" due to FTBFS RC bug during squeeze freeze
+
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Fri, 24 Sep 2010 17:51:20 +0200
+
 varnish (2.1.3-7) unstable; urgency=high
 
   [ Faidon Liambotis ]
