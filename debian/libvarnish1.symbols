@@ -78,7 +78,7 @@ libvarnish.so.1 libvarnish1 #MINVER#
  vev_new_base@Base 2.0~rc1
  vev_schedule@Base 2.0~rc1
  vev_schedule_one@Base 2.0~rc1
- vmb_pthread@Base 2.1.3
+#MISSING: 2.1.4# vmb_pthread@Base 2.1.3
  vpf_close@Base 2.0~rc1
  vpf_open@Base 2.0~rc1
  vpf_remove@Base 2.0~rc1
@@ -105,6 +105,9 @@ libvarnish.so.1 libvarnish1 #MINVER#
  vsb_vprintf@Base 2.0~rc1
  vtmpfile@Base 2.0~rc1
 libvarnishapi.so.1 libvarnish1 #MINVER#
+ VRE_compile@Base 2.1.4
+ VRE_exec@Base 2.1.4
+ VRE_free@Base 2.1.4
  VSL_Arg@Base 2.0~rc1
  VSL_Close@Base 2.1.0
  VSL_Dispatch@Base 2.0~rc1
@@ -119,6 +122,7 @@ libvarnishapi.so.1 libvarnish1 #MINVER#
  VSL_tags@Base 2.0~rc1
  base64_decode@Base 2.0~rc1
  base64_init@Base 2.0~rc1
+ lbv_assert@Base 2.1.4
  varnish_instance@Base 2.0~rc1
 libvarnishcompat.so.1 libvarnish1 #MINVER#
  setproctitle@Base 2.0~rc1
@@ -129,6 +133,7 @@ libvarnishcompat.so.1 libvarnish1 #MINVER#
 #MISSING: 2.0.3# strvisx@Base 2.0~rc1
 #MISSING: 2.0.3# vis@Base 2.0~rc1
 libvcl.so.1 libvarnish1 #MINVER#
+ Emit_Sockaddr@Base 2.1.4
  EncToken@Base 2.0~rc1
  Fb@Base 2.0~rc1
  Fc@Base 2.0~rc1
@@ -156,6 +161,7 @@ libvcl.so.1 libvarnish1 #MINVER#
  vcc_Cond_Ip@Base 2.0~rc1
  vcc_Coord@Base 2.0~rc1
  vcc_DoubleVal@Base 2.0~rc1
+ vcc_EmitBeIdent@Base 2.1.4
  vcc_ErrToken@Base 2.0~rc1
  vcc_ErrWhere@Base 2.0~rc1
  vcc_ExpectCid@Base 2.0~rc1
@@ -171,6 +177,7 @@ libvcl.so.1 libvarnish1 #MINVER#
  vcc_ParseAction@Base 2.0~rc1
  vcc_ParseBackendHost@Base 2.0~rc1
  vcc_ParseDirector@Base 2.0~rc1
+ vcc_ParseDnsDirector@Base 2.1.4
  vcc_ParseRandomDirector@Base 2.0~rc1
  vcc_ParseRoundRobinDirector@Base 2.0~rc1
  vcc_ProcAction@Base 2.0~rc1
