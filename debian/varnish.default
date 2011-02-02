@@ -4,8 +4,8 @@
 # to be set from this shell script fragment.
 #
 
-# Should we start varnishd at boot?  Set to "yes" to enable.
-START=no
+# Should we start varnishd at boot?  Set to "no" to disable.
+START=yes
 
 # Maximum number of open files (for ulimit -n)
 NFILES=131072
