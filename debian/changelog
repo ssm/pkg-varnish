@@ -1,3 +1,13 @@
+varnish (2.1.5-1) experimental; urgency=low
+
+  * New upstream release
+  * Change default storage method to malloc, 256 MB
+  * Start varnishd by default, since the new storage method has less system
+    impact
+  * Update symbols file for 2.1.5
+
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Wed, 02 Feb 2011 13:33:53 +0100
+
 varnish (2.1.4-1) experimental; urgency=low
 
   * New upstream version
