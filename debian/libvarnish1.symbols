@@ -51,6 +51,7 @@ libvarnish.so.1 libvarnish1 #MINVER#
  binheap_delete@Base 2.0~rc1
  binheap_insert@Base 2.0~rc1
  binheap_new@Base 2.0~rc1
+ binheap_reorder@Base 2.1.5
  binheap_root@Base 2.0~rc1
 #MISSING: 2.1.0# cli_concat@Base 2.0~rc1
 #MISSING: 2.1.0# cli_dispatch@Base 2.0~rc1
