@@ -34,6 +34,7 @@ endif
 
 # Override to add local configure flags
 override_dh_auto_configure:
+	$(CURDIR)/autogen.sh
 	dh_auto_configure -- $(LOCAL_CONFIGURE_FLAGS)
 
 # Override to rewrite default.vcl
