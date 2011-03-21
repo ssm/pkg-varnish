@@ -1,3 +1,9 @@
+varnish (2.1.5-2) unstable; urgency=low
+
+  * Release for unstable
+
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Mon, 21 Mar 2011 10:16:07 +0100
+
 varnish (2.1.5-1) experimental; urgency=low
 
   * New upstream release
