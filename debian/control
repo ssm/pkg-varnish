@@ -16,10 +16,14 @@ Standards-Version: 3.9.2
 Package: varnish
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, libvarnishapi1 (= ${binary:Version}), gcc ( >= 3.3), libc6-dev | libc6.1-dev | libc-dev, adduser
-Description: a state-of-the-art, high-performance HTTP accelerator
- Varnish is a state-of-the-art, high-performance HTTP accelerator.  It uses the
- advanced features in Linux 2.6, FreeBSD 6/7 and Solaris 10 to achieve its high
- performance.
+Description: state of the art, high-performance web accelerator
+ Varnish Cache is a state of the art web accelerator written with
+ performance and flexibility in mind.
+ .
+ Varnish Cache stores web pages in memory so web servers don't have to
+ create the same web page over and over again. Varnish serves pages
+ much faster than any application server; giving the website a
+ significant speed up.
  .
  Some of the features include:
   * A modern design
