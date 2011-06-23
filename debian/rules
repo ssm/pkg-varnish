@@ -37,6 +37,10 @@ override_dh_auto_configure:
 	$(CURDIR)/autogen.sh
 	dh_auto_configure -- $(LOCAL_CONFIGURE_FLAGS)
 
+override_dh_auto_build:
+	dh_auto_build
+	$(MAKE) dist
+
 override_dh_auto_install:
 	dh_auto_install -a
 	@ # Activate the default backend
@@ -48,15 +52,25 @@ override_dh_auto_install:
 		$(CURDIR)/debian/tmp/usr/lib/*.la \
 		$(CURDIR)/debian/tmp/usr/lib/varnish/*.la
 
-# Override to add the "reload-vcl" script
 override_dh_install:
 	dh_install -a
+	@ # Override to add the "reload-vcl" script
 	install -o root -g root -m 755 \
 		$(CURDIR)/debian/reload-vcl \
 		$(CURDIR)/debian/varnish/usr/share/varnish/reload-vcl
+
+override_dh_installdocs:
+	dh_installdocs
+	@ # Use the packaged version of jquery
+	rm -f $(CURDIR)/debian/varnish-doc/usr/share/doc/varnish-doc/html/_static/jquery.js
+	ln -s /usr/share/javascript/jquery/jquery.js \
+		$(CURDIR)/debian/varnish-doc/usr/share/doc/varnish-doc/html/_static/jquery.js
 
 # Override to add several init scripts
 override_dh_installinit:
 	dh_installinit -a
 	dh_installinit --name=varnishlog
 	dh_installinit --name=varnishncsa
+
+override_dh_compress:
+	dh_compress -X/usr/share/doc/varnish-doc/html

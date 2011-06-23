@@ -7,7 +7,7 @@ Uploaders: Stig Sandbeck Mathisen <ssm@debian.org>,
  Tollef Fog Heen <tfheen@debian.org>
 Build-Depends: debhelper (>= 7.0.50~), autotools-dev, automake1.9, libtool,
  autoconf, libncurses-dev, xsltproc, groff-base, libpcre3-dev,
- pkg-config, tcl8.5 | tclsh, python-docutils, libedit-dev
+ pkg-config, tcl8.5 | tclsh, python-docutils, libedit-dev, python-sphinx
 Vcs-Browser: http://git.debian.org/?p=pkg-varnish/pkg-varnish.git;a=summary
 Vcs-Git: git://git.debian.org/pkg-varnish/pkg-varnish.git
 Homepage: http://varnish-cache.org/
@@ -16,6 +16,7 @@ Standards-Version: 3.9.2
 Package: varnish
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, gcc ( >= 3.3), libc6-dev | libc6.1-dev | libc-dev, adduser
+Suggests: varnish-doc
 Description: state of the art, high-performance web accelerator
  Varnish Cache is a state of the art web accelerator written with
  performance and flexibility in mind.
@@ -32,6 +33,13 @@ Description: state of the art, high-performance web accelerator
   * Partial support for ESI - Edge Side Includes
   * URL rewriting
   * Graceful handling of "dead" backends
+
+Package: varnish-doc
+Architecture: all
+Section: doc
+Depends: ${misc:Depends}, libjs-jquery
+Description: documentation for Varnish Cache
+ This package contains HTML documentation for Varnish Cache.
 
 Package: libvarnishapi1
 Section: libs
