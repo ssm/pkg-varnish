@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2008-2010 Redpill Linpro AS
+/*-
+ * Copyright (c) 2008-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -28,15 +28,11 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <pthread.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -62,7 +58,7 @@ struct server {
 
 	int			depth;
 	int			sock;
-	char			*listen;
+	char			listen[256];
 	struct vss_addr		**vss_addr;
 	char			*addr;
 	char			*port;
@@ -103,12 +99,13 @@ server_thread(void *priv)
 		fd = accept(s->sock, addr, &l);
 		if (fd < 0)
 			vtc_log(vl, 0, "Accepted failed: %s", strerror(errno));
+		vtc_log(vl, 3, "accepted fd %d", fd);
 		http_process(vl, s->spec, fd, s->sock);
 		vtc_log(vl, 3, "shutting fd %d", fd);
 		j = shutdown(fd, SHUT_WR);
-		if (!TCP_Check(j))
+		if (!VTCP_Check(j))
 			vtc_log(vl, 0, "Shutdown failed: %s", strerror(errno));
-		TCP_close(&fd);
+		VTCP_close(&fd);
 	}
 	vtc_log(vl, 2, "Ending");
 	return (NULL);
@@ -132,7 +129,7 @@ server_new(const char *name)
 	if (*s->name != 's')
 		vtc_log(s->vl, 0, "Server name must start with 's'");
 
-	REPLACE(s->listen, "127.0.0.1:0");
+	bprintf(s->listen, "127.0.0.1:%d", 0);
 	AZ(VSS_parse(s->listen, &s->addr, &s->port));
 	s->repeat = 1;
 	s->depth = 1;
@@ -154,7 +151,6 @@ server_delete(struct server *s)
 	macro_def(s->vl, s->name, "port", NULL);
 	macro_def(s->vl, s->name, "sock", NULL);
 	vtc_logclose(s->vl);
-	free(s->listen);
 	free(s->name);
 	/* XXX: MEMLEAK (?) (VSS ??) */
 	FREE_OBJ(s);
@@ -180,7 +176,7 @@ server_start(struct server *s)
 			    s->listen, naddr);
 		s->sock = VSS_listen(s->vss_addr[0], s->depth);
 		assert(s->sock >= 0);
-		TCP_myname(s->sock, s->aaddr, sizeof s->aaddr,
+		VTCP_myname(s->sock, s->aaddr, sizeof s->aaddr,
 		    s->aport, sizeof s->aport);
 		macro_def(s->vl, s->name, "addr", "%s", s->aaddr);
 		macro_def(s->vl, s->name, "port", "%s", s->aport);
@@ -210,7 +206,7 @@ server_wait(struct server *s)
 		vtc_log(s->vl, 0, "Server returned \"%p\"",
 		    (char *)res);
 	s->tp = 0;
-	TCP_close(&s->sock);
+	VTCP_close(&s->sock);
 	s->sock = -1;
 	s->run = 0;
 }
@@ -225,7 +221,7 @@ cmd_server_genvcl(struct vsb *vsb)
 	struct server *s;
 
 	VTAILQ_FOREACH(s, &servers, list) {
-		vsb_printf(vsb,
+		VSB_printf(vsb,
 		    "backend %s { .host = \"%s\"; .port = \"%s\"; }\n",
 		    s->name, s->aaddr, s->aport);
 	}
@@ -293,7 +289,7 @@ cmd_server(CMD_ARGS)
 			continue;
 		}
 		if (!strcmp(*av, "-listen")) {
-			REPLACE(s->listen, av[1]);
+			bprintf(s->listen, "%s", av[1]);
 			AZ(VSS_parse(s->listen, &s->addr, &s->port));
 			av++;
 			continue;

@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Dag-Erling Smørgrav <des@des.no>
@@ -29,9 +29,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -44,6 +41,7 @@ SVNID("$Id$")
 #include <execinfo.h>
 #endif
 #include "cache.h"
+#include "vsm.h"
 #include "cache_backend.h"
 #include "vcl.h"
 #include "libvcl.h"
@@ -57,7 +55,6 @@ SVNID("$Id$")
  * (gdb) printf "%s", panicstr
  */
 
-char panicstr[65536];
 static struct vsb vsps, *vsp;
 
 /*--------------------------------------------------------------------*/
@@ -66,39 +63,39 @@ static void
 pan_ws(const struct ws *ws, int indent)
 {
 
-	vsb_printf(vsp, "%*sws = %p { %s\n", indent, "",
+	VSB_printf(vsp, "%*sws = %p { %s\n", indent, "",
 	    ws, ws->overflow ? "overflow" : "");
-	vsb_printf(vsp, "%*sid = \"%s\",\n", indent + 2, "", ws->id);
-	vsb_printf(vsp, "%*s{s,f,r,e} = {%p", indent + 2, "", ws->s);
+	VSB_printf(vsp, "%*sid = \"%s\",\n", indent + 2, "", ws->id);
+	VSB_printf(vsp, "%*s{s,f,r,e} = {%p", indent + 2, "", ws->s);
 	if (ws->f > ws->s)
-		vsb_printf(vsp, ",+%d", ws->f - ws->s);
+		VSB_printf(vsp, ",+%ld", (long) (ws->f - ws->s));
 	else
-		vsb_printf(vsp, ",%p", ws->f);
+		VSB_printf(vsp, ",%p", ws->f);
 	if (ws->r > ws->s)
-		vsb_printf(vsp, ",+%d", ws->r - ws->s);
+		VSB_printf(vsp, ",+%ld", (long) (ws->r - ws->s));
 	else
-		vsb_printf(vsp, ",%p", ws->r);
+		VSB_printf(vsp, ",%p", ws->r);
 	if (ws->e > ws->s)
-		vsb_printf(vsp, ",+%d", ws->e - ws->s);
+		VSB_printf(vsp, ",+%ld", (long) (ws->e - ws->s));
 	else
-		vsb_printf(vsp, ",%p", ws->e);
-	vsb_printf(vsp, "},\n");
-	vsb_printf(vsp, "%*s},\n", indent, "" );
+		VSB_printf(vsp, ",%p", ws->e);
+	VSB_printf(vsp, "},\n");
+	VSB_printf(vsp, "%*s},\n", indent, "" );
 }
 
 /*--------------------------------------------------------------------*/
 
 static void
-pan_vbe(const struct vbe_conn *vbe)
+pan_vbc(const struct vbc *vbc)
 {
 
 	struct backend *be;
 
-	be = vbe->backend;
+	be = vbc->backend;
 
-	vsb_printf(vsp, "  backend = %p fd = %d {\n", be, vbe->fd);
-	vsb_printf(vsp, "    vcl_name = \"%s\",\n", be->vcl_name);
-	vsb_printf(vsp, "  },\n");
+	VSB_printf(vsp, "  backend = %p fd = %d {\n", be, vbc->fd);
+	VSB_printf(vsp, "    vcl_name = \"%s\",\n", be->vcl_name);
+	VSB_printf(vsp, "  },\n");
 }
 
 /*--------------------------------------------------------------------*/
@@ -111,24 +108,24 @@ pan_storage(const struct storage *st)
 #define MAX_BYTES (4*16)
 #define show(ch) (((ch) > 31 && (ch) < 127) ? (ch) : '.')
 
-	vsb_printf(vsp, "      %u {\n", st->len);
+	VSB_printf(vsp, "      %u {\n", st->len);
 	for (i = 0; i < MAX_BYTES && i < st->len; i += 16) {
-		vsb_printf(vsp, "        ");
+		VSB_printf(vsp, "        ");
 		for (j = 0; j < 16; ++j) {
 			if (i + j < st->len)
-				vsb_printf(vsp, "%02x ", st->ptr[i + j]);
+				VSB_printf(vsp, "%02x ", st->ptr[i + j]);
 			else
-				vsb_printf(vsp, "   ");
+				VSB_printf(vsp, "   ");
 		}
-		vsb_printf(vsp, "|");
+		VSB_printf(vsp, "|");
 		for (j = 0; j < 16; ++j)
 			if (i + j < st->len)
-				vsb_printf(vsp, "%c", show(st->ptr[i + j]));
-		vsb_printf(vsp, "|\n");
+				VSB_printf(vsp, "%c", show(st->ptr[i + j]));
+		VSB_printf(vsp, "|\n");
 	}
 	if (st->len > MAX_BYTES)
-		vsb_printf(vsp, "        [%u more]\n", st->len - MAX_BYTES);
-	vsb_printf(vsp, "      },\n");
+		VSB_printf(vsp, "        [%u more]\n", st->len - MAX_BYTES);
+	VSB_printf(vsp, "      },\n");
 
 #undef show
 #undef MAX_BYTES
@@ -141,17 +138,17 @@ pan_http(const char *id, const struct http *h, int indent)
 {
 	int i;
 
-	vsb_printf(vsp, "%*shttp[%s] = {\n", indent, "", id);
-	vsb_printf(vsp, "%*sws = %p[%s]\n", indent + 2, "",
+	VSB_printf(vsp, "%*shttp[%s] = {\n", indent, "", id);
+	VSB_printf(vsp, "%*sws = %p[%s]\n", indent + 2, "",
 	    h->ws, h->ws ? h->ws->id : "");
 	for (i = 0; i < h->nhd; ++i) {
 		if (h->hd[i].b == NULL && h->hd[i].e == NULL)
 			continue;
-		vsb_printf(vsp, "%*s\"%.*s\",\n", indent + 4, "",
+		VSB_printf(vsp, "%*s\"%.*s\",\n", indent + 4, "",
 		    (int)(h->hd[i].e - h->hd[i].b),
 		    h->hd[i].b);
 	}
-	vsb_printf(vsp, "%*s},\n", indent, "");
+	VSB_printf(vsp, "%*s},\n", indent, "");
 }
 
 
@@ -162,16 +159,16 @@ pan_object(const struct object *o)
 {
 	const struct storage *st;
 
-	vsb_printf(vsp, "  obj = %p {\n", o);
-	vsb_printf(vsp, "    xid = %u,\n", o->xid);
+	VSB_printf(vsp, "  obj = %p {\n", o);
+	VSB_printf(vsp, "    xid = %u,\n", o->xid);
 	pan_ws(o->ws_o, 4);
 	pan_http("obj", o->http, 4);
-	vsb_printf(vsp, "    len = %u,\n", o->len);
-	vsb_printf(vsp, "    store = {\n");
+	VSB_printf(vsp, "    len = %jd,\n", (intmax_t)o->len);
+	VSB_printf(vsp, "    store = {\n");
 	VTAILQ_FOREACH(st, &o->store, list)
 		pan_storage(st);
-	vsb_printf(vsp, "    },\n");
-	vsb_printf(vsp, "  },\n");
+	VSB_printf(vsp, "    },\n");
+	VSB_printf(vsp, "  },\n");
 }
 
 /*--------------------------------------------------------------------*/
@@ -181,12 +178,12 @@ pan_vcl(const struct VCL_conf *vcl)
 {
 	int i;
 
-	vsb_printf(vsp, "    vcl = {\n");
-	vsb_printf(vsp, "      srcname = {\n");
+	VSB_printf(vsp, "    vcl = {\n");
+	VSB_printf(vsp, "      srcname = {\n");
 	for (i = 0; i < vcl->nsrc; ++i)
-		vsb_printf(vsp, "        \"%s\",\n", vcl->srcname[i]);
-	vsb_printf(vsp, "      },\n");
-	vsb_printf(vsp, "    },\n");
+		VSB_printf(vsp, "        \"%s\",\n", vcl->srcname[i]);
+	VSB_printf(vsp, "      },\n");
+	VSB_printf(vsp, "    },\n");
 }
 
 
@@ -196,13 +193,15 @@ static void
 pan_wrk(const struct worker *wrk)
 {
 
-	vsb_printf(vsp, "  worker = %p {\n", wrk);
+	VSB_printf(vsp, "  worker = %p {\n", wrk);
 	pan_ws(wrk->ws, 4);
-	if (wrk->bereq != NULL)
+	if (wrk->bereq->ws != NULL)
 		pan_http("bereq", wrk->bereq, 4);
-	if (wrk->beresp != NULL)
+	if (wrk->beresp->ws != NULL)
 		pan_http("beresp", wrk->beresp, 4);
-	vsb_printf(vsp, "    },\n");
+	if (wrk->resp->ws != NULL)
+		pan_http("resp", wrk->resp, 4);
+	VSB_printf(vsp, "    },\n");
 }
 
 /*--------------------------------------------------------------------*/
@@ -212,36 +211,34 @@ pan_sess(const struct sess *sp)
 {
 	const char *stp, *hand;
 
-	vsb_printf(vsp, "sp = %p {\n", sp);
-	vsb_printf(vsp,
+	VSB_printf(vsp, "sp = %p {\n", sp);
+	VSB_printf(vsp,
 	    "  fd = %d, id = %d, xid = %u,\n", sp->fd, sp->id, sp->xid);
-	vsb_printf(vsp, "  client = %s %s,\n",
+	VSB_printf(vsp, "  client = %s %s,\n",
 	    sp->addr ? sp->addr : "?.?.?.?",
 	    sp->port ? sp->port : "?");
 	switch (sp->step) {
-/*lint -save -e525 */
 #define STEP(l, u) case STP_##u: stp = "STP_" #u; break;
 #include "steps.h"
 #undef STEP
-/*lint -restore */
 		default: stp = NULL;
 	}
 	hand = VCC_Return_Name(sp->handling);
 	if (stp != NULL)
-		vsb_printf(vsp, "  step = %s,\n", stp);
+		VSB_printf(vsp, "  step = %s,\n", stp);
 	else
-		vsb_printf(vsp, "  step = 0x%x,\n", sp->step);
+		VSB_printf(vsp, "  step = 0x%x,\n", sp->step);
 	if (hand != NULL)
-		vsb_printf(vsp, "  handling = %s,\n", hand);
+		VSB_printf(vsp, "  handling = %s,\n", hand);
 	else
-		vsb_printf(vsp, "  handling = 0x%x,\n", sp->handling);
+		VSB_printf(vsp, "  handling = 0x%x,\n", sp->handling);
 	if (sp->err_code)
-		vsb_printf(vsp,
+		VSB_printf(vsp,
 		    "  err_code = %d, err_reason = %s,\n", sp->err_code,
 		    sp->err_reason ? sp->err_reason : "(null)");
 
-	vsb_printf(vsp, "  restarts = %d, esis = %d\n",
-	    sp->restarts, sp->esis);
+	VSB_printf(vsp, "  restarts = %d, esi_level = %d\n",
+	    sp->restarts, sp->esi_level);
 
 	pan_ws(sp->ws, 2);
 	pan_http("req", sp->http, 2);
@@ -252,13 +249,13 @@ pan_sess(const struct sess *sp)
 	if (VALID_OBJ(sp->vcl, VCL_CONF_MAGIC))
 		pan_vcl(sp->vcl);
 
-	if (VALID_OBJ(sp->vbe, BACKEND_MAGIC))
-		pan_vbe(sp->vbe);
+	if (VALID_OBJ(sp->vbc, BACKEND_MAGIC))
+		pan_vbc(sp->vbc);
 
 	if (VALID_OBJ(sp->obj, OBJECT_MAGIC))
 		pan_object(sp->obj);
 
-	vsb_printf(vsp, "},\n");
+	VSB_printf(vsp, "},\n");
 }
 
 /*--------------------------------------------------------------------*/
@@ -273,18 +270,18 @@ pan_backtrace(void)
 	size = backtrace (array, 10);
 	if (size == 0)
 		return;
-	vsb_printf(vsp, "Backtrace:\n");
+	VSB_printf(vsp, "Backtrace:\n");
 	for (i = 0; i < size; i++) {
-		vsb_printf (vsp, "  ");
+		VSB_printf (vsp, "  ");
 		if (Symbol_Lookup(vsp, array[i]) < 0) {
 			char **strings;
 			strings = backtrace_symbols(&array[i], 1);
 			if (strings != NULL && strings[0] != NULL)
-				vsb_printf(vsp, "%p: %s", array[i], strings[0]);
+				VSB_printf(vsp, "%p: %s", array[i], strings[0]);
 			else
-				vsb_printf(vsp, "%p: (?)", array[i]);
+				VSB_printf(vsp, "%p: (?)", array[i]);
 		}
-		vsb_printf (vsp, "\n");
+		VSB_printf (vsp, "\n");
 	}
 }
 
@@ -294,43 +291,41 @@ static void
 pan_ic(const char *func, const char *file, int line, const char *cond,
     int err, int xxx)
 {
-	int l;
-	char *p;
 	const char *q;
 	const struct sess *sp;
 
 	switch(xxx) {
 	case 3:
-		vsb_printf(vsp,
+		VSB_printf(vsp,
 		    "Wrong turn at %s:%d:\n%s\n", file, line, cond);
 		break;
 	case 2:
-		vsb_printf(vsp,
+		VSB_printf(vsp,
 		    "Panic from VCL:\n  %s\n", cond);
 		break;
 	case 1:
-		vsb_printf(vsp,
+		VSB_printf(vsp,
 		    "Missing errorhandling code in %s(), %s line %d:\n"
 		    "  Condition(%s) not true.",
 		    func, file, line, cond);
 		break;
 	default:
 	case 0:
-		vsb_printf(vsp,
+		VSB_printf(vsp,
 		    "Assert error in %s(), %s line %d:\n"
 		    "  Condition(%s) not true.\n",
 		    func, file, line, cond);
 		break;
 	}
 	if (err)
-		vsb_printf(vsp, "errno = %d (%s)\n", err, strerror(err));
+		VSB_printf(vsp, "errno = %d (%s)\n", err, strerror(err));
 
 	q = THR_GetName();
 	if (q != NULL)
-		vsb_printf(vsp, "thread = (%s)\n", q);
+		VSB_printf(vsp, "thread = (%s)\n", q);
 
-	vsb_printf(vsp, "ident = %s,%s\n",
-	    vsb_data(vident) + 1, VCA_waiter_name());
+	VSB_printf(vsp, "ident = %s,%s\n",
+	    VSB_data(vident) + 1, VCA_waiter_name());
 
 	pan_backtrace();
 
@@ -339,24 +334,22 @@ pan_ic(const char *func, const char *file, int line, const char *cond,
 		if (sp != NULL)
 			pan_sess(sp);
 	}
-	vsb_printf(vsp, "\n");
-	vsb_bcat(vsp, "", 1);	/* NUL termination */
-	VSL_Panic(&l, &p);
-	if (l < sizeof(panicstr))
-		l = sizeof(panicstr);
-	memcpy(p, panicstr, l);
+	VSB_printf(vsp, "\n");
+	VSB_bcat(vsp, "", 1);	/* NUL termination */
+
 	if (params->diag_bitmap & 0x4000)
-		(void)fputs(panicstr, stderr);
+		(void)fputs(VSM_head->panicstr, stderr);
 
 #ifdef HAVE_ABORT2
 	if (params->diag_bitmap & 0x8000) {
 		void *arg[1];
+		char *p;
 
-		for (p = panicstr; *p; p++)
+		for (p = VSM_head->panicstr; *p; p++)
 			if (*p == '\n')
 				*p = ' ';
-		arg[0] = panicstr;
-		abort2(panicstr, 1, arg);
+		arg[0] = VSM_head->panicstr;
+		abort2(VSM_head->panicstr, 1, arg);
 	}
 #endif
 	if (params->diag_bitmap & 0x1000)
@@ -371,7 +364,8 @@ void
 PAN_Init(void)
 {
 
-	lbv_assert = pan_ic;
+	VAS_Fail = pan_ic;
 	vsp = &vsps;
-	AN(vsb_new(vsp, panicstr, sizeof panicstr, VSB_FIXEDLEN));
+	AN(VSB_new(vsp, VSM_head->panicstr, sizeof VSM_head->panicstr,
+	    VSB_FIXEDLEN));
 }

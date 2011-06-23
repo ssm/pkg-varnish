@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -26,56 +26,83 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $Id$
  */
 
 struct stevedore;
+struct exp;
 struct sess;
 struct iovec;
 struct object;
 struct objcore;
+struct stv_objsecrets;
 
 typedef void storage_init_f(struct stevedore *, int ac, char * const *av);
 typedef void storage_open_f(const struct stevedore *);
-typedef struct storage *storage_alloc_f(struct stevedore *, size_t size,
-    struct objcore *);
+typedef struct storage *storage_alloc_f(struct stevedore *, size_t size);
 typedef void storage_trim_f(struct storage *, size_t size);
 typedef void storage_free_f(struct storage *);
-typedef void storage_object_f(const struct sess *sp);
+typedef struct object *storage_allocobj_f(struct stevedore *, struct sess *sp,
+    unsigned ltot, const struct stv_objsecrets *);
 typedef void storage_close_f(const struct stevedore *);
 
+/* Prototypes for VCL variable responders */
+#define VRTSTVTYPE(ct) typedef ct storage_var_##ct(const struct stevedore *);
+#include "vrt_stv_var.h"
+#undef VRTSTVTYPE
+
+/*--------------------------------------------------------------------*/
+
+struct lru {
+	unsigned		magic;
+#define LRU_MAGIC		0x3fec7bb0
+	VTAILQ_HEAD(,objcore)	lru_head;
+	struct lock		mtx;
+};
+
+/*--------------------------------------------------------------------*/
 
 struct stevedore {
 	unsigned		magic;
 #define STEVEDORE_MAGIC		0x4baf43db
 	const char		*name;
-	storage_init_f		*init;	/* called by mgt process */
-	storage_open_f		*open;	/* called by cache process */
-	storage_alloc_f		*alloc;
-	storage_trim_f		*trim;
-	storage_free_f		*free;
-	storage_object_f	*object;
-	storage_close_f		*close;
+	unsigned		transient;
+	storage_init_f		*init;		/* called by mgt process */
+	storage_open_f		*open;		/* called by cache process */
+	storage_alloc_f		*alloc;		/* --//-- */
+	storage_trim_f		*trim;		/* --//-- */
+	storage_free_f		*free;		/* --//-- */
+	storage_close_f		*close;		/* --//-- */
+	storage_allocobj_f	*allocobj;	/* --//-- */
 
 	struct lru		*lru;
+
+#define VRTSTVVAR(nm, vtype, ctype, dval) storage_var_##ctype *var_##nm;
+#include "vrt_stv_var.h"
+#undef VRTSTVVAR
 
 	/* private fields */
 	void			*priv;
 
 	VTAILQ_ENTRY(stevedore)	list;
+	char			ident[16];	/* XXX: match VSM_chunk.ident */
 };
 
-struct object *STV_NewObject(struct sess *sp, unsigned len, double ttl,
-    unsigned nhttp);
-struct storage *STV_alloc(struct sess *sp, size_t size, struct objcore *oc);
+struct object *STV_MkObject(struct sess *sp, void *ptr, unsigned ltot,
+    const struct stv_objsecrets *soc);
+
+struct object *STV_NewObject(struct sess *sp, const char *hint, unsigned len,
+    struct exp *, unsigned nhttp);
+struct storage *STV_alloc(const struct sess *sp, size_t size);
 void STV_trim(struct storage *st, size_t size);
 void STV_free(struct storage *st);
-void STV_add(const struct stevedore *stv, int ac, char * const *av);
 void STV_open(void);
 void STV_close(void);
-struct lru *STV_lru(const struct storage *st);
+void STV_Config(const char *spec);
+void STV_Config_Transient(void);
+void STV_Freestore(struct object *o);
 
 struct lru *LRU_Alloc(void);
+void LRU_Free(struct lru *lru);
 
 int STV_GetFile(const char *fn, int *fdp, const char **fnp, const char *ctx);
 uintmax_t STV_FileSize(int fd, const char *size, unsigned *granularity,
@@ -84,11 +111,9 @@ uintmax_t STV_FileSize(int fd, const char *size, unsigned *granularity,
 /* Synthetic Storage */
 void SMS_Init(void);
 
-extern struct stevedore sma_stevedore;
-extern struct stevedore smf_stevedore;
-extern struct stevedore smp_stevedore;
+extern const struct stevedore sma_stevedore;
+extern const struct stevedore smf_stevedore;
+extern const struct stevedore smp_stevedore;
 #ifdef HAVE_LIBUMEM
-extern struct stevedore smu_stevedore;
+extern const struct stevedore smu_stevedore;
 #endif
-
-extern const struct choice STV_choice[];

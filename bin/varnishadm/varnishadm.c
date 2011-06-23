@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Cecilie Fritzvold <cecilihf@linpro.no>
@@ -29,22 +29,36 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <fcntl.h>
 #include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-
 #include <sys/socket.h>
 
-#include "cli.h"
+#ifdef HAVE_LIBEDIT
+#include <editline/readline.h>
+#endif
+
+#include "vcli.h"
 #include "cli_common.h"
 #include "libvarnish.h"
+#include "varnishapi.h"
 #include "vss.h"
+
+#ifdef HAVE_LIBEDIT
+#define RL_EXIT(status) \
+	do { \
+		rl_callback_handler_remove(); \
+		exit(status); \
+	} while (0)
+
+void send_line(char *l);
+
+#else
+#define RL_EXIT(status) exit(status)
+#endif
 
 static double timeout = 5;
 
@@ -58,7 +72,7 @@ cli_write(int sock, const char *s)
 	if (i == l)
 		return;
 	perror("Write error CLI socket");
-	exit (1);
+	RL_EXIT(1);
 }
 
 /*
@@ -74,49 +88,54 @@ cli_sock(const char *T_arg, const char *S_arg)
 	int sock;
 	unsigned status;
 	char *answer = NULL;
-	char buf[CLI_AUTH_RESPONSE_LEN];
+	char buf[CLI_AUTH_RESPONSE_LEN + 1];
 
 	sock = VSS_open(T_arg, timeout);
 	if (sock < 0) {
-		fprintf(stderr, "Connection failed\n");
-		exit(1);
+		fprintf(stderr, "Connection failed (%s)\n", T_arg);
+		return (-1);
 	}
 
-	(void)cli_readres(sock, &status, &answer, timeout);
+	(void)VCLI_ReadResult(sock, &status, &answer, timeout);
 	if (status == CLIS_AUTH) {
 		if (S_arg == NULL) {
 			fprintf(stderr, "Authentication required\n");
-			exit(1);
+			AZ(close(sock));
+			return(-1);
 		}
 		fd = open(S_arg, O_RDONLY);
 		if (fd < 0) {
 			fprintf(stderr, "Cannot open \"%s\": %s\n",
 			    S_arg, strerror(errno));
-			exit (1);
+			AZ(close(sock));
+			return (-1);
 		}
-		CLI_response(fd, answer, buf);
+		VCLI_AuthResponse(fd, answer, buf);
 		AZ(close(fd));
 		free(answer);
 
 		cli_write(sock, "auth ");
 		cli_write(sock, buf);
 		cli_write(sock, "\n");
-		(void)cli_readres(sock, &status, &answer, timeout);
+		(void)VCLI_ReadResult(sock, &status, &answer, timeout);
 	}
 	if (status != CLIS_OK) {
 		fprintf(stderr, "Rejected %u\n%s\n", status, answer);
-		exit(1);
+		AZ(close(sock));
+		return (-1);
 	}
 	free(answer);
 
 	cli_write(sock, "ping\n");
-	(void)cli_readres(sock, &status, &answer, timeout);
+	(void)VCLI_ReadResult(sock, &status, &answer, timeout);
 	if (status != CLIS_OK || strstr(answer, "PONG") == NULL) {
 		fprintf(stderr, "No pong received from server\n");
-		exit(1);
+		AZ(close(sock));
+		return(-1);
 	}
 	free(answer);
 
+	fprintf(stderr, "CLI connected to %s\n", T_arg);
 	return (sock);
 }
 
@@ -135,7 +154,7 @@ do_args(int sock, int argc, char * const *argv)
 	}
 	cli_write(sock, "\n");
 
-	(void)cli_readres(sock, &status, &answer, 2000);
+	(void)VCLI_ReadResult(sock, &status, &answer, 2000);
 
 	/* XXX: AZ() ? */
 	(void)close(sock);
@@ -148,6 +167,23 @@ do_args(int sock, int argc, char * const *argv)
 	exit(1);
 }
 
+#ifdef HAVE_LIBEDIT
+/* Callback for readline, doesn't take a private pointer, so we need
+ * to have a global variable.
+ */
+static int _line_sock;
+void send_line(char *l)
+{
+	if (l) {
+		cli_write(_line_sock, l);
+		cli_write(_line_sock, "\n");
+		add_history(l);
+	} else {
+		RL_EXIT(0);
+	}
+}
+#endif
+
 /*
  * No arguments given, simply pass bytes on stdin/stdout and CLI socket
  * Send a "banner" to varnish, to provoke a welcome message.
@@ -157,7 +193,22 @@ pass(int sock)
 {
 	struct pollfd fds[2];
 	char buf[1024];
-	int i, n, m;
+	int i;
+	char *answer = NULL;
+	unsigned u, status;
+#ifndef HAVE_LIBEDIT
+	int n;
+#endif
+
+#ifdef HAVE_LIBEDIT
+	_line_sock = sock;
+	rl_already_prompted = 1;
+	if (isatty(0)) {
+		rl_callback_handler_install("varnish> ", send_line);
+	} else {
+		rl_callback_handler_install("", send_line);
+	}
+#endif
 
 	cli_write(sock, "banner\n");
 	fds[0].fd = sock;
@@ -168,34 +219,44 @@ pass(int sock)
 		i = poll(fds, 2, -1);
 		assert(i > 0);
 		if (fds[0].revents & POLLIN) {
-			n = read(fds[0].fd, buf, sizeof buf);
-			if (n == 0)
-				exit (0);
-			if (n < 0) {
-				perror("Read error reading CLI socket");
-				exit (0);
+			/* Get rid of the prompt, kinda hackish */
+			u = write(1, "\r           \r", 13);
+			u = VCLI_ReadResult(fds[0].fd, &status, &answer, timeout);
+			if (u) {
+				if (status == CLIS_COMMS)
+					RL_EXIT(0);
+				if (answer)
+					fprintf(stderr, "%s\n", answer);
+				RL_EXIT(1);
 			}
-			assert(n > 0);
-			m = write(1, buf, n);
-			if (n != m) {
-				perror("Write error writing stdout");
-				exit (1);
+
+			sprintf(buf, "%u\n", status);
+			u = write(1, buf, strlen(buf));
+			if (answer) {
+				u = write(1, answer, strlen(answer));
+				u = write(1, "\n", 1);
+				free(answer);
+				answer = NULL;
 			}
+#ifdef HAVE_LIBEDIT
+			rl_forced_update_display();
+#endif
 		}
 		if (fds[1].revents & POLLIN) {
+#ifdef HAVE_LIBEDIT
+			rl_callback_read_char();
+#else
 			n = read(fds[1].fd, buf, sizeof buf);
 			if (n == 0) {
 				AZ(shutdown(sock, SHUT_WR));
 				fds[1].fd = -1;
 			} else if (n < 0) {
-				exit(0);
+				RL_EXIT(0);
 			} else {
-				m = write(sock, buf, n);
-				if (n != m) {
-					perror("Write error writing CLI socket");
-					exit (1);
-				}
+				buf[n] = '\0';
+				cli_write(sock, buf);
 			}
+#endif
 		}
 	}
 }
@@ -204,9 +265,53 @@ static void
 usage(void)
 {
 	fprintf(stderr,
-	    "usage: varnishadm [-t timeout] [-S secretfile] "
+	    "usage: varnishadm [-n ident] [-t timeout] [-S secretfile] "
 	    "-T [address]:port command [...]\n");
+	fprintf(stderr, "\t-n is mutually exlusive with -S and -T\n");
 	exit(1);
+}
+
+static int
+n_arg_sock(const char *n_arg)
+{
+	char *T_arg = NULL, *T_start = NULL;
+	char *S_arg = NULL;
+	struct VSM_data *vsd;
+	char *p;
+	int sock;
+
+	vsd = VSM_New();
+	assert(VSL_Arg(vsd, 'n', n_arg));
+	if (VSM_Open(vsd, 1)) {
+		fprintf(stderr, "Could not open shared memory\n");
+		return (-1);
+	}
+	if (T_arg == NULL) {
+		p = VSM_Find_Chunk(vsd, "Arg", "-T", "", NULL);
+		if (p == NULL)  {
+			fprintf(stderr, "No -T arg in shared memory\n");
+			return (-1);
+		}
+		T_start = T_arg = strdup(p);
+	}
+	if (S_arg == NULL) {
+		p = VSM_Find_Chunk(vsd, "Arg", "-S", "", NULL);
+		if (p != NULL)
+			S_arg = strdup(p);
+	}
+	sock = -1;
+	while (*T_arg) {
+		p = strchr(T_arg, '\n');
+		AN(p);
+		*p = '\0';
+		sock = cli_sock(T_arg, S_arg);
+		if (sock >= 0)
+			break;
+		T_arg = p + 1;
+	}
+	free(T_start);
+	free(S_arg);
+	return (sock);
 }
 
 int
@@ -214,10 +319,14 @@ main(int argc, char * const *argv)
 {
 	const char *T_arg = NULL;
 	const char *S_arg = NULL;
+	const char *n_arg = NULL;
 	int opt, sock;
 
-	while ((opt = getopt(argc, argv, "S:T:t:")) != -1) {
+	while ((opt = getopt(argc, argv, "n:S:T:t:")) != -1) {
 		switch (opt) {
+		case 'n':
+			n_arg = optarg;
+			break;
 		case 'S':
 			S_arg = optarg;
 			break;
@@ -235,11 +344,19 @@ main(int argc, char * const *argv)
 	argc -= optind;
 	argv += optind;
 
-	if (T_arg == NULL)
-		usage();
-
-	assert(T_arg != NULL);
-	sock = cli_sock(T_arg, S_arg);
+	if (n_arg != NULL) {
+		if (T_arg != NULL || S_arg != NULL) {
+			usage();
+		}
+		sock = n_arg_sock(n_arg);
+	} else if (T_arg == NULL) {
+		sock = n_arg_sock("");
+	} else {
+		assert(T_arg != NULL);
+		sock = cli_sock(T_arg, S_arg);
+	}
+	if (sock < 0)
+		exit(2);
 
 	if (argc > 0)
 		do_args(sock, argc, argv);

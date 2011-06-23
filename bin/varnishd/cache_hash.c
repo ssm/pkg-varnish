@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2010 Redpill Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -52,9 +52,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -63,7 +60,6 @@ SVNID("$Id$")
 #include <sys/types.h>
 #include <fcntl.h>
 
-#include "shmlog.h"
 #include "cache.h"
 #include "stevedore.h"
 #include "hash_slinger.h"
@@ -72,30 +68,7 @@ SVNID("$Id$")
 
 static const struct hash_slinger *hash;
 
-double
-HSH_Grace(double g)
-{
-	if (isnan(g))
-		return (double)(params->default_grace);
-	return (g);
-}
-
-/*
- * XXX: this should vector through stevedore.c instead of calling the
- * XXX: member function directly.
- */
-
-void
-HSH_Object(const struct sess *sp)
-{
-	CHECK_OBJ_NOTNULL(sp->obj, OBJECT_MAGIC);
-	CHECK_OBJ_NOTNULL(sp->obj->objstore, STORAGE_MAGIC);
-	CHECK_OBJ_NOTNULL(sp->obj->objstore->stevedore, STEVEDORE_MAGIC);
-	AN(ObjIsBusy(sp->obj));
-	if (sp->obj->objstore->stevedore->object != NULL)
-		sp->obj->objstore->stevedore->object(sp);
-}
-
+/*---------------------------------------------------------------------*/
 /* Precreate an objhead and object for later use */
 void
 HSH_Prealloc(const struct sess *sp)
@@ -103,6 +76,7 @@ HSH_Prealloc(const struct sess *sp)
 	struct worker *w;
 	struct objhead *oh;
 	struct objcore *oc;
+	struct waitinglist *wl;
 
 	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
 	CHECK_OBJ_NOTNULL(sp->wrk, WORKER_MAGIC);
@@ -122,13 +96,23 @@ HSH_Prealloc(const struct sess *sp)
 		XXXAN(oh);
 		oh->refcnt = 1;
 		VTAILQ_INIT(&oh->objcs);
-		VTAILQ_INIT(&oh->waitinglist);
-		Lck_New(&oh->mtx);
+		Lck_New(&oh->mtx, lck_objhdr);
 		w->nobjhead = oh;
 		w->stats.n_objecthead++;
 	}
 	CHECK_OBJ_NOTNULL(w->nobjhead, OBJHEAD_MAGIC);
 
+	if (w->nwaitinglist == NULL) {
+		ALLOC_OBJ(wl, WAITINGLIST_MAGIC);
+		XXXAN(wl);
+		VTAILQ_INIT(&wl->list);
+		w->nwaitinglist = wl;
+		w->stats.n_waitinglist++;
+	}
+	CHECK_OBJ_NOTNULL(w->nwaitinglist, WAITINGLIST_MAGIC);
+
+	if (hash->prep != NULL)
+		hash->prep(sp);
 }
 
 void
@@ -146,7 +130,12 @@ HSH_Cleanup(struct worker *w)
 		w->nobjhead = NULL;
 		w->stats.n_objecthead--;
 	}
+	if (w->nwaitinglist != NULL) {
+		FREE_OBJ(w->nwaitinglist);
+		w->nwaitinglist = NULL;
+	}
 	if (w->nhashpriv != NULL) {
+		/* XXX: If needed, add slinger method for this */
 		free(w->nhashpriv);
 		w->nhashpriv = NULL;
 	}
@@ -161,18 +150,6 @@ HSH_DeleteObjHead(struct worker *w, struct objhead *oh)
 	Lck_Delete(&oh->mtx);
 	w->stats.n_objecthead--;
 	FREE_OBJ(oh);
-}
-
-void
-HSH_Freestore(struct object *o)
-{
-	struct storage *st, *stn;
-
-	VTAILQ_FOREACH_SAFE(st, &o->store, list, stn) {
-		CHECK_OBJ_NOTNULL(st, STORAGE_MAGIC);
-		VTAILQ_REMOVE(&o->store, st, list);
-		STV_free(st);
-	}
 }
 
 void
@@ -266,9 +243,10 @@ hsh_testmagic(void *result)
 	fprintf(stderr, ">\n");
 }
 
-/**********************************************************************
+/*---------------------------------------------------------------------
  * Insert an object which magically appears out of nowhere or, more likely,
  * comes off some persistent storage device.
+ * Return it with a reference held.
  */
 
 struct objcore *
@@ -287,7 +265,7 @@ HSH_Insert(const struct sess *sp)
 	if (params->diag_bitmap & 0x80000000)
 		hsh_testmagic(sp->wrk->nobjhead->digest);
 
-	AZ(sp->objhead);
+	AZ(sp->hash_objhead);
 	AN(w->nobjhead);
 	oh = hash->lookup(sp, w->nobjhead);
 	CHECK_OBJ_NOTNULL(oh, OBJHEAD_MAGIC);
@@ -303,8 +281,7 @@ HSH_Insert(const struct sess *sp)
 	CHECK_OBJ_NOTNULL(oc, OBJCORE_MAGIC);
 	AZ(oc->flags & OC_F_BUSY);
 
-	/* XXX: Should this not be ..._HEAD now ? */
-	VTAILQ_INSERT_TAIL(&oh->objcs, oc, list);
+	VTAILQ_INSERT_HEAD(&oh->objcs, oc, list);
 	/* NB: do not deref objhead the new object inherits our reference */
 	oc->objhead = oh;
 	Lck_Unlock(&oh->mtx);
@@ -312,7 +289,7 @@ HSH_Insert(const struct sess *sp)
 	return (oc);
 }
 
-/**********************************************************************
+/*---------------------------------------------------------------------
  */
 
 struct objcore *
@@ -337,14 +314,14 @@ HSH_Lookup(struct sess *sp, struct objhead **poh)
 	if (params->diag_bitmap & 0x80000000)
 		hsh_testmagic(sp->wrk->nobjhead->digest);
 
-	if (sp->objhead != NULL) {
+	if (sp->hash_objhead != NULL) {
 		/*
 		 * This sess came off the waiting list, and brings a
 		 * oh refcnt with it.
 		 */
-		CHECK_OBJ_NOTNULL(sp->objhead, OBJHEAD_MAGIC);
-		oh = sp->objhead;
-		sp->objhead = NULL;
+		CHECK_OBJ_NOTNULL(sp->hash_objhead, OBJHEAD_MAGIC);
+		oh = sp->hash_objhead;
+		sp->hash_objhead = NULL;
 	} else {
 		AN(w->nobjhead);
 		oh = hash->lookup(sp, w->nobjhead);
@@ -364,20 +341,16 @@ HSH_Lookup(struct sess *sp, struct objhead **poh)
 		CHECK_OBJ_NOTNULL(oc, OBJCORE_MAGIC);
 		assert(oc->objhead == oh);
 
-		if (oc->flags & OC_F_PERSISTENT)
-			SMP_Fixup(sp, oh, oc);
-
 		if (oc->flags & OC_F_BUSY) {
-			busy_oc = oc;
+			if (!sp->hash_ignore_busy)
+				busy_oc = oc;
 			continue;
 		}
 
-		o = oc->obj;
+		o = oc_getobj(sp->wrk, oc);
 		CHECK_OBJ_NOTNULL(o, OBJECT_MAGIC);
 
-		if (!o->cacheable)
-			continue;
-		if (o->ttl == 0)
+		if (o->exp.ttl <= 0.)
 			continue;
 		if (BAN_CheckObject(o, sp))
 			continue;
@@ -385,71 +358,72 @@ HSH_Lookup(struct sess *sp, struct objhead **poh)
 			continue;
 
 		/* If still valid, use it */
-		if (o->ttl >= sp->t_req)
+		if (EXP_Ttl(sp, o) >= sp->t_req)
 			break;
 
 		/*
 		 * Remember any matching objects inside their grace period
 		 * and if there are several, use the least expired one.
 		 */
-		if (o->ttl + HSH_Grace(o->grace) >= sp->t_req) {
-			if (grace_oc == NULL || grace_ttl < o->ttl) {
+		if (EXP_Grace(sp, o) >= sp->t_req) {
+			if (grace_oc == NULL ||
+			    grace_ttl < o->entered + o->exp.ttl) {
 				grace_oc = oc;
-				grace_ttl = o->ttl;
+				grace_ttl = o->entered + o->exp.ttl;
 			}
 		}
 	}
 
 	/*
 	 * If we have seen a busy object or the backend is unhealthy, and
-	 * have an object in grace, use it, if req.grace is also
+	 * we have an object in grace, use it, if req.grace is also
 	 * satisified.
 	 * XXX: Interesting footnote:  The busy object might be for a
 	 * XXX: different "Vary:" than we sought.  We have no way of knowing
 	 * XXX: this until the object is unbusy'ed, so in practice we
 	 * XXX: serialize fetch of all Vary's if grace is possible.
 	 */
+
+	AZ(sp->objcore);
+	sp->objcore = grace_oc;		/* XXX: Hack-ish */
 	if (oc == NULL			/* We found no live object */
 	    && grace_oc != NULL		/* There is a grace candidate */
 	    && (busy_oc != NULL		/* Somebody else is already busy */
-	    || !VBE_Healthy(sp->t_req, sp->director, (uintptr_t)oh))
+	    || !VDI_Healthy(sp->director, sp))) {
 					/* Or it is impossible to fetch */
-	    && !sp->hash_ignore_busy) { /* And we've not been told to ignore busy */
-		o = grace_oc->obj;
+		o = oc_getobj(sp->wrk, grace_oc);
 		CHECK_OBJ_NOTNULL(o, OBJECT_MAGIC);
-		if (o->ttl + HSH_Grace(sp->grace) >= sp->t_req)
-			oc = grace_oc;
+		oc = grace_oc;
 	}
+	sp->objcore = NULL;
 
-	if (oc != NULL) {
-		o = oc->obj;
+	if (oc != NULL && !sp->hash_always_miss) {
+		o = oc_getobj(sp->wrk, oc);
 		CHECK_OBJ_NOTNULL(o, OBJECT_MAGIC);
 		assert(oc->objhead == oh);
 
-		if(sp->hash_always_miss) {
-			if (o->ttl >= sp->t_req) {
-				o->ttl = sp->t_req - 1;
-				o->grace = HSH_Grace(sp->grace);
-				EXP_Rearm(o);
-			}
-			o = NULL;
-		} else {
-			/* We found an object we like */
-			oc->refcnt++;
-			if (o->hits < INT_MAX)
-				o->hits++;
-			assert(oh->refcnt > 1);
-			Lck_Unlock(&oh->mtx);
-			assert(hash->deref(oh));
-			*poh = oh;
-			return (oc);
-		}
+		/* We found an object we like */
+		oc->refcnt++;
+		if (o->hits < INT_MAX)
+			o->hits++;
+		assert(oh->refcnt > 1);
+		Lck_Unlock(&oh->mtx);
+		assert(hash->deref(oh));
+		*poh = oh;
+		return (oc);
 	}
 
-	if (busy_oc != NULL && !sp->hash_ignore_busy) {
+	if (busy_oc != NULL) {
 		/* There are one or more busy objects, wait for them */
-		if (sp->esis == 0)
-			VTAILQ_INSERT_TAIL(&oh->waitinglist, sp, list);
+		if (sp->esi_level == 0) {
+			CHECK_OBJ_NOTNULL(sp->wrk->nwaitinglist,
+			    WAITINGLIST_MAGIC);
+			if (oh->waitinglist == NULL) {
+				oh->waitinglist = sp->wrk->nwaitinglist;
+				sp->wrk->nwaitinglist = NULL;
+			}
+			VTAILQ_INSERT_TAIL(&oh->waitinglist->list, sp, list);
+		}
 		if (params->diag_bitmap & 0x20)
 			WSP(sp, SLT_Debug,
 				"on waiting list <%p>", oh);
@@ -459,7 +433,7 @@ HSH_Lookup(struct sess *sp, struct objhead **poh)
 		 * back when the sess comes off the waiting list and
 		 * calls us again
 		 */
-		sp->objhead = oh;
+		sp->hash_objhead = oh;
 		sp->wrk = NULL;
 		Lck_Unlock(&oh->mtx);
 		return (NULL);
@@ -471,7 +445,10 @@ HSH_Lookup(struct sess *sp, struct objhead **poh)
 	AN(oc->flags & OC_F_BUSY);
 	oc->refcnt = 1;
 
-	/* XXX: Should this not be ..._HEAD now ? */
+	/*
+	 * Busy objects go on the tail, so they will not trip up searches.
+	 * HSH_Unbusy() will move them to the front.
+	 */
 	VTAILQ_INSERT_TAIL(&oh->objcs, oc, list);
 	oc->objhead = oh;
 	/* NB: do not deref objhead the new object inherits our reference */
@@ -480,7 +457,7 @@ HSH_Lookup(struct sess *sp, struct objhead **poh)
 	return (oc);
 }
 
-/**********************************************************************
+/*---------------------------------------------------------------------
  */
 
 static void
@@ -488,34 +465,43 @@ hsh_rush(struct objhead *oh)
 {
 	unsigned u;
 	struct sess *sp;
+	struct waitinglist *wl;
 
 	CHECK_OBJ_NOTNULL(oh, OBJHEAD_MAGIC);
 	Lck_AssertHeld(&oh->mtx);
+	wl = oh->waitinglist;
+	if (wl == NULL)
+		return;
+	CHECK_OBJ_NOTNULL(wl, WAITINGLIST_MAGIC);
 	for (u = 0; u < params->rush_exponent; u++) {
-		sp = VTAILQ_FIRST(&oh->waitinglist);
+		sp = VTAILQ_FIRST(&wl->list);
 		if (sp == NULL)
-			return;
+			break;
 		CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
 		AZ(sp->wrk);
-		VTAILQ_REMOVE(&oh->waitinglist, sp, list);
+		VTAILQ_REMOVE(&wl->list, sp, list);
 		DSL(0x20, SLT_Debug, sp->id, "off waiting list");
 		if (WRK_QueueSession(sp)) {
 			/*
 			 * We could not schedule the session, leave the
 			 * rest on the busy list.
 			 */
-			VSL_stats->client_drop_late++;
+			VSC_C_main->client_drop_late++;
 			break;
 		}
 	}
+	if (VTAILQ_EMPTY(&wl->list)) {
+		oh->waitinglist = NULL;
+		FREE_OBJ(wl);
+	}
 }
 
-/**********************************************************************
+/*---------------------------------------------------------------------
  * Purge an entire objhead
  */
 
 void
-HSH_Purge(struct sess *sp, struct objhead *oh, double ttl, double grace)
+HSH_Purge(const struct sess *sp, struct objhead *oh, double ttl, double grace)
 {
 	struct objcore *oc, **ocp;
 	unsigned spc, nobj, n;
@@ -540,8 +526,7 @@ HSH_Purge(struct sess *sp, struct objhead *oh, double ttl, double grace)
 			continue;
 		}
 
-		if (oc->flags & OC_F_PERSISTENT)
-			SMP_Fixup(sp, oh, oc);
+		(void)oc_getobj(sp->wrk, oc); /* XXX: still needed ? */
 
 		xxxassert(spc >= sizeof *ocp);
 		oc->refcnt++;
@@ -550,26 +535,28 @@ HSH_Purge(struct sess *sp, struct objhead *oh, double ttl, double grace)
 	}
 	Lck_Unlock(&oh->mtx);
 
-	if (ttl <= 0)
-		ttl = -1;
+	/* NB: inverse test to catch NAN also */
+	if (!(ttl > 0.))
+		ttl = -1.;
+	if (!(grace > 0.))
+		grace = -1.;
 	for (n = 0; n < nobj; n++) {
 		oc = ocp[n];
 		CHECK_OBJ_NOTNULL(oc, OBJCORE_MAGIC);
-		o = oc->obj;
+		o = oc_getobj(sp->wrk, oc);
 		if (o == NULL)
 			continue;
 		CHECK_OBJ_NOTNULL(o, OBJECT_MAGIC);
-		o->ttl = sp->t_req + ttl;
-		if (!isnan(grace))
-			o->grace = grace;
+		o->exp.ttl = ttl;
+		o->exp.grace = grace;
 		EXP_Rearm(o);
-		HSH_Deref(sp->wrk, &o);
+		(void)HSH_Deref(sp->wrk, NULL, &o);
 	}
 	WS_Release(sp->wrk->ws, 0);
 }
 
 
-/**********************************************************************
+/*---------------------------------------------------------------------
  * Kill a busy object we don't need anyway.
  * There may be sessions on the waiting list, so we cannot just blow
  * it out of the water.
@@ -583,15 +570,11 @@ HSH_Drop(struct sess *sp)
 	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
 	o = sp->obj;
 	CHECK_OBJ_NOTNULL(o, OBJECT_MAGIC);
-	if (o->objcore != NULL) {	/* Pass has no objcore */
-		assert(o->objcore->refcnt > 0);
-		AN(ObjIsBusy(o));
-		o->ttl = 0;
-	}
-	o->cacheable = 0;
+	AssertObjPassOrBusy(o);
+	o->exp.ttl = -1.;
 	if (o->objcore != NULL)		/* Pass has no objcore */
 		HSH_Unbusy(sp);
-	HSH_Deref(sp->wrk, &sp->obj);
+	(void)HSH_Deref(sp->wrk, NULL, &sp->obj);
 }
 
 void
@@ -599,18 +582,20 @@ HSH_Unbusy(const struct sess *sp)
 {
 	struct object *o;
 	struct objhead *oh;
+	struct objcore *oc;
 
 	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
 	o = sp->obj;
 	CHECK_OBJ_NOTNULL(o, OBJECT_MAGIC);
-	CHECK_OBJ_NOTNULL(o->objcore, OBJCORE_MAGIC);
-	oh = o->objcore->objhead;
+	oc = o->objcore;
+	CHECK_OBJ_NOTNULL(oc, OBJCORE_MAGIC);
+	oh = oc->objhead;
 	CHECK_OBJ(oh, OBJHEAD_MAGIC);
 
-	AN(ObjIsBusy(o));
-	AN(o->ban);
-	assert(o->objcore->obj == o);
-	assert(o->objcore->refcnt > 0);
+	AssertObjBusy(o);
+	AN(oc->ban);
+	assert(oc_getobj(sp->wrk, oc) == o);
+	assert(oc->refcnt > 0);
 	assert(oh->refcnt > 0);
 	if (o->ws_o->overflow)
 		sp->wrk->stats.n_objoverflow++;
@@ -618,160 +603,111 @@ HSH_Unbusy(const struct sess *sp)
 		WSP(sp, SLT_Debug,
 		    "Object %u workspace free %u", o->xid, WS_Free(o->ws_o));
 
+	/* XXX: pretouch neighbors on oh->objcs to prevent page-on under mtx */
 	Lck_Lock(&oh->mtx);
 	assert(oh->refcnt > 0);
-	o->objcore->flags &= ~OC_F_BUSY;
+	/* XXX: strictly speaking, we should sort in Date: order. */
+	VTAILQ_REMOVE(&oh->objcs, oc, list);
+	VTAILQ_INSERT_HEAD(&oh->objcs, oc, list);
+	oc->flags &= ~OC_F_BUSY;
 	hsh_rush(oh);
-	AN(o->ban);
+	AN(oc->ban);
 	Lck_Unlock(&oh->mtx);
 }
 
 void
-HSH_Ref(struct object *o)
+HSH_Ref(struct objcore *oc)
 {
 	struct objhead *oh;
 
-	CHECK_OBJ_NOTNULL(o, OBJECT_MAGIC);
-	CHECK_OBJ_NOTNULL(o->objcore, OBJCORE_MAGIC);
-	oh = o->objcore->objhead;
+	CHECK_OBJ_NOTNULL(oc, OBJCORE_MAGIC);
+	oh = oc->objhead;
 	CHECK_OBJ_NOTNULL(oh, OBJHEAD_MAGIC);
 	Lck_Lock(&oh->mtx);
-	assert(o->objcore->refcnt > 0);
-	o->objcore->refcnt++;
+	assert(oc->refcnt > 0);
+	oc->refcnt++;
 	Lck_Unlock(&oh->mtx);
 }
 
-void
-HSH_DerefObjCore(struct sess *sp)
+/*--------------------------------------------------------------------
+ * Dereference objcore and or object
+ *
+ * Can deal with:
+ *	bare objcore (incomplete fetch)
+ *	bare object (pass)
+ *	object with objcore
+ *	XXX later:  objcore with object (?)
+ *
+ * But you can only supply one of the two arguments at a time.
+ *
+ * Returns zero if target was destroyed.
+ */
+
+int
+HSH_Deref(struct worker *w, struct objcore *oc, struct object **oo)
 {
+	struct object *o = NULL;
 	struct objhead *oh;
-	struct objcore *oc;
+	unsigned r;
 
-	CHECK_OBJ_NOTNULL(sp->objhead, OBJHEAD_MAGIC);
-	CHECK_OBJ_NOTNULL(sp->objcore, OBJCORE_MAGIC);
+	/* Only one arg at a time */
+	assert(oc == NULL || oo == NULL);
 
-	oh = sp->objhead;
-	sp->objhead = NULL;
-	oc = sp->objcore;
-	sp->objcore = NULL;
+	if (oo != NULL) {
+		o = *oo;
+		*oo = NULL;
+		CHECK_OBJ_NOTNULL(o, OBJECT_MAGIC);
+		oc = o->objcore;
+	}
+
+	if (o != NULL && oc == NULL) {
+		/*
+		 * A pass object with neither objcore nor objhdr reference.
+		 * -> simply free the (Transient) storage
+		 */
+		STV_Freestore(o);
+		STV_free(o->objstore);
+		w->stats.n_object--;
+		return (0);
+	}
+
+	CHECK_OBJ_NOTNULL(oc, OBJCORE_MAGIC);
+
+	oh = oc->objhead;
+	CHECK_OBJ_NOTNULL(oh, OBJHEAD_MAGIC);
 
 	Lck_Lock(&oh->mtx);
-	assert(oc->objhead == oh);
-	VTAILQ_REMOVE(&oh->objcs, oc, list);
+	assert(oh->refcnt > 0);
+	assert(oc->refcnt > 0);
+	r = --oc->refcnt;
+	if (!r)
+		VTAILQ_REMOVE(&oh->objcs, oc, list);
+	else {
+		/* Must have an object */
+		AN(oc->methods);
+	}
 	if (oc->flags & OC_F_BUSY)
 		hsh_rush(oh);
 	Lck_Unlock(&oh->mtx);
-	oc->objhead = NULL;
-	assert(oh->refcnt > 0);
-	FREE_OBJ(oc);
-	sp->wrk->stats.n_objectcore--;
-	if (!hash->deref(oh))
-		HSH_DeleteObjHead(sp->wrk, oh);
-}
-
-/*******************************************************************
- * This one is slightly tricky.  This is called from the BAN module
- * to try to wash the object which holds the oldest ban.
- * We compete against HSH_Deref() which comes in the opposite
- * locking order, we need to hold the BAN mutex, to stop the
- * BAN_DestroyObj() call in HSH_Deref(), so that the objhead
- * will not be removed under us.
- * NB: Do not call this function any other way or from any other
- * NB: place in the code.  It will not work for you.
- */
-
-void
-HSH_FindBan(struct sess *sp, struct objcore **oc)
-{
-	struct objcore *oc1, *oc2;
-	struct objhead *oh;
-
-	oc1 = *oc;
-	CHECK_OBJ_NOTNULL(oc1, OBJCORE_MAGIC);
-	oh = oc1->objhead;
-	CHECK_OBJ_NOTNULL(oh, OBJHEAD_MAGIC);
-	if (Lck_Trylock(&oh->mtx)) {
-		*oc = NULL;
-		return;
-	}
-	VTAILQ_FOREACH(oc2, &oh->objcs, list)
-		if (oc1 == oc2)
-			break;
-	if (oc2 != NULL && oc2->flags & OC_F_PERSISTENT)
-		SMP_Fixup(sp, oh, oc2);
-	if (oc2 != NULL)
-		oc2->refcnt++;
-	Lck_Unlock(&oh->mtx);
-	*oc = oc2;
-}
-
-void
-HSH_Deref(struct worker *w, struct object **oo)
-{
-	struct object *o;
-	struct objhead *oh;
-	struct objcore *oc;
-	unsigned r;
-
-	AN(oo);
-	o = *oo;
-	*oo = NULL;
-	CHECK_OBJ_NOTNULL(o, OBJECT_MAGIC);
-	oc = o->objcore;
-	if (oc == NULL) {
-		r = 0;
-		oh = NULL;
-	} else {
-		CHECK_OBJ_NOTNULL(oc, OBJCORE_MAGIC);
-		oh = oc->objhead;
-		CHECK_OBJ_NOTNULL(oh, OBJHEAD_MAGIC);
-
-		Lck_Lock(&oh->mtx);
-		assert(oh->refcnt > 0);
-		assert(oc->refcnt > 0);
-		r = --oc->refcnt;
-		if (!r)
-			VTAILQ_REMOVE(&oh->objcs, oc, list);
-		hsh_rush(oh);
-		Lck_Unlock(&oh->mtx);
-	}
-
-	/* If still referenced, done */
 	if (r != 0)
-		return;
+		return (r);
 
-	if (oh != NULL)
-		BAN_DestroyObj(o);
-	AZ(o->ban);
-	DSL(0x40, SLT_Debug, 0, "Object %u workspace min free %u",
-	    o->xid, WS_Free(o->ws_o));
+	BAN_DestroyObj(oc);
+	AZ(oc->ban);
 
-	if (o->esidata != NULL)
-		ESI_Destroy(o);
-	if (o->objcore != NULL && o->objcore->smp_seg != NULL) {
-		SMP_FreeObj(o);
-	} else {
-		HSH_Freestore(o);
-		if (o->objstore != NULL)
-			STV_free(o->objstore);
-		else
-			FREE_OBJ(o);
+	if (oc->methods != NULL) {
+		oc_freeobj(oc);
+		w->stats.n_object--;
 	}
-	o = NULL;
-	w->stats.n_object--;
-
-	if (oc == NULL) {
-		AZ(oh);
-		return;
-	}
-	AN(oh);
 	FREE_OBJ(oc);
+
 	w->stats.n_objectcore--;
 	/* Drop our ref on the objhead */
 	assert(oh->refcnt > 0);
 	if (hash->deref(oh))
-		return;
+		return (0);
 	HSH_DeleteObjHead(w, oh);
+	return (0);
 }
 
 void
@@ -784,10 +720,44 @@ HSH_Init(void)
 		hash->start();
 }
 
-const struct choice hsh_choice[] = {
+static const struct choice hsh_choice[] = {
 	{ "classic",		&hcl_slinger },
 	{ "simple",		&hsl_slinger },
 	{ "simple_list",	&hsl_slinger },	/* backwards compat */
 	{ "critbit",		&hcb_slinger },
 	{ NULL,			NULL }
 };
+
+/*--------------------------------------------------------------------*/
+
+void
+HSH_config(const char *h_arg)
+{
+	char **av;
+	int ac;
+	const struct hash_slinger *hp;
+
+	ASSERT_MGT();
+	av = VAV_Parse(h_arg, NULL, ARGV_COMMA);
+	AN(av);
+
+	if (av[0] != NULL)
+		ARGV_ERR("%s\n", av[0]);
+
+	if (av[1] == NULL)
+		ARGV_ERR("-h argument is empty\n");
+
+	for (ac = 0; av[ac + 2] != NULL; ac++)
+		continue;
+
+	hp = pick(hsh_choice, av[1], "hash");
+	CHECK_OBJ_NOTNULL(hp, SLINGER_MAGIC);
+	VSB_printf(vident, ",-h%s", av[1]);
+	heritage.hash = hp;
+	if (hp->init != NULL)
+		hp->init(ac, av + 2);
+	else if (ac > 0)
+		ARGV_ERR("Hash method \"%s\" takes no arguments\n",
+		    hp->name);
+}
+

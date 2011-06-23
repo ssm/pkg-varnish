@@ -1,6 +1,4 @@
-# $Id$
-
-test "purging on POST"
+varnishtest "purging on POST"
 
 server s1 {
 	rxreq
@@ -30,7 +28,6 @@ varnish v1 -vcl+backend {
 	sub vcl_hit {
 		if (req.request == "POST") {
 			/* Get rid of this object */
-			set obj.cacheable = false;
 			set obj.ttl = 0s;
 			return (pass);
 		}

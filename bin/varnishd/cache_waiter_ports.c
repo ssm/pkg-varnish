@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006 Linpro AS
+ * Copyright (c) 2006 Varnish Software AS
  * Copyright (c) 2007 OmniTI Computer Consulting, Inc.
  * Copyright (c) 2007 Theo Schlossnagle
  * Copyright (c) 2010 UPLEX, Nils Goroll
@@ -31,8 +31,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
 #if defined(HAVE_PORT_CREATE)
 
 #include <stdio.h>
@@ -45,7 +43,6 @@ SVNID("$Id$")
 #include <port.h>
 #include <sys/time.h>
 
-#include "shmlog.h"
 #include "cache.h"
 #include "cache_waiter.h"
 
@@ -87,7 +84,7 @@ vca_port_ev(port_event_t *ev) {
 		assert(sp->fd >= 0);
 		if(ev->portev_events & POLLERR) {
 			vca_del(sp->fd);
-			VTAILQ_REMOVE(&sesshead, sp, list);			
+			VTAILQ_REMOVE(&sesshead, sp, list);
 			vca_close_session(sp, "EOF");
 			SES_Delete(sp);
 			return;
@@ -100,7 +97,7 @@ vca_port_ev(port_event_t *ev) {
 			return;
 		}
 
-		/* 
+		/*
 		 * note: the original man page for port_associate(3C) states:
 		 *
 		 *    When an event for a PORT_SOURCE_FD object is retrieved,
@@ -147,7 +144,7 @@ vca_main(void *arg)
 	 */
 	static struct timespec min_ts = {0L,    100L /*ms*/  * 1000L /*us*/  * 1000L /*ns*/};
 	static double          min_t  = 0.1; /* 100    ms*/
-	static struct timespec max_ts = {1L, 0L}; 		/* 1 second */
+	static struct timespec max_ts = {1L, 0L};		/* 1 second */
 	static double	       max_t  = 1.0;			/* 1 second */
 
 	struct timespec ts;
@@ -237,9 +234,7 @@ vca_main(void *arg)
 			} else if (tmo > max_t) {
 				timeout = &max_ts;
 			} else {
-				/* TIM_t2ts() ? see #630 */
-				ts.tv_sec = (int)floor(tmo);
-				ts.tv_nsec = 1e9 * (tmo - ts.tv_sec);
+				ts = TIM_timespec(tmo);
 				timeout = &ts;
 			}
 		} else {

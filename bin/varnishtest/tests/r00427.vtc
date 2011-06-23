@@ -1,6 +1,4 @@
-# $Id$
-
-test "client close in ESI delivery"
+varnishtest "client close in ESI delivery"
 
 server s1 {
 	rxreq
@@ -27,7 +25,7 @@ server s1 {
 
 varnish v1 -vcl+backend {
 	sub vcl_fetch {
-		esi;
+		set beresp.do_esi = true;
 	}
 } -start
 

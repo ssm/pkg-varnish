@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2008-2009 Linpro AS
+ * Copyright (c) 2008-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -32,14 +32,9 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "shmlog.h"
 #include "cache.h"
 #include "hash_slinger.h"
 #include "cli_priv.h"
@@ -47,7 +42,7 @@ SVNID("$Id$")
 
 static struct lock hcb_mtx;
 
-/**********************************************************************
+/*---------------------------------------------------------------------
  * Table for finding out how many bits two bytes have in common,
  * counting from the MSB towards the LSB.
  * ie:
@@ -82,7 +77,7 @@ hcb_build_bittbl(void)
 	assert(hcb_bits(0x10, 0x0b) == 3);
 }
 
-/**********************************************************************
+/*---------------------------------------------------------------------
  * For space reasons we overload the two pointers with two different
  * kinds of of pointers.  We cast them to uintptr_t's and abuse the
  * low two bits to tell them apart, assuming that Varnish will never
@@ -115,7 +110,7 @@ static VSTAILQ_HEAD(, hcb_y)	dead_y = VSTAILQ_HEAD_INITIALIZER(dead_y);
 static VTAILQ_HEAD(, objhead)	cool_h = VTAILQ_HEAD_INITIALIZER(cool_h);
 static VTAILQ_HEAD(, objhead)	dead_h = VTAILQ_HEAD_INITIALIZER(dead_h);
 
-/**********************************************************************
+/*---------------------------------------------------------------------
  * Pointer accessor functions
  */
 static int
@@ -167,7 +162,7 @@ hcb_l_y(uintptr_t u)
 	return ((struct hcb_y *)(u & ~HCB_BIT_Y));
 }
 
-/**********************************************************************
+/*---------------------------------------------------------------------
  * Find the "critical" bit that separates these two digests
  */
 
@@ -188,7 +183,7 @@ hcb_crit_bit(const struct objhead *oh1, const struct objhead *oh2,
 	return (y->critbit);
 }
 
-/*********************************************************************
+/*---------------------------------------------------------------------
  * Unless we have the lock, we need to be very careful about pointer
  * references into the tree, we cannot trust things to be the same
  * in two consequtive memory accesses.
@@ -269,7 +264,7 @@ hcb_insert(struct worker *wrk, struct hcb_root *root, struct objhead *oh, int ha
 	return(oh);
 }
 
-/**********************************************************************/
+/*--------------------------------------------------------------------*/
 
 static void
 hcb_delete(struct hcb_root *r, struct objhead *oh)
@@ -301,7 +296,7 @@ hcb_delete(struct hcb_root *r, struct objhead *oh)
 	}
 }
 
-/**********************************************************************/
+/*--------------------------------------------------------------------*/
 
 static void
 dumptree(struct cli *cli, uintptr_t p, int indent)
@@ -314,14 +309,14 @@ dumptree(struct cli *cli, uintptr_t p, int indent)
 		return;
 	if (hcb_is_node(p)) {
 		oh = hcb_l_node(p);
-		cli_out(cli, "%*.*sN %d r%u <%02x%02x%02x...>\n",
+		VCLI_Out(cli, "%*.*sN %d r%u <%02x%02x%02x...>\n",
 		    indent, indent, "", indent / 2, oh->refcnt,
 		    oh->digest[0], oh->digest[1], oh->digest[2]);
 		return;
 	}
 	assert(hcb_is_y(p));
 	y = hcb_l_y(p);
-	cli_out(cli, "%*.*sY c %u p %u b %02x i %d\n",
+	VCLI_Out(cli, "%*.*sY c %u p %u b %02x i %d\n",
 	    indent, indent, "",
 	    y->critbit, y->ptr, y->bitmask, indent / 2);
 	indent += 2;
@@ -335,9 +330,9 @@ hcb_dump(struct cli *cli, const char * const *av, void *priv)
 
 	(void)priv;
 	(void)av;
-	cli_out(cli, "HCB dump:\n");
+	VCLI_Out(cli, "HCB dump:\n");
 	dumptree(cli, hcb_root.origo, 0);
-	cli_out(cli, "Coollist:\n");
+	VCLI_Out(cli, "Coollist:\n");
 }
 
 static struct cli_proto hcb_cmds[] = {
@@ -345,7 +340,7 @@ static struct cli_proto hcb_cmds[] = {
 	{ NULL }
 };
 
-/**********************************************************************/
+/*--------------------------------------------------------------------*/
 
 static void *
 hcb_cleaner(void *priv)
@@ -378,7 +373,7 @@ hcb_cleaner(void *priv)
 	NEEDLESS_RETURN(NULL);
 }
 
-/**********************************************************************/
+/*--------------------------------------------------------------------*/
 
 static void
 hcb_start(void)
@@ -388,7 +383,7 @@ hcb_start(void)
 
 	(void)oh;
 	CLI_AddFuncs(hcb_cmds);
-	Lck_New(&hcb_mtx);
+	Lck_New(&hcb_mtx, lck_hcb);
 	AZ(pthread_create(&tp, NULL, hcb_cleaner, NULL));
 	memset(&hcb_root, 0, sizeof hcb_root);
 	hcb_build_bittbl();
@@ -410,7 +405,7 @@ hcb_deref(struct objhead *oh)
 		VTAILQ_INSERT_TAIL(&cool_h, oh, hoh_list);
 		Lck_Unlock(&hcb_mtx);
 		assert(VTAILQ_EMPTY(&oh->objcs));
-		assert(VTAILQ_EMPTY(&oh->waitinglist));
+		AZ(oh->waitinglist);
 	}
 	Lck_Unlock(&oh->mtx);
 #ifdef PHK
@@ -432,25 +427,21 @@ hcb_lookup(const struct sess *sp, struct objhead *noh)
 	with_lock = 0;
 	while (1) {
 		if (with_lock) {
-			if (sp->wrk->nhashpriv == NULL) {
-				ALLOC_OBJ(y, HCB_Y_MAGIC);
-				sp->wrk->nhashpriv = y;
-			}
-			AN(sp->wrk->nhashpriv);
+			CAST_OBJ_NOTNULL(y, sp->wrk->nhashpriv, HCB_Y_MAGIC);
 			Lck_Lock(&hcb_mtx);
-			VSL_stats->hcb_lock++;
+			VSC_C_main->hcb_lock++;
 			assert(noh->refcnt == 1);
 			oh = hcb_insert(sp->wrk, &hcb_root, noh, 1);
 			Lck_Unlock(&hcb_mtx);
 		} else {
-			VSL_stats->hcb_nolock++;
+			VSC_C_main->hcb_nolock++;
 			oh = hcb_insert(sp->wrk, &hcb_root, noh, 0);
 		}
 
 		if (oh != NULL && oh == noh) {
 			/* Assert that we only muck with the tree with a lock */
 			assert(with_lock);
-			VSL_stats->hcb_insert++;
+			VSC_C_main->hcb_insert++;
 			assert(oh->refcnt > 0);
 			return (oh);
 		}
@@ -471,7 +462,7 @@ hcb_lookup(const struct sess *sp, struct objhead *noh)
 		u = oh->refcnt;
 		if (u > 0)
 			oh->refcnt++;
-		else 
+		else
 			with_lock = 1;
 		Lck_Unlock(&oh->mtx);
 		if (u > 0)
@@ -479,11 +470,22 @@ hcb_lookup(const struct sess *sp, struct objhead *noh)
 	}
 }
 
+static void
+hcb_prep(const struct sess *sp)
+{
+	struct hcb_y *y;
 
-struct hash_slinger hcb_slinger = {
-	.magic  =       SLINGER_MAGIC,
-	.name   =       "critbit",
-	.start  =       hcb_start,
-	.lookup =       hcb_lookup,
-	.deref  =       hcb_deref,
+	if (sp->wrk->nhashpriv == NULL) {
+		ALLOC_OBJ(y, HCB_Y_MAGIC);
+		sp->wrk->nhashpriv = y;
+	}
+}
+
+const struct hash_slinger hcb_slinger = {
+	.magic  =	SLINGER_MAGIC,
+	.name   =	"critbit",
+	.start  =	hcb_start,
+	.lookup =	hcb_lookup,
+	.prep =		hcb_prep,
+	.deref  =	hcb_deref,
 };

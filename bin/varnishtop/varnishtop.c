@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -32,9 +32,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <ctype.h>
 #include <curses.h>
 #include <errno.h>
@@ -51,13 +48,19 @@ SVNID("$Id$")
 #include "vsb.h"
 
 #include "libvarnish.h"
-#include "shmlog.h"
+#include "vsl.h"
 #include "varnishapi.h"
 
+#if 0
+#define AC(x) assert((x) != ERR)
+#else
+#define AC(x) x
+#endif
+
 struct top {
-	unsigned char		rec[SHMLOG_DATA-1];
-	unsigned char		*rec_data;
-	unsigned		clen;
+	uint8_t			tag;
+	char			*rec_data;
+	int			clen;
 	unsigned		hash;
 	VTAILQ_ENTRY(top)	list;
 	double			count;
@@ -76,33 +79,36 @@ static int f_flag = 0;
 static unsigned maxfieldlen = 0;
 
 static void
-accumulate(const unsigned char *p)
+accumulate(uint32_t * const p)
 {
 	struct top *tp, *tp2;
-	const unsigned char *q;
+	const char *q;
 	unsigned int u, l;
+	uint8_t t;
 	int i;
 
-	// fprintf(stderr, "%*.*s\n", p[1], p[1], p + 4);
+	// fprintf(stderr, "%p %08x %08x\n", p, p[0], p[1]);
 
 	u = 0;
-	q = p + SHMLOG_DATA;
-	l = SHMLOG_LEN(p);
+	q = VSL_DATA(p);
+	l = VSL_LEN(p);
+	t = VSL_TAG(p);
 	for (i = 0; i < l; i++, q++) {
-		if (f_flag && (*q == ':' || isspace(*q)))
+		if (f_flag && (*q == ':' || isspace(*q))) {
+			l = q - VSL_DATA(p);
 			break;
+		}
 		u += *q;
 	}
 
 	VTAILQ_FOREACH(tp, &top_head, list) {
 		if (tp->hash != u)
 			continue;
-		if (tp->rec[SHMLOG_TAG] != p[SHMLOG_TAG])
+		if (tp->tag != t)
 			continue;
-		if (tp->clen != q - p)
+		if (tp->clen != l)
 			continue;
-		if (memcmp(p + SHMLOG_DATA, tp->rec_data,
-		    q - (p + SHMLOG_DATA)))
+		if (memcmp(VSL_DATA(p), tp->rec_data, l))
 			continue;
 		tp->count += 1.0;
 		break;
@@ -111,15 +117,16 @@ accumulate(const unsigned char *p)
 		ntop++;
 		tp = calloc(sizeof *tp, 1);
 		assert(tp != NULL);
-		tp->rec_data = calloc(l, 1);
+		tp->rec_data = calloc(l + 1, 1);
 		assert(tp->rec_data != NULL);
 		tp->hash = u;
 		tp->count = 1.0;
-		tp->clen = q - p;
+		tp->clen = l;
+		tp->tag = t;
+		memcpy(tp->rec_data, VSL_DATA(p), l);
+		tp->rec_data[l] = '\0';
 		VTAILQ_INSERT_TAIL(&top_head, tp, list);
 	}
-	memcpy(tp->rec, p, SHMLOG_DATA - 1);
-	memcpy(tp->rec_data, p + SHMLOG_DATA, l);
 	while (1) {
 		tp2 = VTAILQ_PREV(tp, tophead, list);
 		if (tp2 == NULL || tp2->count >= tp->count)
@@ -137,12 +144,13 @@ accumulate(const unsigned char *p)
 }
 
 static void
-update(void)
+update(const struct VSM_data *vd, int period)
 {
 	struct top *tp, *tp2;
 	int l, len;
 	double t = 0;
-	static time_t last;
+	static time_t last = 0;
+	static unsigned n;
 	time_t now;
 
 	now = time(NULL);
@@ -150,22 +158,24 @@ update(void)
 		return;
 	last = now;
 
-	erase();
 	l = 1;
-	mvprintw(0, 0, "%*s", COLS - 1, VSL_Name());
-	mvprintw(0, 0, "list length %u", ntop);
+	if (n < period)
+		n++;
+	AC(erase());
+	AC(mvprintw(0, 0, "%*s", COLS - 1, VSM_Name(vd)));
+	AC(mvprintw(0, 0, "list length %u", ntop));
 	VTAILQ_FOREACH_SAFE(tp, &top_head, list, tp2) {
 		if (++l < LINES) {
-			len = SHMLOG_LEN(tp->rec);
+			len = tp->clen;
 			if (len > COLS - 20)
 				len = COLS - 20;
-			mvprintw(l, 0, "%9.2f %-*.*s %*.*s\n",
+			AC(mvprintw(l, 0, "%9.2f %-*.*s %*.*s\n",
 			    tp->count, maxfieldlen, maxfieldlen,
-			    VSL_tags[tp->rec[SHMLOG_TAG]],
-			    len, len, tp->rec_data);
+			    VSL_tags[tp->tag],
+			    len, len, tp->rec_data));
 			t = tp->count;
 		}
-		tp->count *= .999;
+		tp->count += (1.0/3.0 - tp->count) / (double)n;
 		if (tp->count * 10 < t || l > LINES * 10) {
 			VTAILQ_REMOVE(&top_head, tp, list);
 			free(tp->rec_data);
@@ -173,38 +183,37 @@ update(void)
 			ntop--;
 		}
 	}
-	refresh();
+	AC(refresh());
 }
 
 static void *
 accumulate_thread(void *arg)
 {
-	struct VSL_data *vd = arg;
+	struct VSM_data *vd = arg;
+	uint32_t *p;
+	int i;
 
 	for (;;) {
-		unsigned char *p;
-		int i;
 
-		i = VSL_NextLog(vd, &p);
+		i = VSL_NextLog(vd, &p, NULL);
 		if (i < 0)
 			break;
 		if (i == 0) {
-			usleep(50000);
+			AZ(usleep(50000));
 			continue;
 		}
 
-		pthread_mutex_lock(&mtx);
+		AZ(pthread_mutex_lock(&mtx));
 		accumulate(p);
-		pthread_mutex_unlock(&mtx);
+		AZ(pthread_mutex_unlock(&mtx));
 	}
 	return (arg);
 }
 
 static void
-do_curses(struct VSL_data *vd)
+do_curses(struct VSM_data *vd, int period)
 {
 	pthread_t thr;
-	int ch;
 	int i;
 
 	for (i = 0; i < 256; i++) {
@@ -219,46 +228,46 @@ do_curses(struct VSL_data *vd)
 		exit(1);
 	}
 
-	initscr();
-	raw();
-	noecho();
-	nonl();
-	intrflush(stdscr, FALSE);
-	curs_set(0);
-	erase();
+	(void)initscr();
+	AC(raw());
+	AC(noecho());
+	AC(nonl());
+	AC(intrflush(stdscr, FALSE));
+	(void)curs_set(0);
+	AC(erase());
 	for (;;) {
-		pthread_mutex_lock(&mtx);
-		update();
-		pthread_mutex_unlock(&mtx);
+		AZ(pthread_mutex_lock(&mtx));
+		update(vd, period);
+		AZ(pthread_mutex_unlock(&mtx));
 
 		timeout(1000);
-		switch ((ch = getch())) {
+		switch (getch()) {
 		case ERR:
 			break;
 #ifdef KEY_RESIZE
 		case KEY_RESIZE:
-			erase();
+			AC(erase());
 			break;
 #endif
 		case '\014': /* Ctrl-L */
 		case '\024': /* Ctrl-T */
-			redrawwin(stdscr);
-			refresh();
+			AC(redrawwin(stdscr));
+			AC(refresh());
 			break;
 		case '\003': /* Ctrl-C */
-			raise(SIGINT);
+			AZ(raise(SIGINT));
 			break;
 		case '\032': /* Ctrl-Z */
-			endwin();
-			raise(SIGTSTP);
+			AC(endwin());
+			AZ(raise(SIGTSTP));
 			break;
 		case '\021': /* Ctrl-Q */
 		case 'Q':
 		case 'q':
-			endwin();
+			AC(endwin());
 			return;
 		default:
-			beep();
+			AC(beep());
 			break;
 		}
 	}
@@ -268,24 +277,22 @@ static void
 dump(void)
 {
 	struct top *tp, *tp2;
-	int len;
 
 	VTAILQ_FOREACH_SAFE(tp, &top_head, list, tp2) {
 		if (tp->count <= 1.0)
 			break;
-		len = SHMLOG_LEN(tp->rec);
 		printf("%9.2f %s %*.*s\n",
-		    tp->count, VSL_tags[tp->rec[SHMLOG_TAG]],
-		    len, len, tp->rec_data);
+		    tp->count, VSL_tags[tp->tag],
+		    tp->clen, tp->clen, tp->rec_data);
 	}
 }
 
 static void
-do_once(struct VSL_data *vd)
+do_once(struct VSM_data *vd)
 {
-	unsigned char *p;
+	uint32_t *p;
 
-	while (VSL_NextLog(vd, &p) > 0)
+	while (VSL_NextLog(vd, &p, NULL) > 0)
 		accumulate(p);
 	dump();
 }
@@ -301,27 +308,36 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-	struct VSL_data *vd;
-	const char *n_arg = NULL;
+	struct VSM_data *vd;
 	int o, once = 0;
+	float period = 60; /* seconds */
 
-	vd = VSL_New();
+	vd = VSM_New();
+	VSL_Setup(vd);
 
-	while ((o = getopt(argc, argv, VSL_ARGS "1fn:V")) != -1) {
+	while ((o = getopt(argc, argv, VSL_ARGS "1fVp:")) != -1) {
 		switch (o) {
 		case '1':
-			VSL_Arg(vd, 'd', NULL);
+			AN(VSL_Arg(vd, 'd', NULL));
 			once = 1;
-			break;
-		case 'n':
-			n_arg = optarg;
 			break;
 		case 'f':
 			f_flag = 1;
 			break;
+		case 'p':
+			errno = 0;
+			period = strtol(optarg, NULL, 0);
+			if (errno != 0)  {
+				fprintf(stderr, "Syntax error, %s is not a number", optarg);
+				exit(1);
+			}
+			break;
 		case 'V':
-			varnish_version("varnishtop");
+			VCS_Message("varnishtop");
 			exit(0);
+		case 'm':
+			fprintf(stderr, "-m is not supported\n");
+			exit(1);
 		default:
 			if (VSL_Arg(vd, o, optarg) > 0)
 				break;
@@ -329,14 +345,14 @@ main(int argc, char **argv)
 		}
 	}
 
-	if (VSL_OpenLog(vd, n_arg))
+	if (VSL_Open(vd, 1))
 		exit (1);
 
 	if (once) {
 		VSL_NonBlocking(vd, 1);
 		do_once(vd);
 	} else {
-		do_curses(vd);
+		do_curses(vd, period);
 	}
 	exit(0);
 }

@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -29,9 +29,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -55,21 +52,36 @@ SVNID("$Id$")
 #include <math.h>
 
 #include "config.h"
-#ifndef HAVE_STRLCPY
-#include "compat/strlcpy.h"
-#endif
 
 #include "libvarnish.h"
 
 /*--------------------------------------------------------------------*/
 
+int
+VTCP_port(const struct sockaddr_storage *addr)
+{
+
+	if (addr->ss_family == AF_INET) {
+		const struct sockaddr_in *ain = (const void *)addr;
+		return ntohs((ain->sin_port));
+	}
+	if (addr->ss_family == AF_INET6) {
+		const struct sockaddr_in6 *ain = (const void *)addr;
+		return ntohs((ain->sin6_port));
+	}
+	return (-1);
+}
+
+
+/*--------------------------------------------------------------------*/
+
 void
-TCP_name(const struct sockaddr *addr, unsigned l, char *abuf, unsigned alen,
-    char *pbuf, unsigned plen)
+VTCP_name(const struct sockaddr_storage *addr, unsigned l,
+    char *abuf, unsigned alen, char *pbuf, unsigned plen)
 {
 	int i;
 
-	i = getnameinfo(addr, l, abuf, alen, pbuf, plen,
+	i = getnameinfo((const void *)addr, l, abuf, alen, pbuf, plen,
 	   NI_NUMERICHOST | NI_NUMERICSERV);
 	if (i) {
 		/*
@@ -77,8 +89,8 @@ TCP_name(const struct sockaddr *addr, unsigned l, char *abuf, unsigned alen,
 		 * for the gai_strerror in the bufffer :-(
 		 */
 		printf("getnameinfo = %d %s\n", i, gai_strerror(i));
-		strlcpy(abuf, "Conversion", alen);
-		strlcpy(pbuf, "Failed", plen);
+		(void)snprintf(abuf, alen, "Conversion");
+		(void)snprintf(pbuf, plen, "Failed");
 		return;
 	}
 	/* XXX dirty hack for v4-to-v6 mapped addresses */
@@ -92,38 +104,36 @@ TCP_name(const struct sockaddr *addr, unsigned l, char *abuf, unsigned alen,
 /*--------------------------------------------------------------------*/
 
 void
-TCP_myname(int sock, char *abuf, unsigned alen, char *pbuf, unsigned plen)
+VTCP_myname(int sock, char *abuf, unsigned alen, char *pbuf, unsigned plen)
 {
 	struct sockaddr_storage addr_s;
-	struct sockaddr	*addr = (void*)&addr_s;
 	socklen_t l;
 
 	l = sizeof addr_s;
-	AZ(getsockname(sock, addr, &l));
-	TCP_name(addr, l, abuf, alen, pbuf, plen);
+	AZ(getsockname(sock, (void *)&addr_s, &l));
+	VTCP_name(&addr_s, l, abuf, alen, pbuf, plen);
 }
 /*--------------------------------------------------------------------*/
 
 void
-TCP_hisname(int sock, char *abuf, unsigned alen, char *pbuf, unsigned plen)
+VTCP_hisname(int sock, char *abuf, unsigned alen, char *pbuf, unsigned plen)
 {
 	struct sockaddr_storage addr_s;
-	struct sockaddr	*addr = (void*)&addr_s;
 	socklen_t l;
 
 	l = sizeof addr_s;
-	if (!getpeername(sock, addr, &l))
-		TCP_name(addr, l, abuf, alen, pbuf, plen);
+	if (!getpeername(sock, (void*)&addr_s, &l))
+		VTCP_name(&addr_s, l, abuf, alen, pbuf, plen);
 	else {
-		strlcpy(abuf, "<none>", alen);
-		strlcpy(pbuf, "<none>", plen);
+		(void)snprintf(abuf, alen, "<none>");
+		(void)snprintf(pbuf, plen, "<none>");
 	}
 }
 
 /*--------------------------------------------------------------------*/
 
 int
-TCP_filter_http(int sock)
+VTCP_filter_http(int sock)
 {
 #ifdef HAVE_ACCEPT_FILTERS
 	struct accept_filter_arg afa;
@@ -159,24 +169,24 @@ TCP_filter_http(int sock)
  */
 
 int
-TCP_blocking(int sock)
+VTCP_blocking(int sock)
 {
 	int i, j;
 
 	i = 0;
 	j = ioctl(sock, FIONBIO, &i);
-	TCP_Assert(j);
+	VTCP_Assert(j);
 	return (j);
 }
 
 int
-TCP_nonblocking(int sock)
+VTCP_nonblocking(int sock)
 {
 	int i, j;
 
 	i = 1;
 	j = ioctl(sock, FIONBIO, &i);
-	TCP_Assert(j);
+	VTCP_Assert(j);
 	return (j);
 }
 
@@ -191,7 +201,7 @@ TCP_nonblocking(int sock)
  */
 
 int
-TCP_connect(int s, const struct sockaddr *name, socklen_t namelen, int msec)
+VTCP_connect(int s, const struct sockaddr_storage *name, socklen_t namelen, int msec)
 {
 	int i, k;
 	socklen_t l;
@@ -200,13 +210,15 @@ TCP_connect(int s, const struct sockaddr *name, socklen_t namelen, int msec)
 	assert(s >= 0);
 
 	/* Set the socket non-blocking */
-	(void)TCP_nonblocking(s);
+	if (msec > 0)
+		(void)VTCP_nonblocking(s);
 
 	/* Attempt the connect */
-	i = connect(s, name, namelen);
+	i = connect(s, (const void *)name, namelen);
 	if (i == 0 || errno != EINPROGRESS)
 		return (i);
 
+	assert(msec > 0);
 	/* Exercise our patience, polling for write */
 	fds[0].fd = s;
 	fds[0].events = POLLWRNORM;
@@ -228,7 +240,7 @@ TCP_connect(int s, const struct sockaddr *name, socklen_t namelen, int msec)
 	if (k)
 		return (-1);
 
-	(void)TCP_blocking(s);
+	(void)VTCP_blocking(s);
 	return (0);
 }
 
@@ -238,18 +250,18 @@ TCP_connect(int s, const struct sockaddr *name, socklen_t namelen, int msec)
  */
 
 void
-TCP_close(int *s)
+VTCP_close(int *s)
 {
 	int i;
 
 	i = close(*s);
 
-	assert (TCP_Check(i));
+	assert (VTCP_Check(i));
 	*s = -1;
 }
 
 void
-TCP_set_read_timeout(int s, double seconds)
+VTCP_set_read_timeout(int s, double seconds)
 {
 	struct timeval timeout;
 	timeout.tv_sec = (int)floor(seconds);
@@ -266,7 +278,7 @@ TCP_set_read_timeout(int s, double seconds)
  */
 
 int
-TCP_linger(int sock, int linger)
+VTCP_linger(int sock, int linger)
 {
 	struct linger lin;
 	int i;
@@ -274,6 +286,6 @@ TCP_linger(int sock, int linger)
 	memset(&lin, 0, sizeof lin);
 	lin.l_onoff = linger;
 	i = setsockopt(sock, SOL_SOCKET, SO_LINGER, &lin, sizeof lin);
-	TCP_Assert(i);
+	VTCP_Assert(i);
 	return (i);
 }

@@ -17,8 +17,8 @@ SYNOPSIS
 ========
 
 varnishlog [-a] [-b] [-C] [-c] [-D] [-d] [-I regex] [-i tag] [-k keep] 
-[-n varnish_name] [-o] [-P file] [-r file] [-s num] [-u] [-V] 
-[-w file] [-X regex] [-x tag] [tag regex]
+[-n varnish_name] [-o] [-O] [-m tag:regex ...] [-P file] [-r file] [-s num] [-u] [-V]
+[-w file] [-X regex] [-x tag]
 
 DESCRIPTION
 ===========
@@ -51,11 +51,16 @@ The following options are available:
 
 -k num      Only show the first num log records.
 
+-m tag:regex only list transactions where tag matches regex. Multiple
+            -m options are AND-ed together.  Can not be combined with -O
+
 -n          Specifies the name of the varnishd instance to get logs from.  If -n is not 
 	    specified, the host name is used.
 
--o          Group log entries by request ID.  This has no effect when writing to a 
-	    file using the -w option.
+-o          Ignored for compatibility with earlier versions.
+
+-O          Do not group log entries by request ID.  Can not be
+            combined with -m.
 
 -P file     Write the process's PID to the specified file.
 
@@ -158,7 +163,7 @@ HISTORY
 =======
 
 The varnishlog utility was developed by Poul-Henning Kamp ⟨phk@phk.freebsd.dk⟩ in cooperation with Verdens Gang
-AS, Linpro AS and Varnish Software.  This manual page was initially written by Dag-Erling Smørgrav.
+AS, Varnish Software AS and Varnish Software.  This manual page was initially written by Dag-Erling Smørgrav.
 
 
 COPYRIGHT
@@ -168,6 +173,4 @@ This document is licensed under the same licence as Varnish
 itself. See LICENCE for details.
 
 * Copyright (c) 2006 Verdens Gang AS
-* Copyright (c) 2006-2008 Linpro AS
-* Copyright (c) 2008-2010 Redpill Linpro AS
-* Copyright (c) 2010 Varnish Software AS
+* Copyright (c) 2006-2011 Varnish Software AS

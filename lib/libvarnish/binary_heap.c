@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -33,9 +33,6 @@
  */
 
 #include "config.h"
-
-#include "svnid.h"
-SVNID("$Id$")
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -201,7 +198,7 @@ binheap_new(void *priv, binheap_cmp_t *cmp_f, binheap_update_t *update_f)
 		;
 	bh->page_shift = u;
 	assert(bh->page_size <= (sizeof(**bh->array) * ROW_WIDTH));
-	
+
 	bh->cmp = cmp_f;
 	bh->update = update_f;
 	bh->next = ROOT_IDX;
@@ -303,7 +300,7 @@ chk(const struct binheap *bh)
 		assert(!bh->cmp(bh->priv, A(bh, u), A(bh, v)));
 	}
 }
-#endif 
+#endif
 
 void *
 binheap_root(const struct binheap *bh)
@@ -351,7 +348,7 @@ binheap_delete(struct binheap *bh, unsigned idx)
 	assert(idx < bh->next);
 	assert(idx > 0);
 	assert(A(bh, idx) != NULL);
-	bh->update(bh->priv, A(bh, idx), 0);
+	bh->update(bh->priv, A(bh, idx), BINHEAP_NOIDX);
 	if (idx == --bh->next) {
 		A(bh, bh->next) = NULL;
 		return;
@@ -379,7 +376,7 @@ binheap_delete(struct binheap *bh, unsigned idx)
  */
 
 void
-binheap_reorder(struct binheap *bh, unsigned idx)
+binheap_reorder(const struct binheap *bh, unsigned idx)
 {
 
 	assert(bh != NULL);

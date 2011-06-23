@@ -1,6 +1,4 @@
-# $Id$
-
-test "Test that obj.ttl = 0s prevents subsequent hits"
+varnishtest "Test that obj.ttl = 0s prevents subsequent hits"
 
 server s1 {
 	rxreq
@@ -14,7 +12,7 @@ server s1 {
 varnish v1 -vcl+backend { 
 	sub vcl_hit {
 		set obj.ttl = 0s;
-		restart;
+		return (restart);
 	}
 } -start
 

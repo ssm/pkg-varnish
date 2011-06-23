@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -29,9 +29,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -50,7 +47,7 @@ SVNID("$Id$")
  */
 
 void
-vcc_ParseRandomDirector(struct tokenlist *tl)
+vcc_ParseRandomDirector(struct vcc *tl)
 {
 	struct token *t_field, *t_be;
 	int nelem;
@@ -103,11 +100,11 @@ vcc_ParseRandomDirector(struct tokenlist *tl)
 				u = vcc_UintVal(tl);
 				ERRCHK(tl);
 				if (u == 0) {
-					vsb_printf(tl->sb,
+					VSB_printf(tl->sb,
 					    "The .weight must be higher "
 					    "than zero.");
 					vcc_ErrToken(tl, tl->t);
-					vsb_printf(tl->sb, " at\n");
+					VSB_printf(tl->sb, " at\n");
 					vcc_ErrWhere(tl, tl->t);
 					return;
 				}
@@ -120,7 +117,7 @@ vcc_ParseRandomDirector(struct tokenlist *tl)
 		}
 		vcc_FieldsOk(tl, mfs);
 		if (tl->err) {
-			vsb_printf(tl->sb,
+			VSB_printf(tl->sb,
 			    "\nIn member host specification starting at:\n");
 			vcc_ErrWhere(tl, t_be);
 			return;

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2008-2009 Linpro AS
+ * Copyright (c) 2008-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -30,16 +30,11 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/types.h>
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
 
-#include "shmlog.h"
 #include "cache.h"
 #include "vsb.h"
 #include "stevedore.h"
@@ -53,11 +48,11 @@ sms_free(struct storage *sto)
 
 	CHECK_OBJ_NOTNULL(sto, STORAGE_MAGIC);
 	Lck_Lock(&sms_mtx);
-	VSL_stats->sms_nobj--;
-	VSL_stats->sms_nbytes -= sto->len;
-	VSL_stats->sms_bfree += sto->len;
+	VSC_C_main->sms_nobj--;
+	VSC_C_main->sms_nbytes -= sto->len;
+	VSC_C_main->sms_bfree += sto->len;
 	Lck_Unlock(&sms_mtx);
-	vsb_delete(sto->priv);
+	VSB_delete(sto->priv);
 	free(sto);
 }
 
@@ -65,7 +60,7 @@ void
 SMS_Init(void)
 {
 
-	Lck_New(&sms_mtx);
+	Lck_New(&sms_mtx, lck_sms);
 }
 
 static struct stevedore sms_stevedore = {
@@ -81,22 +76,24 @@ SMS_Makesynth(struct object *obj)
 	struct vsb *vsb;
 
 	CHECK_OBJ_NOTNULL(obj, OBJECT_MAGIC);
-	HSH_Freestore(obj);
+	STV_Freestore(obj);
 	obj->len = 0;
 
 	Lck_Lock(&sms_mtx);
-	VSL_stats->sms_nreq++;
-	VSL_stats->sms_nobj++;
+	VSC_C_main->sms_nreq++;
+	VSC_C_main->sms_nobj++;
 	Lck_Unlock(&sms_mtx);
 
 	sto = calloc(sizeof *sto, 1);
 	XXXAN(sto);
-	vsb = vsb_newauto();
+	vsb = VSB_new_auto();
 	XXXAN(vsb);
 	sto->priv = vsb;
 	sto->len = 0;
 	sto->space = 0;
+#ifdef SENDFILE_WORKS
 	sto->fd = -1;
+#endif
 	sto->stevedore = &sms_stevedore;
 	sto->magic = STORAGE_MAGIC;
 
@@ -114,15 +111,14 @@ SMS_Finish(struct object *obj)
 	sto = VTAILQ_FIRST(&obj->store);
 	assert(sto->stevedore == &sms_stevedore);
 	vsb = sto->priv;
-	vsb_finish(vsb);
-	AZ(vsb_overflowed(vsb));
+	AZ(VSB_finish(vsb));
 
-	sto->ptr = (void*)vsb_data(vsb);
-	sto->len = vsb_len(vsb);
-	sto->space = vsb_len(vsb);
+	sto->ptr = (void*)VSB_data(vsb);
+	sto->len = VSB_len(vsb);
+	sto->space = VSB_len(vsb);
 	obj->len = sto->len;
 	Lck_Lock(&sms_mtx);
-	VSL_stats->sms_nbytes += sto->len;
-	VSL_stats->sms_balloc += sto->len;
+	VSC_C_main->sms_nbytes += sto->len;
+	VSC_C_main->sms_balloc += sto->len;
 	Lck_Unlock(&sms_mtx);
 }

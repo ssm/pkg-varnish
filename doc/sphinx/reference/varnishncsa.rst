@@ -15,9 +15,10 @@ Display Varnish logs in Apache / NCSA combined log format
 SYNOPSIS
 ========
 
-varnishncsa [-a] [-b] [-C] [-c] [-D] [-d] [-f] [-I regex] 
-[-i tag] [-n varnish_name] [-P file] [-r file] [-V] 
-[-w file] [-X regex] [-x tag]
+varnishncsa [-a] [-b] [-C] [-c] [-D] [-d] [-f] [-F format] [-I regex]
+[-i tag] [-n varnish_name] [-m tag:regex ...] [-P file] [-r file] [-V] [-w file] 
+[-X regex] [-x tag]
+
 
 DESCRIPTION
 ===========
@@ -48,12 +49,69 @@ The following options are available:
 -f          Prefer the X-Forwarded-For HTTP header over client.ip in 
 	    the log output.
 
--I regex    Include log entries which match the specified regular 
-   	    expression.  If neither -I nor -i is specified, 
-	    all log entries are included.
+-F format   Specify the log format used. If no format is specified the  
+   	    default log format is used. Currently it is:
 
--i tag      Include log entries with the specified tag.  If neither -I nor 
-   	    -i is specified, all log entries are included.
+            %h %l %u %t "%r" %>s %b "%{Referer}i" "%{User-agent}i"
+
+	    Supported formatters are:
+
+	      %b 
+	         Size of response in bytes, excluding HTTP headers.
+   	         In CLF format, i.e. a '-' rather than a 0 when no
+   	         bytes are sent.
+
+	      %H 
+	         The request protocol
+
+              %h
+	         Remote host
+
+	      %{X}i
+	         The contents of header line X.  Supported headers are
+	         *Referer*, *Host*, *X-Forwarded-For* and *User-agent*.
+
+	      %l
+	         Remote logname (always '-')
+
+	      %m
+	         Request method
+
+	      %q
+	         The query string, if no query string exists, an empty string.
+
+	      %r
+	         The first line of the request
+
+	      %s
+	         Status sent to the client
+
+	      %t
+	         Time when the request was received, in HTTP date/time
+	         format.
+
+	      %U
+	         The request URL without any query string.
+
+	      %u
+	         Remote user from auth
+
+	      %{X}x
+	         Extended variables.  Supported variables are:
+
+		   Varnish:time_firstbyte
+		     Time to the first byte from the backend arrived
+
+		   Varnish:hitmiss
+		     Whether the request was a cache hit or miss. Pipe
+		     and pass are considered misses.
+
+		   Varnish:handling
+		     How the request was handled, whether it was a
+		     cache hit, miss, pass, pipe or error.
+
+-m tag:regex only list records where tag matches regex. Multiple
+            -m options are AND-ed together.
 
 -n          Specifies the name of the varnishd instance to get logs 
 	    from.  If -n is not specified, the host name is used.
@@ -77,6 +135,10 @@ The following options are available:
 
 -x tag      Exclude log entries with the specified tag.
 
+If the -o option was specified, a tag and a regex argument must be given.
+varnishncsa will then only log for request groups which include that tag
+and the regular expression matches on that tag.
+
 SEE ALSO
 ========
 
@@ -90,7 +152,7 @@ HISTORY
 =======
 
 The varnishncsa utility was developed by Poul-Henning Kamp in
-cooperation with Verdens Gang AS and Linpro AS.  This manual page was
+cooperation with Verdens Gang AS and Varnish Software AS.  This manual page was
 written by Dag-Erling Smørgrav ⟨des@des.no⟩.
 
 
@@ -101,6 +163,4 @@ This document is licensed under the same licence as Varnish
 itself. See LICENCE for details.
 
 * Copyright (c) 2006 Verdens Gang AS
-* Copyright (c) 2006-2008 Linpro AS
-* Copyright (c) 2008-2010 Redpill Linpro AS
-* Copyright (c) 2010 Varnish Software AS
+* Copyright (c) 2006-2011 Varnish Software AS

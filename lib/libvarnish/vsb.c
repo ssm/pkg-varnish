@@ -24,13 +24,10 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
-__FBSDID("$FreeBSD: head/sys/kern/subr_sbuf.c 181462 2008-08-09 10:26:21Z des $");
+__FBSDID("$FreeBSD: head/sys/kern/subr_vsb.c 222004 2011-05-17 06:36:32Z phk $")
  */
 
 #include "config.h"
-
-#include "svnid.h"
-SVNID("$Id$")
 
 #include <ctype.h>
 #include <stdarg.h>
@@ -44,7 +41,8 @@ SVNID("$Id$")
 #define	KASSERT(e, m)		assert(e)
 #define	SBMALLOC(size)		malloc(size)
 #define	SBFREE(buf)		free(buf)
-#define	min(x,y)		(x < y ? x : y)
+
+#define	roundup2(x, y)	(((x)+((y)-1))&(~((y)-1))) /* if y is powers of two */
 
 #define VSB_MAGIC		0x4a82dd8a
 /*
@@ -53,7 +51,6 @@ SVNID("$Id$")
 #define	VSB_ISDYNAMIC(s)	((s)->s_flags & VSB_DYNAMIC)
 #define	VSB_ISDYNSTRUCT(s)	((s)->s_flags & VSB_DYNSTRUCT)
 #define	VSB_ISFINISHED(s)	((s)->s_flags & VSB_FINISHED)
-#define	VSB_HASOVERFLOWED(s)	((s)->s_flags & VSB_OVERFLOWED)
 #define	VSB_HASROOM(s)		((s)->s_len < (s)->s_size - 1)
 #define	VSB_FREESPACE(s)	((s)->s_size - ((s)->s_len + 1))
 #define	VSB_CANEXTEND(s)	((s)->s_flags & VSB_AUTOEXTEND)
@@ -65,15 +62,21 @@ SVNID("$Id$")
 #define	VSB_CLEARFLAG(s, f)	do { (s)->s_flags &= ~(f); } while (0)
 
 #define	VSB_MINEXTENDSIZE	16		/* Should be power of 2. */
+
+#ifdef PAGE_SIZE
+#define	VSB_MAXEXTENDSIZE	PAGE_SIZE
+#define	VSB_MAXEXTENDINCR	PAGE_SIZE
+#else
 #define	VSB_MAXEXTENDSIZE	4096
 #define	VSB_MAXEXTENDINCR	4096
+#endif
 
 /*
  * Debugging support
  */
 #if !defined(NDEBUG)
 static void
-_vsb_assert_integrity(const char *fun, struct vsb *s)
+_assert_VSB_integrity(const char *fun, struct vsb *s)
 {
 
 	(void)fun;
@@ -89,7 +92,7 @@ _vsb_assert_integrity(const char *fun, struct vsb *s)
 }
 
 static void
-_vsb_assert_state(const char *fun, struct vsb *s, int state)
+_assert_VSB_state(const char *fun, struct vsb *s, int state)
 {
 
 	(void)fun;
@@ -99,41 +102,47 @@ _vsb_assert_state(const char *fun, struct vsb *s, int state)
 	    ("%s called with %sfinished or corrupt vsb", fun,
 	    (state ? "un" : "")));
 }
-#define	vsb_assert_integrity(s) _vsb_assert_integrity(__func__, (s))
-#define	vsb_assert_state(s, i)	 _vsb_assert_state(__func__, (s), (i))
+#define	assert_VSB_integrity(s) _assert_VSB_integrity(__func__, (s))
+#define	assert_VSB_state(s, i)	 _assert_VSB_state(__func__, (s), (i))
 #else
-#define	vsb_assert_integrity(s) do { } while (0)
-#define	vsb_assert_state(s, i)	 do { } while (0)
+#define	assert_VSB_integrity(s) do { } while (0)
+#define	assert_VSB_state(s, i)	 do { } while (0)
 #endif
 
+#ifdef CTASSERT
+CTASSERT(powerof2(VSB_MAXEXTENDSIZE));
+CTASSERT(powerof2(VSB_MAXEXTENDINCR));
+#endif
+
+
 static int
-vsb_extendsize(int size)
+VSB_extendsize(int size)
 {
 	int newsize;
 
-	newsize = VSB_MINEXTENDSIZE;
-	while (newsize < size) {
-		if (newsize < (int)VSB_MAXEXTENDSIZE)
+	if (size < (int)VSB_MAXEXTENDSIZE) {
+		newsize = VSB_MINEXTENDSIZE;
+		while (newsize < size)
 			newsize *= 2;
-		else
-			newsize += VSB_MAXEXTENDINCR;
+	} else {
+		newsize = roundup2(size, VSB_MAXEXTENDINCR);
 	}
+	KASSERT(newsize >= size, ("%s: %d < %d\n", __func__, newsize, size));
 	return (newsize);
 }
-
 
 /*
  * Extend an vsb.
  */
 static int
-vsb_extend(struct vsb *s, int addlen)
+VSB_extend(struct vsb *s, int addlen)
 {
 	char *newbuf;
 	int newsize;
 
 	if (!VSB_CANEXTEND(s))
 		return (-1);
-	newsize = vsb_extendsize(s->s_size + addlen);
+	newsize = VSB_extendsize(s->s_size + addlen);
 	newbuf = SBMALLOC(newsize);
 	if (newbuf == NULL)
 		return (-1);
@@ -148,12 +157,45 @@ vsb_extend(struct vsb *s, int addlen)
 }
 
 /*
+ * Initialize the internals of an vsb.
+ * If buf is non-NULL, it points to a static or already-allocated string
+ * big enough to hold at least length characters.
+ */
+static struct vsb *
+VSB_newbuf(struct vsb *s, char *buf, int length, int flags)
+{
+
+	memset(s, 0, sizeof(*s));
+	s->s_magic = VSB_MAGIC;
+	s->s_flags = flags;
+	s->s_size = length;
+	s->s_buf = buf;
+
+	if ((s->s_flags & VSB_AUTOEXTEND) == 0) {
+		KASSERT(s->s_size > 1,
+		    ("attempt to create a too small vsb"));
+	}
+
+	if (s->s_buf != NULL)
+		return (s);
+
+	if ((flags & VSB_AUTOEXTEND) != 0)
+		s->s_size = VSB_extendsize(s->s_size);
+
+	s->s_buf = SBMALLOC(s->s_size);
+	if (s->s_buf == NULL)
+		return (NULL);
+	VSB_SETFLAG(s, VSB_DYNAMIC);
+	return (s);
+}
+
+/*
  * Initialize an vsb.
  * If buf is non-NULL, it points to a static or already-allocated string
  * big enough to hold at least length characters.
  */
 struct vsb *
-vsb_new(struct vsb *s, char *buf, int length, int flags)
+VSB_new(struct vsb *s, char *buf, int length, int flags)
 {
 
 	KASSERT(length >= 0,
@@ -162,29 +204,17 @@ vsb_new(struct vsb *s, char *buf, int length, int flags)
 	    ("%s called with invalid flags", __func__));
 
 	flags &= VSB_USRFLAGMSK;
-	if (s == NULL) {
-		s = SBMALLOC(sizeof(*s));
-		if (s == NULL)
-			return (NULL);
-		flags |= VSB_DYNSTRUCT;
-	}
-	memset(s, 0, sizeof *s);
-	s->s_flags = flags;
-	s->s_magic = VSB_MAGIC;
-	s->s_size = length;
-	if (buf) {
-		s->s_buf = buf;
-		return (s);
-	}
-	if (flags & VSB_AUTOEXTEND)
-		s->s_size = vsb_extendsize(s->s_size);
-	s->s_buf = SBMALLOC(s->s_size);
-	if (s->s_buf == NULL) {
-		if (VSB_ISDYNSTRUCT(s))
-			SBFREE(s);
+	if (s != NULL)
+		return (VSB_newbuf(s, buf, length, flags));
+
+	s = SBMALLOC(sizeof(*s));
+	if (s == NULL)
+		return (NULL);
+	if (VSB_newbuf(s, buf, length, flags) == NULL) {
+		SBFREE(s);
 		return (NULL);
 	}
-	VSB_SETFLAG(s, VSB_DYNAMIC);
+	VSB_SETFLAG(s, VSB_DYNSTRUCT);
 	return (s);
 }
 
@@ -192,14 +222,14 @@ vsb_new(struct vsb *s, char *buf, int length, int flags)
  * Clear an vsb and reset its position.
  */
 void
-vsb_clear(struct vsb *s)
+VSB_clear(struct vsb *s)
 {
 
-	vsb_assert_integrity(s);
+	assert_VSB_integrity(s);
 	/* don't care if it's finished or not */
 
 	VSB_CLEARFLAG(s, VSB_FINISHED);
-	VSB_CLEARFLAG(s, VSB_OVERFLOWED);
+	s->s_error = 0;
 	s->s_len = 0;
 }
 
@@ -208,16 +238,17 @@ vsb_clear(struct vsb *s)
  * Effectively truncates the vsb at the new position.
  */
 int
-vsb_setpos(struct vsb *s, int pos)
+VSB_setpos(struct vsb *s, ssize_t pos)
 {
 
-	vsb_assert_integrity(s);
-	vsb_assert_state(s, 0);
+	assert_VSB_integrity(s);
+	assert_VSB_state(s, 0);
 
 	KASSERT(pos >= 0,
-	    ("attempt to seek to a negative position (%d)", pos));
+	    ("attempt to seek to a negative position (%jd)", (intmax_t)pos));
 	KASSERT(pos < s->s_size,
-	    ("attempt to seek past end of vsb (%d >= %d)", pos, s->s_size));
+	    ("attempt to seek past end of vsb (%jd >= %jd)",
+	    (intmax_t)pos, (intmax_t)s->s_size));
 
 	if (pos < 0 || pos > s->s_len)
 		return (-1);
@@ -226,26 +257,46 @@ vsb_setpos(struct vsb *s, int pos)
 }
 
 /*
+ * Append a byte to an vsb.  This is the core function for appending
+ * to an vsb and is the main place that deals with extending the
+ * buffer and marking overflow.
+ */
+static void
+VSB_put_byte(struct vsb *s, int c)
+{
+
+	assert_VSB_integrity(s);
+	assert_VSB_state(s, 0);
+
+	if (s->s_error != 0)
+		return;
+	if (VSB_FREESPACE(s) <= 0) {
+		if (VSB_extend(s, 1) < 0)
+			s->s_error = ENOMEM;
+		if (s->s_error != 0)
+			return;
+	}
+	s->s_buf[s->s_len++] = (char)c;
+}
+
+/*
  * Append a byte string to an vsb.
  */
 int
-vsb_bcat(struct vsb *s, const void *buf, size_t len)
+VSB_bcat(struct vsb *s, const void *buf, size_t len)
 {
 	const char *str = buf;
+	const char *end = str + len;
 
-	vsb_assert_integrity(s);
-	vsb_assert_state(s, 0);
+	assert_VSB_integrity(s);
+	assert_VSB_state(s, 0);
 
-	if (VSB_HASOVERFLOWED(s))
+	if (s->s_error != 0)
 		return (-1);
-	for (; len; len--) {
-		if (!VSB_HASROOM(s) && vsb_extend(s, len) < 0)
-			break;
-		s->s_buf[s->s_len++] = *str++;
-	}
-	if (len) {
-		VSB_SETFLAG(s, VSB_OVERFLOWED);
-		return (-1);
+	for (; str < end; str++) {
+		VSB_put_byte(s, *str);
+		if (s->s_error != 0)
+			return (-1);
 	}
 	return (0);
 }
@@ -254,37 +305,33 @@ vsb_bcat(struct vsb *s, const void *buf, size_t len)
  * Copy a byte string into an vsb.
  */
 int
-vsb_bcpy(struct vsb *s, const void *buf, size_t len)
+VSB_bcpy(struct vsb *s, const void *buf, size_t len)
 {
 
-	vsb_assert_integrity(s);
-	vsb_assert_state(s, 0);
+	assert_VSB_integrity(s);
+	assert_VSB_state(s, 0);
 
-	vsb_clear(s);
-	return (vsb_bcat(s, buf, len));
+	VSB_clear(s);
+	return (VSB_bcat(s, buf, len));
 }
 
 /*
  * Append a string to an vsb.
  */
 int
-vsb_cat(struct vsb *s, const char *str)
+VSB_cat(struct vsb *s, const char *str)
 {
 
-	vsb_assert_integrity(s);
-	vsb_assert_state(s, 0);
+	assert_VSB_integrity(s);
+	assert_VSB_state(s, 0);
 
-	if (VSB_HASOVERFLOWED(s))
+	if (s->s_error != 0)
 		return (-1);
 
-	while (*str) {
-		if (!VSB_HASROOM(s) && vsb_extend(s, strlen(str)) < 0)
-			break;
-		s->s_buf[s->s_len++] = *str++;
-	}
-	if (*str) {
-		VSB_SETFLAG(s, VSB_OVERFLOWED);
-		return (-1);
+	while (*str != '\0') {
+		VSB_put_byte(s, *str++);
+		if (s->s_error != 0)
+			return (-1);
 	}
 	return (0);
 }
@@ -293,33 +340,44 @@ vsb_cat(struct vsb *s, const char *str)
  * Copy a string into an vsb.
  */
 int
-vsb_cpy(struct vsb *s, const char *str)
+VSB_cpy(struct vsb *s, const char *str)
 {
 
-	vsb_assert_integrity(s);
-	vsb_assert_state(s, 0);
+	assert_VSB_integrity(s);
+	assert_VSB_state(s, 0);
 
-	vsb_clear(s);
-	return (vsb_cat(s, str));
+	VSB_clear(s);
+	return (VSB_cat(s, str));
 }
 
 /*
  * Format the given argument list and append the resulting string to an vsb.
  */
 int
-vsb_vprintf(struct vsb *s, const char *fmt, va_list ap)
+VSB_vprintf(struct vsb *s, const char *fmt, va_list ap)
 {
 	va_list ap_copy;
 	int len;
 
-	vsb_assert_integrity(s);
-	vsb_assert_state(s, 0);
+	assert_VSB_integrity(s);
+	assert_VSB_state(s, 0);
 
 	KASSERT(fmt != NULL,
 	    ("%s called with a NULL format string", __func__));
 
-	if (VSB_HASOVERFLOWED(s))
+	if (s->s_error != 0)
 		return (-1);
+
+	/*
+	 * For the moment, there is no way to get vsnprintf(3) to hand
+	 * back a character at a time, to push everything into
+	 * VSB_putc_func() as was done for the kernel.
+	 *
+	 * In userspace, while drains are useful, there's generally
+	 * not a problem attempting to malloc(3) on out of space.  So
+	 * expand a userland vsb if there is not enough room for the
+	 * data produced by VSB_[v]printf(3).
+	 */
 
 	do {
 		va_copy(ap_copy, ap);
@@ -327,7 +385,7 @@ vsb_vprintf(struct vsb *s, const char *fmt, va_list ap)
 		    fmt, ap_copy);
 		va_end(ap_copy);
 	} while (len > VSB_FREESPACE(s) &&
-	    vsb_extend(s, len - VSB_FREESPACE(s)) == 0);
+	    VSB_extend(s, len - VSB_FREESPACE(s)) == 0);
 
 	/*
 	 * s->s_len is the length of the string, without the terminating nul.
@@ -336,16 +394,18 @@ vsb_vprintf(struct vsb *s, const char *fmt, va_list ap)
 	 * terminating nul.
 	 *
 	 * vsnprintf() returns the amount that would have been copied,
-	 * given sufficient space, hence the min() calculation below.
+	 * given sufficient space, so don't over-increment s_len.
 	 */
-	s->s_len += min(len, VSB_FREESPACE(s));
+	if (VSB_FREESPACE(s) < len)
+		len = VSB_FREESPACE(s);
+	s->s_len += len;
 	if (!VSB_HASROOM(s) && !VSB_CANEXTEND(s))
-		VSB_SETFLAG(s, VSB_OVERFLOWED);
+		s->s_error = ENOMEM;
 
 	KASSERT(s->s_len < s->s_size,
 	    ("wrote past end of vsb (%d >= %d)", s->s_len, s->s_size));
 
-	if (VSB_HASOVERFLOWED(s))
+	if (s->s_error != 0)
 		return (-1);
 	return (0);
 }
@@ -354,35 +414,27 @@ vsb_vprintf(struct vsb *s, const char *fmt, va_list ap)
  * Format the given arguments and append the resulting string to an vsb.
  */
 int
-vsb_printf(struct vsb *s, const char *fmt, ...)
+VSB_printf(struct vsb *s, const char *fmt, ...)
 {
 	va_list ap;
 	int result;
 
 	va_start(ap, fmt);
-	result = vsb_vprintf(s, fmt, ap);
+	result = VSB_vprintf(s, fmt, ap);
 	va_end(ap);
-	return(result);
+	return (result);
 }
 
 /*
  * Append a character to an vsb.
  */
 int
-vsb_putc(struct vsb *s, int c)
+VSB_putc(struct vsb *s, int c)
 {
 
-	vsb_assert_integrity(s);
-	vsb_assert_state(s, 0);
-
-	if (VSB_HASOVERFLOWED(s))
+	VSB_put_byte(s, c);
+	if (s->s_error != 0)
 		return (-1);
-	if (!VSB_HASROOM(s) && vsb_extend(s, 1) < 0) {
-		VSB_SETFLAG(s, VSB_OVERFLOWED);
-		return (-1);
-	}
-	if (c != '\0')
-		s->s_buf[s->s_len++] = (char)c;
 	return (0);
 }
 
@@ -390,55 +442,58 @@ vsb_putc(struct vsb *s, int c)
  * Trim whitespace characters from end of an vsb.
  */
 int
-vsb_trim(struct vsb *s)
+VSB_trim(struct vsb *s)
 {
 
-	vsb_assert_integrity(s);
-	vsb_assert_state(s, 0);
+	assert_VSB_integrity(s);
+	assert_VSB_state(s, 0);
 
-	if (VSB_HASOVERFLOWED(s))
+	if (s->s_error != 0)
 		return (-1);
 
-	while (s->s_len && isspace(s->s_buf[s->s_len-1]))
+	while (s->s_len > 0 && isspace(s->s_buf[s->s_len-1]))
 		--s->s_len;
 
 	return (0);
 }
 
 /*
- * Check if an vsb overflowed
+ * Check if an vsb has an error.
  */
 int
-vsb_overflowed(const struct vsb *s)
+VSB_error(const struct vsb *s)
 {
 
-	return (VSB_HASOVERFLOWED(s));
+	return (s->s_error);
 }
 
 /*
  * Finish off an vsb.
  */
-void
-vsb_finish(struct vsb *s)
+int
+VSB_finish(struct vsb *s)
 {
 
-	vsb_assert_integrity(s);
-	vsb_assert_state(s, 0);
+	assert_VSB_integrity(s);
+	assert_VSB_state(s, 0);
 
 	s->s_buf[s->s_len] = '\0';
-	VSB_CLEARFLAG(s, VSB_OVERFLOWED);
 	VSB_SETFLAG(s, VSB_FINISHED);
+	errno = s->s_error;
+	if (s->s_error)
+		return (-1);
+	return (0);
 }
 
 /*
  * Return a pointer to the vsb data.
  */
 char *
-vsb_data(struct vsb *s)
+VSB_data(struct vsb *s)
 {
 
-	vsb_assert_integrity(s);
-	vsb_assert_state(s, VSB_FINISHED);
+	assert_VSB_integrity(s);
+	assert_VSB_state(s, VSB_FINISHED);
 
 	return (s->s_buf);
 }
@@ -446,14 +501,14 @@ vsb_data(struct vsb *s)
 /*
  * Return the length of the vsb data.
  */
-int
-vsb_len(struct vsb *s)
+ssize_t
+VSB_len(struct vsb *s)
 {
 
-	vsb_assert_integrity(s);
+	assert_VSB_integrity(s);
 	/* don't care if it's finished or not */
 
-	if (VSB_HASOVERFLOWED(s))
+	if (s->s_error != 0)
 		return (-1);
 	return (s->s_len);
 }
@@ -462,17 +517,17 @@ vsb_len(struct vsb *s)
  * Clear an vsb, free its buffer if necessary.
  */
 void
-vsb_delete(struct vsb *s)
+VSB_delete(struct vsb *s)
 {
 	int isdyn;
 
-	vsb_assert_integrity(s);
+	assert_VSB_integrity(s);
 	/* don't care if it's finished or not */
 
 	if (VSB_ISDYNAMIC(s))
 		SBFREE(s->s_buf);
 	isdyn = VSB_ISDYNSTRUCT(s);
-	memset(s, 0, sizeof *s);
+	memset(s, 0, sizeof(*s));
 	if (isdyn)
 		SBFREE(s);
 }
@@ -481,7 +536,7 @@ vsb_delete(struct vsb *s)
  * Check if an vsb has been finished.
  */
 int
-vsb_done(const struct vsb *s)
+VSB_done(const struct vsb *s)
 {
 
 	return(VSB_ISFINISHED(s));
@@ -491,7 +546,7 @@ vsb_done(const struct vsb *s)
  * Quote a string
  */
 void
-vsb_quote(struct vsb *s, const char *p, int len, int how)
+VSB_quote(struct vsb *s, const char *p, int len, int how)
 {
 	const char *q;
 	int quote = 0;
@@ -501,51 +556,51 @@ vsb_quote(struct vsb *s, const char *p, int len, int how)
 		len = strlen(p);
 
 	for (q = p; q < p + len; q++) {
-		if (!isgraph(*q) || *q == '"') {
+		if (!isgraph(*q) || *q == '"' || *q == '\\') {
 			quote++;
 			break;
 		}
 	}
 	if (!quote) {
-		(void)vsb_bcat(s, p, len);
+		(void)VSB_bcat(s, p, len);
 		return;
 	}
-	(void)vsb_putc(s, '"');
+	(void)VSB_putc(s, '"');
 	for (q = p; q < p + len; q++) {
 		switch (*q) {
 		case ' ':
-			(void)vsb_putc(s, *q);
+			(void)VSB_putc(s, *q);
 			break;
 		case '\\':
 		case '"':
-			(void)vsb_putc(s, '\\');
-			(void)vsb_putc(s, *q);
+			(void)VSB_putc(s, '\\');
+			(void)VSB_putc(s, *q);
 			break;
 		case '\n':
-			(void)vsb_cat(s, "\\n");
+			(void)VSB_cat(s, "\\n");
 			break;
 		case '\r':
-			(void)vsb_cat(s, "\\r");
+			(void)VSB_cat(s, "\\r");
 			break;
 		case '\t':
-			(void)vsb_cat(s, "\\t");
+			(void)VSB_cat(s, "\\t");
 			break;
 		default:
 			if (isgraph(*q))
-				(void)vsb_putc(s, *q);
+				(void)VSB_putc(s, *q);
 			else
-				(void)vsb_printf(s, "\\%o", *q & 0xff);
+				(void)VSB_printf(s, "\\%o", *q & 0xff);
 			break;
 		}
 	}
-	(void)vsb_putc(s, '"');
+	(void)VSB_putc(s, '"');
 }
 
 /*
  * Unquote a string
  */
 const char *
-vsb_unquote(struct vsb *s, const char *p, int len, int how)
+VSB_unquote(struct vsb *s, const char *p, int len, int how)
 {
 	const char *q;
 	char *r;
@@ -559,7 +614,7 @@ vsb_unquote(struct vsb *s, const char *p, int len, int how)
 
 	for (q = p; q < p + len; q++) {
 		if (*q != '\\') {
-			(void)vsb_bcat(s, q, 1);
+			(void)VSB_bcat(s, q, 1);
 			continue;
 		}
 		if (++q >= p + len)
@@ -567,13 +622,13 @@ vsb_unquote(struct vsb *s, const char *p, int len, int how)
 
 		switch(*q) {
 		case 'n':
-			(void)vsb_bcat(s, "\n", 1);
+			(void)VSB_bcat(s, "\n", 1);
 			continue;
 		case 'r':
-			(void)vsb_bcat(s, "\r", 1);
+			(void)VSB_bcat(s, "\r", 1);
 			continue;
 		case 't':
-			(void)vsb_bcat(s, "\t", 1);
+			(void)VSB_bcat(s, "\t", 1);
 			continue;
 		case '0':
 		case '1':
@@ -588,11 +643,11 @@ vsb_unquote(struct vsb *s, const char *p, int len, int how)
 			if (errno != 0 || (u & ~0xff))
 				return ("\\ooo sequence out of range");
 			c = (char)u;
-			(void)vsb_bcat(s, &c, 1);
+			(void)VSB_bcat(s, &c, 1);
 			q = r - 1;
 			continue;
 		default:
-			(void)vsb_bcat(s, q, 1);
+			(void)VSB_bcat(s, q, 1);
 		}
 	}
 	return (NULL);

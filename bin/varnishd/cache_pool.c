@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -42,9 +42,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/types.h>
 
 #include <errno.h>
@@ -54,7 +51,6 @@ SVNID("$Id$")
 #include <string.h>
 #include <unistd.h>
 
-#include "shmlog.h"
 #include "vcl.h"
 #include "cli_priv.h"
 #include "cache.h"
@@ -71,17 +67,17 @@ struct wq {
 #define WQ_MAGIC		0x606658fa
 	struct lock		mtx;
 	struct workerhead	idle;
-	VTAILQ_HEAD(, workreq)	overflow;
+	VTAILQ_HEAD(, workreq)	queue;
 	unsigned		nthr;
-	unsigned		nqueue;
 	unsigned		lqueue;
+	unsigned		last_lqueue;
 	uintmax_t		ndrop;
-	uintmax_t		noverflow;
+	uintmax_t		nqueue;
 };
 
 static struct wq		**wq;
 static unsigned			nwq;
-static unsigned			ovfl_max;
+static unsigned			queue_max;
 static unsigned			nthr_max;
 
 static pthread_cond_t		herder_cond;
@@ -96,10 +92,12 @@ wrk_sumstat(struct worker *w)
 
 	Lck_AssertHeld(&wstat_mtx);
 #define L0(n)
-#define L1(n) (VSL_stats->n += w->stats.n)
-#define MAC_STAT(n, t, l, f, d) L##l(n);
-#include "stat_field.h"
-#undef MAC_STAT
+#define L1(n) (VSC_C_main->n += w->stats.n)
+#define VSC_DO_MAIN
+#define VSC_F(n, t, l, f, d) L##l(n);
+#include "vsc_fields.h"
+#undef VSC_F
+#undef VSC_DO_MAIN
 #undef L0
 #undef L1
 	memset(&w->stats, 0, sizeof w->stats);
@@ -121,7 +119,8 @@ wrk_thread_real(struct wq *qp, unsigned shm_workspace, unsigned sess_workspace,
     unsigned nhttp, unsigned http_space, unsigned siov)
 {
 	struct worker *w, ww;
-	unsigned char wlog[shm_workspace];
+	uint32_t wlog[shm_workspace / 4];
+	/* XXX: can we trust these to be properly aligned ? */
 	unsigned char ws[sess_workspace];
 	unsigned char http0[http_space];
 	unsigned char http1[http_space];
@@ -136,13 +135,14 @@ wrk_thread_real(struct wq *qp, unsigned shm_workspace, unsigned sess_workspace,
 	w->magic = WORKER_MAGIC;
 	w->lastused = NAN;
 	w->wlb = w->wlp = wlog;
-	w->wle = wlog + sizeof wlog;
+	w->wle = wlog + (sizeof wlog) / 4;
 	w->sha256ctx = &sha256;
-	w->http[0] = HTTP_create(http0, nhttp);
-	w->http[1] = HTTP_create(http1, nhttp);
-	w->http[2] = HTTP_create(http2, nhttp);
-	w->iov = iov;
-	w->siov = siov;
+	w->bereq = HTTP_create(http0, nhttp);
+	w->beresp = HTTP_create(http1, nhttp);
+	w->resp = HTTP_create(http2, nhttp);
+	w->wrw.iov = iov;
+	w->wrw.siov = siov;
+	w->wrw.ciov = siov;
 	AZ(pthread_cond_init(&w->cond, NULL));
 
 	WS_Init(w->ws, "wrk", ws, sess_workspace);
@@ -153,13 +153,16 @@ wrk_thread_real(struct wq *qp, unsigned shm_workspace, unsigned sess_workspace,
 	qp->nthr++;
 	stats_clean = 1;
 	while (1) {
+		CHECK_OBJ_NOTNULL(w->bereq, HTTP_MAGIC);
+		CHECK_OBJ_NOTNULL(w->beresp, HTTP_MAGIC);
+		CHECK_OBJ_NOTNULL(w->resp, HTTP_MAGIC);
 		CHECK_OBJ_NOTNULL(w, WORKER_MAGIC);
 
-		/* Process overflow requests, if any */
-		w->wrq = VTAILQ_FIRST(&qp->overflow);
+		/* Process queued requests, if any */
+		w->wrq = VTAILQ_FIRST(&qp->queue);
 		if (w->wrq != NULL) {
-			VTAILQ_REMOVE(&qp->overflow, w->wrq, list);
-			qp->nqueue--;
+			VTAILQ_REMOVE(&qp->queue, w->wrq, list);
+			qp->lqueue--;
 		} else {
 			if (isnan(w->lastused))
 				w->lastused = TIM_real();
@@ -176,19 +179,22 @@ wrk_thread_real(struct wq *qp, unsigned shm_workspace, unsigned sess_workspace,
 		AN(w->wrq->func);
 		w->lastused = NAN;
 		WS_Reset(w->ws, NULL);
-		w->bereq = NULL;
-		w->beresp1 = NULL;
-		w->beresp = NULL;
-		w->resp = NULL;
+		w->storage_hint = NULL;
+
 		w->wrq->func(w, w->wrq->priv);
-		AZ(w->bereq);
-		AZ(w->beresp1);
-		AZ(w->beresp);
-		AZ(w->resp);
+
 		WS_Assert(w->ws);
-		AZ(w->wfd);
+		AZ(w->bereq->ws);
+		AZ(w->beresp->ws);
+		AZ(w->resp->ws);
+		AZ(w->wrw.wfd);
+		AZ(w->storage_hint);
 		assert(w->wlp == w->wlb);
 		w->wrq = NULL;
+		if (params->diag_bitmap & 0x00040000) {
+			if (w->vcl != NULL)
+				VCL_Rel(&w->vcl);
+		}
 		if (!Lck_Trylock(&wstat_mtx)) {
 			wrk_sumstat(w);
 			Lck_Unlock(&wstat_mtx);
@@ -217,13 +223,13 @@ wrk_thread(void *priv)
 
 	CAST_OBJ_NOTNULL(qp, priv, WQ_MAGIC);
 	/* We need to snapshot these two for consistency */
-	nhttp = params->http_headers;
+	nhttp = params->http_max_hdr;
 	siov = nhttp * 2;
 	if (siov > IOV_MAX)
 		siov = IOV_MAX;
 	return (wrk_thread_real(qp,
 	    params->shm_workspace,
-	    params->sess_workspace,
+	    params->wthread_workspace,
 	    nhttp, HTTP_estimate(nhttp), siov));
 }
 
@@ -233,7 +239,7 @@ wrk_thread(void *priv)
  * Return zero if the request was queued, negative if it wasn't.
  */
 
-int
+static int
 WRK_Queue(struct workreq *wrq)
 {
 	struct worker *w;
@@ -264,16 +270,16 @@ WRK_Queue(struct workreq *wrq)
 		return (0);
 	}
 
-	/* If we have too much in the overflow already, refuse. */
-	if (qp->nqueue > ovfl_max) {
+	/* If we have too much in the queue already, refuse. */
+	if (qp->lqueue > queue_max) {
 		qp->ndrop++;
 		Lck_Unlock(&qp->mtx);
 		return (-1);
 	}
 
-	VTAILQ_INSERT_TAIL(&qp->overflow, wrq, list);
-	qp->noverflow++;
+	VTAILQ_INSERT_TAIL(&qp->queue, wrq, list);
 	qp->nqueue++;
+	qp->lqueue++;
 	Lck_Unlock(&qp->mtx);
 	AZ(pthread_cond_signal(&herder_cond));
 	return (0);
@@ -348,8 +354,8 @@ wrk_addpools(const unsigned pools)
 		wq[u] = calloc(sizeof *wq[0], 1);
 		XXXAN(wq[u]);
 		wq[u]->magic = WQ_MAGIC;
-		Lck_New(&wq[u]->mtx);
-		VTAILQ_INIT(&wq[u]->overflow);
+		Lck_New(&wq[u]->mtx, lck_wq);
+		VTAILQ_INIT(&wq[u]->queue);
 		VTAILQ_INIT(&wq[u]->idle);
 	}
 	(void)owq;	/* XXX: avoid race, leak it. */
@@ -361,15 +367,15 @@ wrk_addpools(const unsigned pools)
  */
 
 static void
-wrk_decimate_flock(struct wq *qp, double t_idle, struct varnish_stats *vs)
+wrk_decimate_flock(struct wq *qp, double t_idle, struct VSC_C_main *vs)
 {
 	struct worker *w = NULL;
 
 	Lck_Lock(&qp->mtx);
 	vs->n_wrk += qp->nthr;
-	vs->n_wrk_queue += qp->nqueue;
+	vs->n_wrk_lqueue += qp->lqueue;
 	vs->n_wrk_drop += qp->ndrop;
-	vs->n_wrk_overflow += qp->noverflow;
+	vs->n_wrk_queued += qp->nqueue;
 
 	if (qp->nthr > params->wthread_min) {
 		w = VTAILQ_LAST(&qp->idle, workerhead);
@@ -403,7 +409,7 @@ wrk_herdtimer_thread(void *priv)
 {
 	volatile unsigned u;
 	double t_idle;
-	struct varnish_stats vsm, *vs;
+	struct VSC_C_main vsm, *vs;
 	int errno_is_multi_threaded;
 
 	THR_SetName("wrk_herdtimer");
@@ -430,26 +436,26 @@ wrk_herdtimer_thread(void *priv)
 
 		/* Scale parameters */
 
-		u = params->wthread_max / nwq;
+		u = params->wthread_max;
 		if (u < params->wthread_min)
 			u = params->wthread_min;
 		nthr_max = u;
 
-		ovfl_max = (nthr_max * params->overflow_max) / 100;
+		queue_max = (nthr_max * params->queue_max) / 100;
 
 		vs->n_wrk = 0;
-		vs->n_wrk_queue = 0;
+		vs->n_wrk_lqueue = 0;
 		vs->n_wrk_drop = 0;
-		vs->n_wrk_overflow = 0;
+		vs->n_wrk_queued = 0;
 
 		t_idle = TIM_real() - params->wthread_timeout;
 		for (u = 0; u < nwq; u++)
 			wrk_decimate_flock(wq[u], t_idle, vs);
 
-		VSL_stats->n_wrk= vs->n_wrk;
-		VSL_stats->n_wrk_queue = vs->n_wrk_queue;
-		VSL_stats->n_wrk_drop = vs->n_wrk_drop;
-		VSL_stats->n_wrk_overflow = vs->n_wrk_overflow;
+		VSC_C_main->n_wrk= vs->n_wrk;
+		VSC_C_main->n_wrk_lqueue = vs->n_wrk_lqueue;
+		VSC_C_main->n_wrk_drop = vs->n_wrk_drop;
+		VSC_C_main->n_wrk_queued = vs->n_wrk_queued;
 
 		TIM_sleep(params->wthread_purge_delay * 1e-3);
 	}
@@ -470,26 +476,26 @@ wrk_breed_flock(struct wq *qp, const pthread_attr_t *tp_attr)
 	 * one more thread.
 	 */
 	if (qp->nthr < params->wthread_min ||	/* Not enough threads yet */
-	    (qp->nqueue > params->wthread_add_threshold && /* more needed */
-	    qp->nqueue > qp->lqueue)) {	/* not getting better since last */
+	    (qp->lqueue > params->wthread_add_threshold && /* more needed */
+	    qp->lqueue > qp->last_lqueue)) {	/* not getting better since last */
 		if (qp->nthr >= nthr_max) {
-			VSL_stats->n_wrk_max++;
+			VSC_C_main->n_wrk_max++;
 		} else if (pthread_create(&tp, tp_attr, wrk_thread, qp)) {
 			VSL(SLT_Debug, 0, "Create worker thread failed %d %s",
 			    errno, strerror(errno));
-			VSL_stats->n_wrk_failed++;
+			VSC_C_main->n_wrk_failed++;
 			TIM_sleep(params->wthread_fail_delay * 1e-3);
 		} else {
 			AZ(pthread_detach(tp));
-			VSL_stats->n_wrk_create++;
+			VSC_C_main->n_wrk_create++;
 			TIM_sleep(params->wthread_add_delay * 1e-3);
 		}
 	}
-	qp->lqueue = qp->nqueue;
+	qp->last_lqueue = qp->lqueue;
 }
 
 /*--------------------------------------------------------------------
- * This thread wakes up whenever a pool overflows.
+ * This thread wakes up whenever a pool queues.
  *
  * The trick here is to not be too aggressive about creating threads.
  * We do this by only examining one pool at a time, and by sleeping
@@ -557,7 +563,7 @@ wrk_bgthread(void *arg)
 	struct bgthread *bt;
 	struct worker ww;
 	struct sess *sp;
-	unsigned char logbuf[1024];	/* XXX:  size ? */
+	uint32_t logbuf[1024];	/* XXX:  size ? */
 
 	CAST_OBJ_NOTNULL(bt, arg, BGTHREAD_MAGIC);
 	THR_SetName(bt->name);
@@ -567,7 +573,7 @@ wrk_bgthread(void *arg)
 	sp->wrk = &ww;
 	ww.magic = WORKER_MAGIC;
 	ww.wlp = ww.wlb = logbuf;
-	ww.wle = logbuf + sizeof logbuf;
+	ww.wle = logbuf + (sizeof logbuf) / 4;
 
 	(void)bt->func(sp, bt->priv);
 
@@ -598,8 +604,8 @@ WRK_Init(void)
 	pthread_t tp;
 
 	AZ(pthread_cond_init(&herder_cond, NULL));
-	Lck_New(&herder_mtx);
-	Lck_New(&wstat_mtx);
+	Lck_New(&herder_mtx, lck_herder);
+	Lck_New(&wstat_mtx, lck_wstat);
 
 	wrk_addpools(params->wthread_pools);
 	AZ(pthread_create(&tp, NULL, wrk_herdtimer_thread, NULL));

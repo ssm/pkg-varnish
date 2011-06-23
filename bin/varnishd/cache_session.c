@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2010 Redpill Linpro AS
+ * Copyright (c) 2006-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -40,16 +40,12 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <sys/uio.h>
 #include <sys/socket.h>
 
-#include "shmlog.h"
 #include "cache.h"
 #include "cache_backend.h"
 
@@ -109,7 +105,7 @@ ses_sm_alloc(void)
 	volatile unsigned nhttp;
 	unsigned l, hl;
 
-	if (VSL_stats->n_sess_mem >= params->max_sess)
+	if (VSC_C_main->n_sess_mem >= params->max_sess)
 		return (NULL);
 	/*
 	 * It is not necessary to lock these, but we need to
@@ -117,7 +113,7 @@ ses_sm_alloc(void)
 	 * view of the value.
 	 */
 	nws = params->sess_workspace;
-	nhttp = params->http_headers;
+	nhttp = params->http_max_hdr;
 	hl = HTTP_estimate(nhttp);
 	l = sizeof *sm + nws + 2 * hl;
 	p = malloc(l);
@@ -126,7 +122,7 @@ ses_sm_alloc(void)
 	q = p + l;
 
 	Lck_Lock(&stat_mtx);
-	VSL_stats->n_sess_mem++;
+	VSC_C_main->n_sess_mem++;
 	Lck_Unlock(&stat_mtx);
 
 	/* Don't waste time zeroing the workspace */
@@ -170,12 +166,12 @@ ses_setup(struct sessmem *sm)
 	sp->sockaddrlen = sizeof(sm->sockaddr[0]);
 	sp->mysockaddr = (void*)(&sm->sockaddr[1]);
 	sp->mysockaddrlen = sizeof(sm->sockaddr[1]);
-	sp->sockaddr->sa_family = sp->mysockaddr->sa_family = PF_UNSPEC;
+	sp->sockaddr->ss_family = sp->mysockaddr->ss_family = PF_UNSPEC;
 	sp->t_open = NAN;
 	sp->t_req = NAN;
 	sp->t_resp = NAN;
 	sp->t_end = NAN;
-	sp->grace = NAN;
+	EXP_Clr(&sp->exp);
 
 	WS_Init(sp->ws, "sess", sm->wsp, sm->workspace);
 	sp->http = sm->http[0];
@@ -218,7 +214,7 @@ SES_New(void)
 		CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
 	}
 
-	VSL_stats->n_sess++;		/* XXX: locking  ? */
+	VSC_C_main->n_sess++;		/* XXX: locking  ? */
 
 	return (sp);
 }
@@ -259,7 +255,7 @@ SES_Delete(struct sess *sp)
 
 	AZ(sp->obj);
 	AZ(sp->vcl);
-	VSL_stats->n_sess--;			/* XXX: locking ? */
+	VSC_C_main->n_sess--;			/* XXX: locking ? */
 	assert(!isnan(b->first));
 	assert(!isnan(sp->t_end));
 	if (sp->addr == NULL)
@@ -272,7 +268,7 @@ SES_Delete(struct sess *sp)
 	    b->fetch, b->hdrbytes, b->bodybytes);
 	if (sm->workspace != params->sess_workspace) {
 		Lck_Lock(&stat_mtx);
-		VSL_stats->n_sess_mem--;
+		VSC_C_main->n_sess_mem--;
 		Lck_Unlock(&stat_mtx);
 		free(sm);
 	} else {
@@ -284,7 +280,7 @@ SES_Delete(struct sess *sp)
 	}
 
 	/* Try to precreate some ses-mem so the acceptor will not have to */
-	if (VSL_stats->n_sess_mem < VSL_stats->n_sess + 10) {
+	if (VSC_C_main->n_sess_mem < VSC_C_main->n_sess + 10) {
 		sm = ses_sm_alloc();
 		if (sm != NULL) {
 			ses_setup(sm);
@@ -301,6 +297,6 @@ void
 SES_Init()
 {
 
-	Lck_New(&stat_mtx);
-	Lck_New(&ses_mem_mtx);
+	Lck_New(&stat_mtx, lck_stat);
+	Lck_New(&ses_mem_mtx, lck_sessmem);
 }

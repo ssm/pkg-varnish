@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -52,9 +52,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/stat.h>
 
 #include <ctype.h>
@@ -84,12 +81,8 @@ struct method method_tab[] = {
 
 /*--------------------------------------------------------------------*/
 
-static const char *vcc_default_vcl_b, *vcc_default_vcl_e;
-
-/*--------------------------------------------------------------------*/
-
 static void
-TlDoFree(struct tokenlist *tl, void *p)
+TlDoFree(struct vcc *tl, void *p)
 {
 	struct membit *mb;
 
@@ -101,13 +94,38 @@ TlDoFree(struct tokenlist *tl, void *p)
 
 
 void *
-TlAlloc(struct tokenlist *tl, unsigned len)
+TlAlloc(struct vcc *tl, unsigned len)
 {
 	void *p;
 
 	p = calloc(len, 1);
 	assert(p != NULL);
 	TlDoFree(tl, p);
+	return (p);
+}
+
+char *
+TlDup(struct vcc *tl, const char *s)
+{
+	char *p;
+
+	p = TlAlloc(tl, strlen(s) + 1);
+	AN(p);
+	strcpy(p, s);
+	return (p);
+}
+
+char *
+TlDupTok(struct vcc *tl, const struct token *tok)
+{
+	char *p;
+	int i;
+
+	i = tok->e - tok->b;
+	p = TlAlloc(tl, i + 1);
+	AN(p);
+	memcpy(p, tok->b, i);
+	p[i] = '\0';
 	return (p);
 }
 
@@ -118,6 +136,7 @@ IsMethod(const struct token *t)
 {
 	struct method *m;
 
+	assert(t->tok == ID);
 	for(m = method_tab; m->name != NULL; m++) {
 		if (vcc_IdIs(t, m->name))
 			return (m - method_tab);
@@ -130,99 +149,99 @@ IsMethod(const struct token *t)
  */
 
 void
-Fh(const struct tokenlist *tl, int indent, const char *fmt, ...)
+Fh(const struct vcc *tl, int indent, const char *fmt, ...)
 {
 	va_list ap;
 
 	if (indent)
-		vsb_printf(tl->fh, "%*.*s", tl->hindent, tl->hindent, "");
+		VSB_printf(tl->fh, "%*.*s", tl->hindent, tl->hindent, "");
 	va_start(ap, fmt);
-	vsb_vprintf(tl->fh, fmt, ap);
+	VSB_vprintf(tl->fh, fmt, ap);
 	va_end(ap);
 }
 
 void
-Fb(const struct tokenlist *tl, int indent, const char *fmt, ...)
+Fb(const struct vcc *tl, int indent, const char *fmt, ...)
 {
 	va_list ap;
 
 	assert(tl->fb != NULL);
 	if (indent)
-		vsb_printf(tl->fb, "%*.*s", tl->indent, tl->indent, "");
+		VSB_printf(tl->fb, "%*.*s", tl->indent, tl->indent, "");
 	va_start(ap, fmt);
-	vsb_vprintf(tl->fb, fmt, ap);
+	VSB_vprintf(tl->fb, fmt, ap);
 	va_end(ap);
 }
 
 void
-Fc(const struct tokenlist *tl, int indent, const char *fmt, ...)
+Fc(const struct vcc *tl, int indent, const char *fmt, ...)
 {
 	va_list ap;
 
 	if (indent)
-		vsb_printf(tl->fc, "%*.*s", tl->indent, tl->indent, "");
+		VSB_printf(tl->fc, "%*.*s", tl->indent, tl->indent, "");
 	va_start(ap, fmt);
-	vsb_vprintf(tl->fc, fmt, ap);
+	VSB_vprintf(tl->fc, fmt, ap);
 	va_end(ap);
 }
 
 void
-Fi(const struct tokenlist *tl, int indent, const char *fmt, ...)
+Fi(const struct vcc *tl, int indent, const char *fmt, ...)
 {
 	va_list ap;
 
 	if (indent)
-		vsb_printf(tl->fi, "%*.*s", tl->iindent, tl->iindent, "");
+		VSB_printf(tl->fi, "%*.*s", tl->iindent, tl->iindent, "");
 	va_start(ap, fmt);
-	vsb_vprintf(tl->fi, fmt, ap);
+	VSB_vprintf(tl->fi, fmt, ap);
 	va_end(ap);
 }
 
 void
-Ff(const struct tokenlist *tl, int indent, const char *fmt, ...)
+Ff(const struct vcc *tl, int indent, const char *fmt, ...)
 {
 	va_list ap;
 
 	if (indent)
-		vsb_printf(tl->ff, "%*.*s", tl->findent, tl->findent, "");
+		VSB_printf(tl->ff, "%*.*s", tl->findent, tl->findent, "");
 	va_start(ap, fmt);
-	vsb_vprintf(tl->ff, fmt, ap);
+	VSB_vprintf(tl->ff, fmt, ap);
 	va_end(ap);
 }
 
 /*--------------------------------------------------------------------*/
 
-static void
+void
 EncString(struct vsb *sb, const char *b, const char *e, int mode)
 {
 
 	if (e == NULL)
 		e = strchr(b, '\0');
 
-	vsb_cat(sb, "\"");
+	VSB_cat(sb, "\"");
 	for (; b < e; b++) {
 		switch (*b) {
 		case '\\':
 		case '"':
-			vsb_printf(sb, "\\%c", *b);
+			VSB_printf(sb, "\\%c", *b);
 			break;
 		case '\n':
-			vsb_printf(sb, "\\n");
+			VSB_printf(sb, "\\n");
 			if (mode)
-				vsb_printf(sb, "\"\n\t\"");
+				VSB_printf(sb, "\"\n\t\"");
 			break;
-		case '\t': vsb_printf(sb, "\\t"); break;
-		case '\r': vsb_printf(sb, "\\r"); break;
-		case ' ': vsb_printf(sb, " "); break;
+		case '\t': VSB_printf(sb, "\\t"); break;
+		case '\r': VSB_printf(sb, "\\r"); break;
+		case ' ': VSB_printf(sb, " "); break;
 		default:
 			if (isgraph(*b))
-				vsb_printf(sb, "%c", *b);
+				VSB_printf(sb, "%c", *b);
 			else
-				vsb_printf(sb, "\\%03o", *b);
+				VSB_printf(sb, "\\%03o", *b);
 			break;
 		}
 	}
-	vsb_cat(sb, "\"");
+	VSB_cat(sb, "\"");
 }
 
 void
@@ -239,7 +258,7 @@ EncToken(struct vsb *sb, const struct token *t)
  */
 
 static void
-LocTable(const struct tokenlist *tl)
+LocTable(const struct vcc *tl)
 {
 	struct token *t;
 	unsigned lin, pos;
@@ -288,31 +307,38 @@ LocTable(const struct tokenlist *tl)
 /*--------------------------------------------------------------------*/
 
 static void
-EmitInitFunc(const struct tokenlist *tl)
+EmitInitFunc(const struct vcc *tl)
 {
 
 	Fc(tl, 0, "\nstatic void\nVGC_Init(struct cli *cli)\n{\n\n");
-	vsb_finish(tl->fi);
-	AZ(vsb_overflowed(tl->fi));
-	vsb_cat(tl->fc, vsb_data(tl->fi));
+	AZ(VSB_finish(tl->fi));
+	VSB_cat(tl->fc, VSB_data(tl->fi));
 	Fc(tl, 0, "}\n");
 }
 
 static void
-EmitFiniFunc(const struct tokenlist *tl)
+EmitFiniFunc(const struct vcc *tl)
 {
+	unsigned u;
 
 	Fc(tl, 0, "\nstatic void\nVGC_Fini(struct cli *cli)\n{\n\n");
-	vsb_finish(tl->ff);
-	AZ(vsb_overflowed(tl->ff));
-	vsb_cat(tl->fc, vsb_data(tl->ff));
+
+	/*
+	 * We do this here, so we are sure they happen before any
+	 * per-vcl vmod_privs get cleaned.
+	 */
+	for (u = 0; u < tl->nvmodpriv; u++)
+		Fc(tl, 0, "\tvmod_priv_fini(&vmod_priv_%u);\n", u);
+
+	AZ(VSB_finish(tl->ff));
+	VSB_cat(tl->fc, VSB_data(tl->ff));
 	Fc(tl, 0, "}\n");
 }
 
 /*--------------------------------------------------------------------*/
 
 static void
-EmitStruct(const struct tokenlist *tl)
+EmitStruct(const struct vcc *tl)
 {
 	struct source *sp;
 
@@ -340,8 +366,8 @@ EmitStruct(const struct tokenlist *tl)
 
 	Fc(tl, 0, "\nconst struct VCL_conf VCL_conf = {\n");
 	Fc(tl, 0, "\t.magic = VCL_CONF_MAGIC,\n");
-	Fc(tl, 0, "\t.init_func = VGC_Init,\n");
-	Fc(tl, 0, "\t.fini_func = VGC_Fini,\n");
+	Fc(tl, 0, "\t.init_vcl = VGC_Init,\n");
+	Fc(tl, 0, "\t.fini_vcl = VGC_Fini,\n");
 	Fc(tl, 0, "\t.ndirector = %d,\n", tl->ndirector);
 	Fc(tl, 0, "\t.director = directors,\n");
 	Fc(tl, 0, "\t.ref = VGC_ref,\n");
@@ -387,14 +413,14 @@ vcc_destroy_source(struct source *sp)
 /*--------------------------------------------------------------------*/
 
 static struct source *
-vcc_file_source(struct vsb *sb, const char *fn)
+vcc_file_source(const struct vcc *tl, struct vsb *sb, const char *fn)
 {
 	char *f;
 	struct source *sp;
 
-	f = vreadfile(fn);
+	f = vreadfile(tl->vcl_dir, fn, NULL);
 	if (f == NULL) {
-		vsb_printf(sb, "Cannot read file '%s': %s\n",
+		VSB_printf(sb, "Cannot read file '%s': %s\n",
 		    fn, strerror(errno));
 		return (NULL);
 	}
@@ -406,7 +432,7 @@ vcc_file_source(struct vsb *sb, const char *fn)
 /*--------------------------------------------------------------------*/
 
 static void
-vcc_resolve_includes(struct tokenlist *tl)
+vcc_resolve_includes(struct vcc *tl)
 {
 	struct token *t, *t1, *t2;
 	struct source *sp;
@@ -418,7 +444,7 @@ vcc_resolve_includes(struct tokenlist *tl)
 		t1 = VTAILQ_NEXT(t, list);
 		assert(t1 != NULL);	/* There's always an EOI */
 		if (t1->tok != CSTR) {
-			vsb_printf(tl->sb,
+			VSB_printf(tl->sb,
 			    "include not followed by string constant.\n");
 			vcc_ErrWhere(tl, t1);
 			return;
@@ -426,14 +452,14 @@ vcc_resolve_includes(struct tokenlist *tl)
 		t2 = VTAILQ_NEXT(t1, list);
 		assert(t2 != NULL);	/* There's always an EOI */
 		if (t2->tok != ';') {
-			vsb_printf(tl->sb,
+			VSB_printf(tl->sb,
 			    "include <string> not followed by semicolon.\n");
 			vcc_ErrWhere(tl, t1);
 			return;
 		}
 		assert(t2 != NULL);
 
-		sp = vcc_file_source(tl->sb, t1->dec);
+		sp = vcc_file_source(tl, tl->sb, t1->dec);
 		if (sp == NULL) {
 			vcc_ErrWhere(tl, t1);
 			return;
@@ -454,43 +480,51 @@ vcc_resolve_includes(struct tokenlist *tl)
 
 /*--------------------------------------------------------------------*/
 
-static struct tokenlist *
-vcc_NewTokenList(void)
+static struct vcc *
+vcc_NewVcc(const struct vcc *tl0)
 {
-	struct tokenlist *tl;
+	struct vcc *tl;
 	int i;
 
-	tl = calloc(sizeof *tl, 1);
-	assert(tl != NULL);
+	ALLOC_OBJ(tl, VCC_MAGIC);
+	AN(tl);
+	if (tl0 != NULL) {
+		REPLACE(tl->default_vcl, tl0->default_vcl);
+		REPLACE(tl->vcl_dir, tl0->vcl_dir);
+		REPLACE(tl->vmod_dir, tl0->vmod_dir);
+		tl->vars = tl0->vars;
+		tl->err_unref = tl0->err_unref;
+	} else {
+		tl->err_unref = 1;
+	}
+	VTAILQ_INIT(&tl->symbols);
 	VTAILQ_INIT(&tl->hosts);
 	VTAILQ_INIT(&tl->membits);
 	VTAILQ_INIT(&tl->tokens);
-	VTAILQ_INIT(&tl->refs);
-	VTAILQ_INIT(&tl->procs);
 	VTAILQ_INIT(&tl->sources);
 
 	tl->nsources = 0;
 	tl->ndirector = 1;
 
 	/* General C code */
-	tl->fc = vsb_newauto();
+	tl->fc = VSB_new_auto();
 	assert(tl->fc != NULL);
 
 	/* Forward decls (.h like) */
-	tl->fh = vsb_newauto();
+	tl->fh = VSB_new_auto();
 	assert(tl->fh != NULL);
 
 	/* Init C code */
-	tl->fi = vsb_newauto();
+	tl->fi = VSB_new_auto();
 	assert(tl->fi != NULL);
 
 	/* Finish C code */
-	tl->ff = vsb_newauto();
+	tl->ff = VSB_new_auto();
 	assert(tl->ff != NULL);
 
 	/* body code of methods */
 	for (i = 0; i < VCL_MET_MAX; i++) {
-		tl->fm[i] = vsb_newauto();
+		tl->fm[i] = VSB_new_auto();
 		assert(tl->fm[i] != NULL);
 	}
 	return (tl);
@@ -499,10 +533,11 @@ vcc_NewTokenList(void)
 /*--------------------------------------------------------------------*/
 
 static char *
-vcc_DestroyTokenList(struct tokenlist *tl, char *ret)
+vcc_DestroyTokenList(struct vcc *tl, char *ret)
 {
 	struct membit *mb;
 	struct source *sp;
+	struct symbol *sym;
 	int i;
 
 	while (!VTAILQ_EMPTY(&tl->membits)) {
@@ -517,12 +552,18 @@ vcc_DestroyTokenList(struct tokenlist *tl, char *ret)
 		vcc_destroy_source(sp);
 	}
 
-	vsb_delete(tl->fh);
-	vsb_delete(tl->fc);
-	vsb_delete(tl->fi);
-	vsb_delete(tl->ff);
+	while (!VTAILQ_EMPTY(&tl->symbols)) {
+		sym = VTAILQ_FIRST(&tl->symbols);
+		VTAILQ_REMOVE(&tl->symbols, sym, list);
+		FREE_OBJ(sym);
+	}
+
+	VSB_delete(tl->fh);
+	VSB_delete(tl->fc);
+	VSB_delete(tl->fi);
+	VSB_delete(tl->ff);
 	for (i = 0; i < VCL_MET_MAX; i++)
-		vsb_delete(tl->fm[i]);
+		VSB_delete(tl->fm[i]);
 
 	free(tl);
 	return (ret);
@@ -533,14 +574,34 @@ vcc_DestroyTokenList(struct tokenlist *tl, char *ret)
  */
 
 static char *
-vcc_CompileSource(struct vsb *sb, struct source *sp)
+vcc_CompileSource(const struct vcc *tl0, struct vsb *sb, struct source *sp)
 {
-	struct tokenlist *tl;
+	struct vcc *tl;
+	struct symbol *sym;
+	const struct var *v;
 	char *of;
 	int i;
 
-	tl = vcc_NewTokenList();
+	tl = vcc_NewVcc(tl0);
 	tl->sb = sb;
+
+	vcc_Expr_Init(tl);
+
+	for (v = tl->vars; v->name != NULL; v++) {
+		if (v->fmt == HEADER) {
+			sym = VCC_AddSymbolStr(tl, v->name, SYM_WILDCARD);
+			sym->wildcard = vcc_Var_Wildcard;
+		} else {
+			sym = VCC_AddSymbolStr(tl, v->name, SYM_VAR);
+		}
+		sym->var = v;
+		sym->fmt = v->fmt;
+		sym->eval = vcc_Eval_Var;
+		sym->r_methods = v->r_methods;
+	}
+
+	sym = VCC_AddSymbolStr(tl, "storage", SYM_WILDCARD);
+	sym->wildcard = vcc_Stv_Wildcard;
 
 	vcl_output_lang_h(tl->fh);
 	Fh(tl, 0, "\n/* ---===### VCC generated below here ###===---*/\n");
@@ -557,7 +618,7 @@ vcc_CompileSource(struct vsb *sb, struct source *sp)
 		return (vcc_DestroyTokenList(tl, NULL));
 
 	/* Register and lex the default VCL */
-	sp = vcc_new_source(vcc_default_vcl_b, vcc_default_vcl_e, "Default");
+	sp = vcc_new_source(tl->default_vcl, NULL, "Default");
 	assert(sp != NULL);
 	VTAILQ_INSERT_TAIL(&tl->sources, sp, list);
 	sp->idx = tl->nsources++;
@@ -583,12 +644,17 @@ vcc_CompileSource(struct vsb *sb, struct source *sp)
 
 	/* Check if we have any backends at all */
 	if (tl->ndirector == 1) {
-		vsb_printf(tl->sb,
+		VSB_printf(tl->sb,
 		    "No backends or directors found in VCL program, "
 		    "at least one is necessary.\n");
 		tl->err = 1;
 		return (vcc_DestroyTokenList(tl, NULL));
 	}
+
+	/* Configure the default director */
+	Fi(tl, 0, "\tVCL_conf.director[0] = VCL_conf.director[%d];\n",
+	    tl->defaultdir);
+	vcc_AddRef(tl, tl->t_defaultdir, SYM_BACKEND);
 
 	/* Check for orphans */
 	if (vcc_CheckReferences(tl))
@@ -607,10 +673,9 @@ vcc_CompileSource(struct vsb *sb, struct source *sp)
 		Fc(tl, 1, "\nstatic int\n");
 		Fc(tl, 1, "VGC_function_%s (struct sess *sp)\n",
 		    method_tab[i].name);
-		vsb_finish(tl->fm[i]);
-		AZ(vsb_overflowed(tl->fm[i]));
+		AZ(VSB_finish(tl->fm[i]));
 		Fc(tl, 1, "{\n");
-		Fc(tl, 1, "%s", vsb_data(tl->fm[i]));
+		Fc(tl, 1, "%s", VSB_data(tl->fm[i]));
 		Fc(tl, 1, "}\n");
 	}
 
@@ -623,13 +688,11 @@ vcc_CompileSource(struct vsb *sb, struct source *sp)
 	EmitStruct(tl);
 
 	/* Combine it all in the fh vsb */
-	vsb_finish(tl->fc);
-	AZ(vsb_overflowed(tl->fc));
-	vsb_cat(tl->fh, vsb_data(tl->fc));
-	vsb_finish(tl->fh);
-	AZ(vsb_overflowed(tl->fh));
+	AZ(VSB_finish(tl->fc));
+	VSB_cat(tl->fh, VSB_data(tl->fc));
+	AZ(VSB_finish(tl->fh));
 
-	of = strdup(vsb_data(tl->fh));
+	of = strdup(VSB_data(tl->fh));
 	AN(of);
 
 	/* done */
@@ -642,15 +705,15 @@ vcc_CompileSource(struct vsb *sb, struct source *sp)
  */
 
 char *
-VCC_Compile(struct vsb *sb, const char *b, const char *e)
+VCC_Compile(const struct vcc *tl, struct vsb *sb, const char *b)
 {
 	struct source *sp;
 	char *r;
 
-	sp = vcc_new_source(b, e, "input");
+	sp = vcc_new_source(b, NULL, "input");
 	if (sp == NULL)
 		return (NULL);
-	r = vcc_CompileSource(sb, sp);
+	r = vcc_CompileSource(tl, sb, sp);
 	return (r);
 }
 
@@ -661,7 +724,7 @@ VCC_Return_Name(unsigned method)
 {
 
 	switch (method) {
-#define VCL_RET_MAC(l, U) case VCL_RET_##U: return(#l);
+#define VCL_RET_MAC(l, U, B) case VCL_RET_##U: return(#l);
 #include "vcl_returns.h"
 #undef VCL_RET_MAC
 	default:
@@ -670,15 +733,65 @@ VCC_Return_Name(unsigned method)
 }
 
 /*--------------------------------------------------------------------
- * Initialize the compiler and register the default VCL code for later
- * compilation runs.
+ * Allocate a compiler instance
+ */
+
+struct vcc *
+VCC_New(void)
+{
+	struct vcc *tl;
+
+	tl = vcc_NewVcc(NULL);
+
+	tl->vars = vcc_vars;
+
+	return (tl);
+}
+
+/*--------------------------------------------------------------------
+ * Configure default VCL source code
  */
 
 void
-VCC_InitCompile(const char *default_vcl)
+VCC_Default_VCL(struct vcc *tl, const char *str)
 {
 
-	vcc_default_vcl_b = default_vcl;
-	vcc_default_vcl_e = strchr(default_vcl, '\0');
-	assert(vcc_default_vcl_e != NULL);
+	CHECK_OBJ_NOTNULL(tl, VCC_MAGIC);
+	REPLACE(tl->default_vcl, str);
+}
+
+/*--------------------------------------------------------------------
+ * Configure default VCL source directory
+ */
+
+void
+VCC_VCL_dir(struct vcc *tl, const char *str)
+{
+
+	CHECK_OBJ_NOTNULL(tl, VCC_MAGIC);
+	REPLACE(tl->vcl_dir, str);
+}
+
+/*--------------------------------------------------------------------
+ * Configure default VMOD directory
+ */
+
+void
+VCC_VMOD_dir(struct vcc *tl, const char *str)
+{
+
+	CHECK_OBJ_NOTNULL(tl, VCC_MAGIC);
+	REPLACE(tl->vmod_dir, str);
+}
+
+/*--------------------------------------------------------------------
+ * Configure default
+ */
+
+void
+VCC_Err_Unref(struct vcc *tl, unsigned u)
+{
+
+	CHECK_OBJ_NOTNULL(tl, VCC_MAGIC);
+	tl->err_unref = u;
 }

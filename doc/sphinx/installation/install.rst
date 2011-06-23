@@ -7,7 +7,7 @@ With open source software, you can choose to install binary packages
 or compile stuff from source-code. To install a package or compile
 from source is a matter of personal taste. If you don't know which
 method too choose read the whole document and choose the method you
-are most confortable with.
+are most comfortable with.
 
 
 Source or packages?
@@ -28,13 +28,15 @@ Binary package:
 CentOS/RedHat
 ~~~~~~~~~~~~~
 
-We try to keep the lastest version available as prebuildt RPMs (el4 &
-el5) on `SourceForge <http://sourceforge.net/projects/varnish/files/>`_.
+We try to keep the latest version available as prebuilt RPMs (el5) on
+`repo.varnish-cache.org <http://repo.varnish-cache.org/>`.  See the
+`RedHat installation instructions
+<http://www.varnish-cache.org/installation/redhat>`  for more information.
 
 Varnish is included in the `EPEL
-<http://fedoraproject.org/wiki/EPEL>`_ repository.  Unfortunatly we
+<http://fedoraproject.org/wiki/EPEL>`_ repository.  Unfortunately we
 had a syntax change in Varnish 2.0.6->2.1.X. This means that we can
-not update Varnish in `EPEL <http://fedoraproject.org/wiki/EPEL>`_ so
+not update Varnish in `EPEL 5 <http://fedoraproject.org/wiki/EPEL>`_ so
 the latest version there is Varnish 2.0.6.
 
 EPEL6 should have Varnish 2.1 available once it releases. 
@@ -44,7 +46,11 @@ Debian/Ubuntu
 
 Varnish is distributed with both Debian and Ubuntu. In order to get
 Varnish up and running type `sudo apt-get install varnish`. Please
-note that this might not be the latest version of Varnish.
+note that this might not be the latest version of Varnish.  If you
+need a later version of Varnish, please follow the installation
+instructions for `Debian
+<http://www.varnish-cache.org/installation/debian>` or `Ubuntu
+<http://www.varnish-cache.org/installation/ubuntu>`.
 
 Other systems
 ~~~~~~~~~~~~~
@@ -64,18 +70,16 @@ If there are no binary packages available for your system, or if you
 want to compile Varnish from source for other reasons, follow these
 steps:
 
-First get a copy of the sourcecode using the ``svn`` command.  If
-you do not have this command, you need to install SubVersion_ on
-your system.  There is usually a binary package, try substituting
-"subversion" for "varnish" in the examples above, it might just work.
+We recommend downloading a release tarball, which you can find on
+`repo.varnish-cache.org <http://repo.varnish-cache.org/source/>`.
 
-To fetch the current (2.1) production branch:::
+Alternatively, if you want to hack on Varnish, you should clone our
+git repository by doing.
 
-	svn co http://varnish-cache.org/svn/branches/2.1
+      git clone git://git.varnish-cache.org/varnish-cache
 
-To get the development source code:::
-
-	svn co http://varnish-cache.org/svn/trunk
+Please note that a git checkout will need some more build-dependencies
+than listed below, in particular the Python Docutils and Sphinx.
 
 Build dependencies on Debian / Ubuntu 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -93,10 +97,10 @@ installed. On a Debian or Ubuntu system these are:
 * libpcre3-dev
 * pkg-config
 
-Build dependencies on Red Hat / Centos
+Build dependencies on Red Hat / CentOS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-To build Varnish on a Red Hat or Centos system you need the following
+To build Varnish on a Red Hat or CentOS system you need the following
 packages installed:
 
 * automake 
@@ -121,12 +125,12 @@ above satisfied. Once that is taken care of:::
 
 The ``configure`` script takes some arguments, but more likely than
 not, you can forget about that for now, almost everything in Varnish
-are runtime parameters.
+are run time parameters.
 
 Before you install, you may want to run the regression tests, make
 a cup of tea while it runs, it takes some minutes::
 
-	(cd bin/varnishtest && ./varnishtest tests/*.vtc)
+	make check
 
 Don't worry of a single or two tests fail, some of the tests are a
 bit too timing sensitive (Please tell us which so we can fix it) but
@@ -146,5 +150,3 @@ Varnish will now be installed in /usr/local. The varnishd binary is in
 /usr/local/etc/varnish/default.vcl. 
 
 You can now proceed to the :ref:`tutorial-index`. 
-
-.. _SubVersion: http://subversion.tigris.org/

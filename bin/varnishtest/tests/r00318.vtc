@@ -1,6 +1,4 @@
-# $Id$
-
-test "ESI with no body in response"
+varnishtest "ESI with no body in response"
 
 server s1 {
 	rxreq 
@@ -9,8 +7,8 @@ server s1 {
 
 varnish v1 -vcl+backend {
 	sub vcl_fetch {
-		esi;
-		return(pass);
+		set beresp.do_esi = true;
+		return(hit_for_pass);
 	}
 } -start
 
@@ -19,4 +17,3 @@ client c1 {
 	rxresp
 	expect resp.status == 302
 } -run
-

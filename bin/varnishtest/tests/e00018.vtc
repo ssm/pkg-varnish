@@ -1,6 +1,4 @@
-# $Id$
-
-test "Test XML 1.0 entity references"
+varnishtest "Test XML 1.0 entity references"
 
 server s1 {
 	rxreq
@@ -39,7 +37,7 @@ varnish v1 -vcl+backend {
 		return (pass);
 	}
 	sub vcl_fetch {
-		esi;
+		set beresp.do_esi = true;
 	}
 } -start
 

@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -26,8 +26,6 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $Id$
- *
  * This is the central switch-board for backend connections and it is
  * slightly complicated by a number of optimizations.
  *
@@ -38,10 +36,10 @@
  *    A backend is a TCP destination, possibly multi-homed and it has a
  *    number of associated properties and statistics.
  *
- *    A vbe_conn is an open TCP connection to a backend.
+ *    A vbc is an open TCP connection to a backend.
  *
  *    A bereq is a memory carrier for handling a HTTP transaction with
- *    a backend over a vbe_conn.
+ *    a backend over a vbc.
  *
  *    A director is a piece of code that selects which backend to use,
  *    by whatever method or metric it chooses.
@@ -53,7 +51,7 @@
  *
  *    When a VCL tries to instantiate a backend, any existing backend
  *    with the same identity (== definition in VCL) will be used instead
- *    so that vbe_conn's can be reused across VCL changes.
+ *    so that vbc's can be reused across VCL changes.
  *
  *    Directors disapper with the VCL that created them.
  *
@@ -69,7 +67,7 @@
  */
 
 struct vbp_target;
-struct vbe_conn;
+struct vbc;
 struct vrt_backend_probe;
 
 /*--------------------------------------------------------------------
@@ -77,10 +75,9 @@ struct vrt_backend_probe;
  * backends to use.
  */
 
-typedef struct vbe_conn *vdi_getfd_f(const struct director *, struct sess *sp);
-typedef void vdi_fini_f(struct director *);
-typedef unsigned vdi_healthy(double now, const struct director *,
-    uintptr_t target);
+typedef struct vbc *vdi_getfd_f(const struct director *, struct sess *sp);
+typedef void vdi_fini_f(const struct director *);
+typedef unsigned vdi_healthy(const struct director *, const struct sess *sp);
 
 struct director {
 	unsigned		magic;
@@ -113,48 +110,43 @@ struct backend {
 	unsigned		magic;
 #define BACKEND_MAGIC		0x64c4c7c6
 
-	char			*hosthdr;
-	char			*ident;
-	char			*vcl_name;
-	double			connect_timeout;
-	double			first_byte_timeout;
-	double			between_bytes_timeout;
-
-	uint32_t		hash;
-
 	VTAILQ_ENTRY(backend)	list;
 	int			refcount;
 	struct lock		mtx;
 
-	struct sockaddr		*ipv4;
+	char			*vcl_name;
+	char			*ipv4_addr;
+	char			*ipv6_addr;
+	char			*port;
+
+	struct sockaddr_storage	*ipv4;
 	socklen_t		ipv4len;
-	struct sockaddr		*ipv6;
+	struct sockaddr_storage	*ipv6;
 	socklen_t		ipv6len;
 
-	unsigned		max_conn;
 	unsigned		n_conn;
-	VTAILQ_HEAD(, vbe_conn)	connlist;
+	VTAILQ_HEAD(, vbc)	connlist;
 
 	struct vbp_target	*probe;
 	unsigned		healthy;
 	VTAILQ_HEAD(, trouble)	troublelist;
-	unsigned		saintmode_threshold;
+
+	struct VSC_C_vbe	*vsc;
 };
 
 /* cache_backend.c */
-void VBE_ReleaseConn(struct vbe_conn *vc);
+void VBE_ReleaseConn(struct vbc *vc);
 struct backend *vdi_get_backend_if_simple(const struct director *d);
 
 /* cache_backend_cfg.c */
 extern struct lock VBE_mtx;
 void VBE_DropRefConn(struct backend *);
-void VBE_DropRef(struct backend *);
+void VBE_DropRefVcl(struct backend *);
 void VBE_DropRefLocked(struct backend *b);
 
 /* cache_backend_poll.c */
-void VBP_Start(struct backend *b, struct vrt_backend_probe const *p);
-void VBP_Stop(struct backend *b);
-
+void VBP_Start(struct backend *b, struct vrt_backend_probe const *p, const char *hosthdr);
+void VBP_Stop(struct backend *b, struct vrt_backend_probe const *p);
 
 /* Init functions for directors */
 typedef void dir_init_f(struct cli *, struct director **, int , const void*);

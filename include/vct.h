@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2009 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -26,8 +26,9 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $Id$
  */
+
+#include <stdint.h>
 
 /* from libvarnish/vct.c */
 
@@ -52,6 +53,7 @@ vct_is(unsigned char x, uint16_t y)
 }
 
 #define vct_issp(x) vct_is(x, VCT_SP)
+#define vct_ishex(x) vct_is(x, VCT_HEX)
 #define vct_iscrlf(x) vct_is(x, VCT_CRLF)
 #define vct_islws(x) vct_is(x, VCT_LWS)
 #define vct_isctl(x) vct_is(x, VCT_CTL)

@@ -1,21 +1,9 @@
-
 -d__flexelint_v9__=1
-
--libdir(../../include)
--libdir(../../lib/)
-
-// -efile(765, ../../lib/)
-// -efile(765, ../../include/)
-// -efile(759, ../../lib/)
-// -efile(759, ../../include/)
 
 -esym(755, vct_*)
 -esym(759, vev_*)
 -esym(765, vev_*)
 -esym(714, vev_*)
--esym(759, vsb_*)
--esym(765, vsb_*)
--esym(714, vsb_*)
 -esym(759, vpf_*)
 -esym(765, vpf_*)
 -esym(714, vpf_*)
@@ -33,11 +21,6 @@
 -esym(765, CLI_*)
 -esym(759, CLI_*)
 -esym(755, CLI_*)
-
--esym(755, VLIST_*)
--esym(755, VSLIST_*)
--esym(755, VSTAILQ_*)
--esym(755, VTAILQ_*)
 
 // XXX: I think this is a flexelint bug:
 -esym(522, vbit_clr)
@@ -66,32 +49,49 @@
 -efunc(838, VRT_purge)
 -efunc(838, VRT_purge_string)
 
+// Stuff in VMODs which is used through dl*(3) functions
+-esym(754, Vmod_Func*)
+-esym(765, Vmod_Func)
+-esym(552, Vmod_Func)
+-esym(765, Vmod_Len)
+-esym(714, Vmod_Len)
+-esym(765, Vmod_Name)
+-esym(714, Vmod_Name)
+-esym(765, Vmod_Proto)
+-esym(714, Vmod_Proto)
+-esym(765, Vmod_Spec)
+-esym(714, Vmod_Spec)
+
 //-sem (pthread_mutex_lock, thread_lock)
 -sem (pthread_mutex_trylock, thread_lock)
 -sem (VBE_DropRefLocked, thread_unlock)
 -e459	// unlocked access from func-ptr
 -e454	// mutex not released (...ReleaseLocked)
 -e457	// unprotected access
+-e835	// A zero has been given as ___ argument to operator '___'  (<<)
 -e777	// float equality comparison
 -e679	// Suspicious Truncation in arithmetic expression combining with pointer
 
--esym(458, lbv_assert)	// unlocked access
 -esym(458, params)	// unlocked access
 
 -emacro(835, HTTPH)	// Info 835: A zero has been given as left argument to operator '&'
 -emacro(845, HTTPH)	// Info 845: The left argument to operator '&&' is certain to be 0
+-esym(773, PCRE_DATE)	// Expression-like macro '___' not parenthesized
 //////////////
 -efunc(1791, pdiff)	// return last on line
 //////////////
 -efile(451, "sys/\*.h")	// No include guard
 -efile(451, "machine/\*.h")	// No include guard
 -efile(451, "vcl_returns.h")	// No include guard
+-efile(451, "locks.h")	// No include guard
 -efile(451, "cache_backend_poll.h")	// No include guard
 -efile(451, "steps.h")	// No include guard
 -efile(451, "http_headers.h")	// No include guard
--efile(451, "stat_field.h")	// No include guard
 -efile(451, "acct_fields.h")	// No include guard
+-efile(451, "vcc_types.h")	// No include guard
+-efile(451, "symbol_kind.h")	// No include guard
 -efile(451, "config.h")	// No include guard
+-efile(451, "vrt_stv_var.h")	// No include guard
 //////////////
 // -e458			// unprotected access
 // -e456			// merged locking paths
@@ -106,43 +106,17 @@
 -esym(458, VSL_stats)
 -esym(458, heritage)
 -esym(458, name_key)
--esym(528, svnid)
 
 //////////////
--passes=3
 
 +libh mgt_event.h
-+libh ../../config.h
 
--emacro((???),va_arg)   // the va_arg() macro can yield 415, 416, 661, 662
-                        // 796 and 797 (out-of-bounds errors).
--elib(123)  // size is both a variable and a macro with args
--emacro(736, isnan)  // isnanf
--efile(766, ../../config.h)
--emacro(413, offsetof)	// likely null pointer
--emacro(527, WRONG)	// unreachable code
 -emacro(527, NEEDLESS_RETURN)	// unreachable code
 
--emacro(702, WEXITSTATUS)	// signed shift right 
--efunc(525, VCC_Return_Name)	// Negative indent
-
-
-
-// -header(../../config.h)
-
-// Fix strchr() semtics, it can only return NULL if arg2 != 0
--sem(strchr, 1p, type(1), 2n == 0 ? (@p < 1p) : (@p < 1p || @p == 0 ))
-
--sem(vsb_new, @p == (1p ? 1p : malloc(1)))
--sem(vsb_delete, custodial(1))
--sem(pthread_create, custodial(4))
--sem(lbv_assert, r_no)
--sem(lbv_xxxassert, r_no)
 -sem(WS_Init, custodial(2))
 -sem(http_Setup, custodial(2))
 
 -sem(vdi_dns_cache_list_add, custodial(3))
--ffc	// No automatic custody
 
 -e455	// thread lock
 -e458	// unprotected read
@@ -153,41 +127,15 @@
 -e785	// Too few initializers for aggregate 
 -e786	// String concatenation within initializer
 
--emacro(740, VTAILQ_PREV) // Unusual pointer cast (incompatible indirect types)
--emacro(740, VTAILQ_LAST) // Unusual pointer cast (incompatible indirect types)
--emacro((826), VTAILQ_PREV) // Suspicious pointer-to-pointer conversion (area too small)
--emacro((826), VTAILQ_LAST) // Suspicious pointer-to-pointer conversion (area too small)
--emacro(506, VTAILQ_FOREACH_SAFE) // constant value boolean
--emacro(506, VSTAILQ_FOREACH_SAFE) // constant value boolean
-
 -esym(765, vcc_ProcAction) // could be made static
 -esym(759, vcc_ProcAction) // could be moved to module
 -esym(714, vcc_ProcAction) // not ref.
 
--esym(534, sprintf)	// Ignoring return value of function
--esym(534, asprintf)	// Ignoring return value of function
--esym(534, printf)	// Ignoring return value of function
--esym(534, fprintf)	// Ignoring return value of function
--esym(534, memset)	// Ignoring return value of function
--esym(534, memcpy)	// Ignoring return value of function
--esym(534, memmove)	// Ignoring return value of function
--esym(534, strcpy)	// Ignoring return value of function
--esym(534, vsb_printf)	// Ignoring return value of function
--esym(534, vsb_vprintf)	// Ignoring return value of function
--esym(534, vsb_cat)	// Ignoring return value of function
--esym(534, vsb_bcat)	// Ignoring return value of function
--esym(534, vsb_putc)	// Ignoring return value of function
--esym(534, strcat)	// Ignoring return value of function
--esym(534, strcpy)	// Ignoring return value of function
--esym(534, strlcpy)	// Ignoring return value of function
 -esym(765, panicstr)	// Could be static
 
 -emacro(506, isnan, isfinite)	// constant value boolean
 -emacro(736, isfinite)	// loss of precision
 -emacro(747, isnan)	// significant coersion
--emacro(506, assert)	// constant value boolean
--emacro(827, assert)	// loop not reachable
--emacro(774, assert)	// booelan always true
 -emacro(774, HTTPH)	// always false
 -emacro(527, ARGV_ERR)	// unreachable
 
@@ -196,18 +144,10 @@
 // cache.h
 -emacro(506, INCOMPL) // Constant value Boolean
 
-// cache_center.c
--efunc(525, CNT_Session)	// Negative indentation from line
--efunc(525, http_FilterFields)	// Negative indentation from line
--efunc(525, http_EstimateWS)	// Negative indentation from line
--efunc(539, http_FilterFields)	// Positive indentation from line
--efunc(539, http_EstimateWS)	// Positive indentation from line
-
 -esym(525, __builtin_frame_address)	// Not defined
 -esym(525, __builtin_return_address)	// Not defined
 
 // cache_vcl.c
--efunc(525, vcl_handlingname)	// Negative indentation from line
 -esym(528, vcl_handlingname)	// Not referenced
 -e641	// Converting enum 'cli_status_e' to int
 
@@ -221,3 +161,4 @@
 -e574	// 48 Signed-unsigned mix with relational
 -e712	// 96 Loss of precision (___) (___ to ___)
 -e747	// 297 Significant prototype coercion (___) ___ to ___
+-e840	// Use of nul character in a string literal (see: vcc_if.c)

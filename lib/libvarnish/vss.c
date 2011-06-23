@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Dag-Erling Smørgrav <des@des.no>
@@ -30,9 +30,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -46,13 +43,6 @@ SVNID("$Id$")
 #include <string.h>
 #include <unistd.h>
 
-#ifndef HAVE_STRLCPY
-#include "compat/strlcpy.h"
-#endif
-#ifndef HAVE_STRNDUP
-#include "compat/strndup.h"
-#endif
-
 #include "libvarnish.h"
 #include "vss.h"
 
@@ -62,10 +52,7 @@ struct vss_addr {
 	int			 va_socktype;
 	int			 va_protocol;
 	socklen_t		 va_addrlen;
-	union {
-		struct sockaddr_storage	 _storage;
-		struct sockaddr		 sa;
-	} va_addr;
+	struct sockaddr_storage	 va_addr;
 };
 
 /*lint -esym(754, _storage) not ref */
@@ -96,8 +83,9 @@ VSS_parse(const char *str, char **addr, char **port)
 		    p == str + 1 ||
 		    (p[1] != '\0' && p[1] != ':'))
 			return (-1);
-		*addr = strndup(str + 1, p - (str + 1));
+		*addr = strdup(str + 1);
 		XXXAN(*addr);
+		(*addr)[p - (str + 1)] = '\0';
 		if (p[1] == ':') {
 			*port = strdup(p + 2);
 			XXXAN(*port);
@@ -112,8 +100,9 @@ VSS_parse(const char *str, char **addr, char **port)
 			XXXAN(*addr);
 		} else {
 			if (p > str) {
-				*addr = strndup(str, p - str);
+				*addr = strdup(str);
 				XXXAN(*addr);
+				(*addr)[p - str] = '\0';
 			}
 			*port = strdup(p + 1);
 			XXXAN(*port);
@@ -147,6 +136,7 @@ VSS_resolve(const char *addr, const char *port, struct vss_addr ***vap)
 	int i, ret;
 	char *adp, *hop;
 
+	*vap = NULL;
 	memset(&hints, 0, sizeof hints);
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE;
@@ -224,7 +214,7 @@ VSS_bind(const struct vss_addr *va)
 		return (-1);
 	}
 #endif
-	if (bind(sd, &va->va_addr.sa, va->va_addrlen) != 0) {
+	if (bind(sd, (const void*)&va->va_addr, va->va_addrlen) != 0) {
 		perror("bind()");
 		(void)close(sd);
 		return (-1);
@@ -271,8 +261,8 @@ VSS_connect(const struct vss_addr *va, int nonblock)
 		return (-1);
 	}
 	if (nonblock)
-		(void)TCP_nonblocking(sd);
-	i = connect(sd, &va->va_addr.sa, va->va_addrlen);
+		(void)VTCP_nonblocking(sd);
+	i = connect(sd, (const void *)&va->va_addr, va->va_addrlen);
 	if (i == 0 || (nonblock && errno == EINPROGRESS))
 		return (sd);
 	perror("connect()");
@@ -287,14 +277,12 @@ VSS_connect(const struct vss_addr *va, int nonblock)
 int
 VSS_open(const char *str, double tmo)
 {
-	int retval;
+	int retval = -1;
 	int nvaddr, n, i;
 	struct vss_addr **vaddr;
 	struct pollfd pfd;
 
 	nvaddr = VSS_resolve(str, NULL, &vaddr);
-	if (nvaddr <= 0)
-		return (-1);
 	for (n = 0; n < nvaddr; n++) {
 		retval = VSS_connect(vaddr[n], tmo != 0.0);
 		if (retval >= 0 && tmo != 0.0) {

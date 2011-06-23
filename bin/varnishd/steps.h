@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -26,9 +26,9 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $Id$
  */
 
+/*lint -save -e525 -e539 */
 STEP(wait,	WAIT)
 STEP(first,	FIRST)
 STEP(recv,	RECV)
@@ -39,6 +39,10 @@ STEP(lookup,	LOOKUP)
 STEP(miss,	MISS)
 STEP(hit,	HIT)
 STEP(fetch,	FETCH)
+STEP(fetchbody,	FETCHBODY)
+STEP(streambody,STREAMBODY)
+STEP(prepresp,	PREPRESP)
 STEP(deliver,	DELIVER)
 STEP(error,	ERROR)
 STEP(done,	DONE)
+/*lint -restore */

@@ -1,6 +1,4 @@
-# $Id$
-
-test "ESI include"
+varnishtest "ESI include"
 
 
 server s1 {
@@ -8,19 +6,24 @@ server s1 {
 	txresp -body {
 		<html>
 		Before include
-		<esi:include src="/body"/>
+		<esi:include src="/body" sr="foo"/>
 		After include
 	}
 	rxreq 
-	expect req.url == "/body"
+	expect req.url == "/body1"
 	txresp -body {
 		Included file
 	}
 } -start
 
 varnish v1 -vcl+backend {
+	sub vcl_recv {
+		if (req.esi_level > 0) {
+			set req.url = req.url + req.esi_level;
+		}
+	}
 	sub vcl_fetch {
-		esi;
+		set beresp.do_esi = true;
 	}
 } -start
 

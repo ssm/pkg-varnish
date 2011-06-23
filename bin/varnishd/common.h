@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -26,11 +26,9 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $Id$
  */
 
 struct cli;
-struct sockaddr;
 
 extern pid_t mgt_pid;
 #define ASSERT_MGT() do { assert(getpid() == mgt_pid);} while (0)
@@ -38,13 +36,8 @@ extern pid_t mgt_pid;
 /* cache_acceptor.c */
 void VCA_tweak_waiter(struct cli *cli, const char *arg);
 
-/* shmlog.c */
-void VSL_Panic(int *len, char **ptr);
-
-/* shmlog.c */
-void VSL_MgtInit(const char *fn, unsigned size);
-void VSL_MgtPid(void);
-extern struct varnish_stats *VSL_stats;
+/* mgt_shmem.c */
+extern struct VSC_C_main *VSC_C_main;
 
 /* varnishd.c */
 struct vsb;
@@ -52,6 +45,10 @@ extern struct vsb *vident;
 int Symbol_Lookup(struct vsb *vsb, void *ptr);
 
 #define TRUST_ME(ptr)	((void*)(uintptr_t)(ptr))
+
+
+/* Help shut up FlexeLint */
+#define __match_proto__(xxx) /*lint -e{818} */
 
 /* Really belongs in mgt.h, but storage_file chokes on both */
 void mgt_child_inherit(int fd, const char *what);
@@ -65,7 +62,39 @@ void mgt_child_inherit(int fd, const char *what);
 /* A tiny helper for choosing hash/storage modules */
 struct choice {
 	const char      *name;
-	void            *ptr;
+	const void	*ptr;
 };
+const void *pick(const struct choice *cp, const char *which, const char *kind);
 
 #define NEEDLESS_RETURN(foo)	return (foo)
+
+/* vsm.c */
+extern struct VSM_head		*VSM_head;
+extern const struct VSM_chunk	*vsm_end;
+
+/*
+ * These three should not be called directly, but only through
+ * proper vectors in mgt.h/cache.h, hence the __
+ */
+void *VSM__Alloc(unsigned size, const char *class, const char *type,
+    const char *ident);
+void VSM__Free(const void *ptr);
+void VSM__Clean(void);
+
+/* These classes are opaque to other programs, so we define the here */
+#define VSM_CLASS_FREE	"Free"
+#define VSM_CLASS_COOL	"Cool"
+#define VSM_CLASS_PARAM	"Params"
+#define VSM_CLASS_MARK	"MgrCld"
+#define VSM_COOL_TIME	5
+
+/* cache_lck.c */
+struct lock { void *priv; };		// Opaque
+
+/*---------------------------------------------------------------------
+ * Generic power-2 rounding macros
+ */
+
+#define PWR2(x)     ((((x)-1)&(x))==0)		/* Is a power of two */
+#define RDN2(x, y)  ((x)&(~((y)-1)))		/* if y is powers of two */
+#define RUP2(x, y)  (((x)+((y)-1))&(~((y)-1)))	/* if y is powers of two */

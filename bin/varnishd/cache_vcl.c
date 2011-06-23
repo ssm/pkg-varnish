@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -33,25 +33,21 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
 #include <dlfcn.h>
 
-#include "cli.h"
+#include "vcli.h"
 #include "cli_priv.h"
-#include "shmlog.h"
 #include "vcl.h"
 #include "cache.h"
 #include "libvcl.h"
 
 struct vcls {
 	unsigned		magic;
-#define VCLS_MAGIC		0x214188f2
+#define VVCLS_MAGIC		0x214188f2
 	VTAILQ_ENTRY(vcls)	list;
 	char			*name;
 	void			*dlh;
@@ -71,17 +67,7 @@ static struct vcls		*vcl_active; /* protected by vcl_mtx */
 
 /*--------------------------------------------------------------------*/
 
-void
-VCL_Refresh(struct VCL_conf **vcc)
-{
-	if (*vcc == vcl_active->conf)
-		return;
-	if (*vcc != NULL)
-		VCL_Rel(vcc);	/* XXX: optimize locking */
-	VCL_Get(vcc);
-}
-
-void
+static void
 VCL_Get(struct VCL_conf **vcc)
 {
 	static int once = 0;
@@ -101,10 +87,21 @@ VCL_Get(struct VCL_conf **vcc)
 }
 
 void
+VCL_Refresh(struct VCL_conf **vcc)
+{
+	if (*vcc == vcl_active->conf)
+		return;
+	if (*vcc != NULL)
+		VCL_Rel(vcc);	/* XXX: optimize locking */
+	VCL_Get(vcc);
+}
+
+void
 VCL_Rel(struct VCL_conf **vcc)
 {
 	struct VCL_conf *vc;
 
+	AN(*vcc);
 	vc = *vcc;
 	*vcc = NULL;
 
@@ -144,23 +141,23 @@ VCL_Load(const char *fn, const char *name, struct cli *cli)
 	ASSERT_CLI();
 	vcl = vcl_find(name);
 	if (vcl != NULL) {
-		cli_out(cli, "Config '%s' already loaded", name);
+		VCLI_Out(cli, "Config '%s' already loaded", name);
 		return (1);
 	}
 
-	ALLOC_OBJ(vcl, VCLS_MAGIC);
+	ALLOC_OBJ(vcl, VVCLS_MAGIC);
 	XXXAN(vcl);
 
 	vcl->dlh = dlopen(fn, RTLD_NOW | RTLD_LOCAL);
 
 	if (vcl->dlh == NULL) {
-		cli_out(cli, "dlopen(%s): %s\n", fn, dlerror());
+		VCLI_Out(cli, "dlopen(%s): %s\n", fn, dlerror());
 		FREE_OBJ(vcl);
 		return (1);
 	}
 	cnf = dlsym(vcl->dlh, "VCL_conf");
 	if (cnf == NULL) {
-		cli_out(cli, "Internal error: No VCL_conf symbol\n");
+		VCLI_Out(cli, "Internal error: No VCL_conf symbol\n");
 		(void)dlclose(vcl->dlh);
 		FREE_OBJ(vcl);
 		return (1);
@@ -168,21 +165,22 @@ VCL_Load(const char *fn, const char *name, struct cli *cli)
 	memcpy(vcl->conf, cnf, sizeof *cnf);
 
 	if (vcl->conf->magic != VCL_CONF_MAGIC) {
-		cli_out(cli, "Wrong VCL_CONF_MAGIC\n");
+		VCLI_Out(cli, "Wrong VCL_CONF_MAGIC\n");
 		(void)dlclose(vcl->dlh);
 		FREE_OBJ(vcl);
 		return (1);
 	}
 	REPLACE(vcl->name, name);
 	VTAILQ_INSERT_TAIL(&vcl_head, vcl, list);
+	VCLI_Out(cli, "Loaded \"%s\" as \"%s\"", fn , name);
+	vcl->conf->init_vcl(cli);
+	(void)vcl->conf->init_func(NULL);
 	Lck_Lock(&vcl_mtx);
 	if (vcl_active == NULL)
 		vcl_active = vcl;
 	Lck_Unlock(&vcl_mtx);
-	cli_out(cli, "Loaded \"%s\" as \"%s\"", fn , name);
-	vcl->conf->init_func(cli);
-	VSL_stats->n_vcl++;
-	VSL_stats->n_vcl_avail++;
+	VSC_C_main->n_vcl++;
+	VSC_C_main->n_vcl_avail++;
 	return (0);
 }
 
@@ -200,12 +198,13 @@ VCL_Nuke(struct vcls *vcl)
 	assert(vcl->conf->discard);
 	assert(vcl->conf->busy == 0);
 	VTAILQ_REMOVE(&vcl_head, vcl, list);
-	vcl->conf->fini_func(NULL);
+	(void)vcl->conf->fini_func(NULL);
+	vcl->conf->fini_vcl(NULL);
 	free(vcl->name);
 	(void)dlclose(vcl->dlh);
 	FREE_OBJ(vcl);
-	VSL_stats->n_vcl--;
-	VSL_stats->n_vcl_discard--;
+	VSC_C_main->n_vcl--;
+	VSC_C_main->n_vcl_discard--;
 }
 
 /*--------------------------------------------------------------------*/
@@ -239,7 +238,7 @@ ccf_config_list(struct cli *cli, const char * const *av, void *priv)
 			flg = "discarded";
 		} else
 			flg = "available";
-		cli_out(cli, "%-10s %6u %s\n",
+		VCLI_Out(cli, "%-10s %6u %s\n",
 		    flg,
 		    vcl->conf->busy,
 		    vcl->name);
@@ -254,7 +253,7 @@ ccf_config_load(struct cli *cli, const char * const *av, void *priv)
 	(void)priv;
 	ASSERT_CLI();
 	if (VCL_Load(av[3], av[2], cli))
-		cli_result(cli, CLIS_PARAM);
+		VCLI_SetResult(cli, CLIS_PARAM);
 	return;
 }
 
@@ -268,19 +267,19 @@ ccf_config_discard(struct cli *cli, const char * const *av, void *priv)
 	(void)priv;
 	vcl = vcl_find(av[2]);
 	if (vcl == NULL) {
-		cli_result(cli, CLIS_PARAM);
-		cli_out(cli, "VCL '%s' unknown", av[2]);
+		VCLI_SetResult(cli, CLIS_PARAM);
+		VCLI_Out(cli, "VCL '%s' unknown", av[2]);
 		return;
 	}
 	Lck_Lock(&vcl_mtx);
 	if (vcl == vcl_active) {
 		Lck_Unlock(&vcl_mtx);
-		cli_result(cli, CLIS_PARAM);
-		cli_out(cli, "VCL %s is the active VCL", av[2]);
+		VCLI_SetResult(cli, CLIS_PARAM);
+		VCLI_Out(cli, "VCL %s is the active VCL", av[2]);
 		return;
 	}
-	VSL_stats->n_vcl_discard++;
-	VSL_stats->n_vcl_avail--;
+	VSC_C_main->n_vcl_discard++;
+	VSC_C_main->n_vcl_avail--;
 	vcl->conf->discard = 1;
 	Lck_Unlock(&vcl_mtx);
 	if (vcl->conf->busy == 0)
@@ -291,18 +290,23 @@ static void
 ccf_config_use(struct cli *cli, const char * const *av, void *priv)
 {
 	struct vcls *vcl;
+	int i;
 
 	(void)av;
 	(void)priv;
 	vcl = vcl_find(av[2]);
 	if (vcl == NULL) {
-		cli_out(cli, "No VCL named '%s'", av[2]);
-		cli_result(cli, CLIS_PARAM);
+		VCLI_Out(cli, "No VCL named '%s'", av[2]);
+		VCLI_SetResult(cli, CLIS_PARAM);
 		return;
 	}
 	Lck_Lock(&vcl_mtx);
 	vcl_active = vcl;
 	Lck_Unlock(&vcl_mtx);
+
+	/* Tickle this VCL's backends to take over health polling */
+	for(i = 1; i < vcl->conf->ndirector; i++)
+		VBE_UseHealth(vcl->conf->director[i]);
 }
 
 /*--------------------------------------------------------------------*/
@@ -340,5 +344,5 @@ VCL_Init()
 {
 
 	CLI_AddFuncs(vcl_cmds);
-	Lck_New(&vcl_mtx);
+	Lck_New(&vcl_mtx, lck_vcl);
 }

@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -31,9 +31,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -46,7 +43,6 @@ SVNID("$Id$")
 #include <stdlib.h>
 #include <stdarg.h>
 
-#include "shmlog.h"
 #include "vrt.h"
 #include "vrt_obj.h"
 #include "vcl.h"
@@ -54,11 +50,7 @@ SVNID("$Id$")
 #include "hash_slinger.h"
 #include "cache_backend.h"
 
-/*XXX: sort of a hack, improve the Tcl code in the compiler to avoid */
-/*lint -save -esym(818,sp) */
-
 const void * const vrt_magic_string_end = &vrt_magic_string_end;
-static char vrt_hostname[255] = "";
 
 /*--------------------------------------------------------------------*/
 
@@ -79,6 +71,8 @@ void
 VRT_count(const struct sess *sp, unsigned u)
 {
 
+	if (sp == NULL)
+		return;
 	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
 	if (params->vcl_trace)
 		WSP(sp, SLT_VCL_trace, "%u %d.%d", u,
@@ -142,15 +136,41 @@ VRT_GetHdr(const struct sess *sp, enum gethdr_e where, const char *n)
  * XXX: Optimize the single element case ?
  */
 
-/*lint -e{818} ap,hp could be const */
-static char *
-vrt_assemble_string(struct http *hp, const char *h, const char *p, va_list ap)
+char *
+VRT_StringList(char *d, unsigned dl, const char *p, va_list ap)
+{
+	char *b, *e;
+	unsigned x;
+
+	b = d;
+	e = b + dl;
+	while (p != vrt_magic_string_end && b < e) {
+		if (p != NULL) {
+			x = strlen(p);
+			if (b + x < e)
+				memcpy(b, p, x);
+			b += x;
+		}
+		p = va_arg(ap, const char *);
+	}
+	if (b >= e)
+		return (NULL);
+	*b++ = '\0';
+	return (b);
+}
+
+/*--------------------------------------------------------------------
+ * XXX: Optimize the single element case ?
+ */
+
+char *
+VRT_String(struct ws *ws, const char *h, const char *p, va_list ap)
 {
 	char *b, *e;
 	unsigned u, x;
 
-	u = WS_Reserve(hp->ws, 0);
-	e = b = hp->ws->f;
+	u = WS_Reserve(ws, 0);
+	e = b = ws->f;
 	e += u;
 	if (h != NULL) {
 		x = strlen(h);
@@ -161,27 +181,32 @@ vrt_assemble_string(struct http *hp, const char *h, const char *p, va_list ap)
 			*b = ' ';
 		b++;
 	}
-	while (p != vrt_magic_string_end && b < e) {
-		if (p == NULL)
-			p = "(null)";
-		x = strlen(p);
-		if (b + x < e)
-			memcpy(b, p, x);
-		b += x;
-		p = va_arg(ap, const char *);
-	}
-	if (b < e)
-		*b = '\0';
-	b++;
-	if (b > e) {
-		WS_Release(hp->ws, 0);
+	b = VRT_StringList(b, e > b ? e - b : 0, p, ap);
+	if (b == NULL || b == e) {
+		WS_Release(ws, 0);
 		return (NULL);
-	} else {
-		e = b;
-		b = hp->ws->f;
-		WS_Release(hp->ws, 1 + e - b);
-		return (b);
 	}
+	e = b;
+	b = ws->f;
+	WS_Release(ws, e - b);
+	return (b);
+}
+
+/*--------------------------------------------------------------------
+ * Build a string on the worker threads workspace
+ */
+
+const char *
+VRT_WrkString(const struct sess *sp, const char *p, ...)
+{
+	va_list ap;
+	char *b;
+
+	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
+	va_start(ap, p);
+	b = VRT_String(sp->wrk->ws, NULL, p, ap);
+	va_end(ap);
+	return (b);
 }
 
 /*--------------------------------------------------------------------*/
@@ -200,7 +225,7 @@ VRT_SetHdr(const struct sess *sp , enum gethdr_e where, const char *hdr,
 	if (p == NULL) {
 		http_Unset(hp, hdr);
 	} else {
-		b = vrt_assemble_string(hp, hdr + 1, p, ap);
+		b = VRT_String(hp->ws, hdr + 1, p, ap);
 		if (b == NULL) {
 			WSP(sp, SLT_LostHeader, "%s", hdr + 1);
 		} else {
@@ -213,603 +238,17 @@ VRT_SetHdr(const struct sess *sp , enum gethdr_e where, const char *hdr,
 
 /*--------------------------------------------------------------------*/
 
-static void
-vrt_do_string(struct worker *w, int fd, struct http *hp, int fld,
-    const char *err, const char *p, va_list ap)
-{
-	char *b;
-
-	AN(p);
-	AN(hp);
-	b = vrt_assemble_string(hp, NULL, p, ap);
-	if (b == NULL) {
-		WSL(w, SLT_LostHeader, fd, err);
-	} else {
-		http_SetH(hp, fld, b);
-	}
-	va_end(ap);
-}
-
-#define VRT_DO_HDR(obj, hdr, http, fld)				\
-void								\
-VRT_l_##obj##_##hdr(const struct sess *sp, const char *p, ...)	\
-{								\
-	va_list ap;						\
-								\
-	AN(p);							\
-	va_start(ap, p);					\
-	vrt_do_string(sp->wrk, sp->fd,				\
-	    http, fld, #obj "." #hdr, p, ap);			\
-	va_end(ap);						\
-}								\
-								\
-const char *							\
-VRT_r_##obj##_##hdr(const struct sess *sp)			\
-{								\
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);			\
-	CHECK_OBJ_NOTNULL(http, HTTP_MAGIC);			\
-	return (http->hd[fld].b);				\
-}
-
-VRT_DO_HDR(req,   request,	sp->http,		HTTP_HDR_REQ)
-VRT_DO_HDR(req,   url,		sp->http,		HTTP_HDR_URL)
-VRT_DO_HDR(req,   proto,	sp->http,		HTTP_HDR_PROTO)
-VRT_DO_HDR(bereq, request,	sp->wrk->bereq,		HTTP_HDR_REQ)
-VRT_DO_HDR(bereq, url,		sp->wrk->bereq,		HTTP_HDR_URL)
-VRT_DO_HDR(bereq, proto,	sp->wrk->bereq,		HTTP_HDR_PROTO)
-VRT_DO_HDR(obj,   proto,	sp->obj->http,		HTTP_HDR_PROTO)
-VRT_DO_HDR(obj,   response,	sp->obj->http,		HTTP_HDR_RESPONSE)
-VRT_DO_HDR(resp,  proto,	sp->wrk->resp,		HTTP_HDR_PROTO)
-VRT_DO_HDR(resp,  response,	sp->wrk->resp,		HTTP_HDR_RESPONSE)
-VRT_DO_HDR(beresp,  proto,	sp->wrk->beresp,	HTTP_HDR_PROTO)
-VRT_DO_HDR(beresp,  response,	sp->wrk->beresp,	HTTP_HDR_RESPONSE)
-
-/*--------------------------------------------------------------------*/
-
-/* XXX: review this */
-
-void
-VRT_l_obj_status(const struct sess *sp, int num)
-{
-	char *p;
-
-	assert(num >= 100 && num <= 999);
-	p = WS_Alloc(sp->obj->http->ws, 4);
-	if (p == NULL)
-		WSP(sp, SLT_LostHeader, "%s", "obj.status");
-	else
-		sprintf(p, "%d", num);
-	http_SetH(sp->obj->http, HTTP_HDR_STATUS, p);
-	sp->obj->http->status = num;
-}
-
-/* Add an objecthead to the saintmode list for the (hopefully) relevant
- * backend. Some double-up asserting here to avoid assert-errors when there
- * is no object.
- */
-void
-VRT_l_beresp_saintmode(const struct sess *sp, double a)
-{
-	struct trouble *new;
-	struct trouble *tr;
-	struct trouble *tr2;
-
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	if (!sp->vbe)
-		return;
-	CHECK_OBJ_NOTNULL(sp->vbe, VBE_CONN_MAGIC);
-	if (!sp->vbe->backend)
-		return;
-	CHECK_OBJ_NOTNULL(sp->vbe->backend, BACKEND_MAGIC);
-	if (!sp->objhead)
-		return;
-	CHECK_OBJ_NOTNULL(sp->objhead, OBJHEAD_MAGIC);
-
-	/* Setting a negative holdoff period is a mistake. Detecting this
-	 * when compiling the VCL would be better.
-	 */
-	assert(a > 0);
-
-	ALLOC_OBJ(new, TROUBLE_MAGIC);
-	AN(new);
-	new->target = (uintptr_t)sp->objhead;
-	new->timeout = sp->t_req + a;
-
-	/* Insert the new item on the list before the first item with a
-	 * timeout at a later date (ie: sort by which entry will time out
-	 * from the list
-	 */
-	Lck_Lock(&sp->vbe->backend->mtx);
-	VTAILQ_FOREACH_SAFE(tr, &sp->vbe->backend->troublelist, list, tr2) {
-		if (tr->timeout < new->timeout) {
-			VTAILQ_INSERT_BEFORE(tr, new, list);
-			new = NULL;
-			break;
-		}
-	}
-
-	/* Insert the item at the end if the list is empty or all other
-	 * items have a longer timeout.
-	 */
-	if (new)
-		VTAILQ_INSERT_TAIL(&sp->vbe->backend->troublelist, new, list);
-
-	Lck_Unlock(&sp->vbe->backend->mtx);
-}
-
-int
-VRT_r_obj_status(const struct sess *sp)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	CHECK_OBJ_NOTNULL(sp->obj, OBJECT_MAGIC);
-	/* XXX: use http_GetStatus() */
-	if (sp->obj->http->status)
-		return (sp->obj->http->status);
-	AN(sp->obj->http->hd[HTTP_HDR_STATUS].b);
-	return (atoi(sp->obj->http->hd[HTTP_HDR_STATUS].b));
-}
-
-void
-VRT_l_resp_status(const struct sess *sp, int num)
-{
-	char *p;
-
-	assert(num >= 100 && num <= 999);
-	p = WS_Alloc(sp->wrk->ws, 4);
-	if (p == NULL)
-		WSP(sp, SLT_LostHeader, "%s", "resp.status");
-	else
-		sprintf(p, "%d", num);
-	http_SetH(sp->wrk->resp, HTTP_HDR_STATUS, p);
-	sp->wrk->resp->status = num;
-}
-
-int
-VRT_r_resp_status(const struct sess *sp)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	CHECK_OBJ_NOTNULL(sp->wrk->resp, HTTP_MAGIC);
-	if (sp->wrk->resp->status)
-		return (sp->wrk->resp->status);
-	return (atoi(sp->wrk->resp->hd[HTTP_HDR_STATUS].b));
-}
-
-/*--------------------------------------------------------------------*/
-
-#define VBEREQ(dir, type, onm, field)					\
-void									\
-VRT_l_##dir##_##onm(const struct sess *sp, type a)			\
-{									\
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);				\
-	sp->wrk->field = a;						\
-}									\
-									\
-type									\
-VRT_r_##dir##_##onm(const struct sess *sp)				\
-{									\
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);				\
-	return (sp->wrk->field);					\
-}
-
-VBEREQ(beresp, unsigned, cacheable, cacheable)
-VBEREQ(beresp, double, grace, grace)
-
-/*--------------------------------------------------------------------*/
-
-const char *
-VRT_r_client_identity(struct sess *sp)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	if (sp->client_identity != NULL)
-		return (sp->client_identity);
-	else
-		return (sp->addr);
-}
-
-void
-VRT_l_client_identity(struct sess *sp, const char *str, ...)
-{
-	va_list ap;
-	char *b;
-
-	va_start(ap, str);
-	b = vrt_assemble_string(sp->http, NULL, str, ap);
-	va_end(ap);
-	sp->client_identity = b;
-}
-
-/*--------------------------------------------------------------------
- * XXX: Working relative to t_req is maybe not the right thing, we could
- * XXX: have spent a long time talking to the backend since then.
- * XXX: It might make sense to cache a timestamp as "current time"
- * XXX: before vcl_recv (== t_req) and vcl_fetch.
- * XXX: On the other hand, that might lead to inconsistent behaviour
- * XXX: where an object expires while we are running VCL code, and
- * XXX: and that may not be a good idea either.
- * XXX: See also related t_req use in cache_hash.c
- */
-
-void
-VRT_l_beresp_ttl(const struct sess *sp, double a)
-{
-
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	WSP(sp, SLT_TTL, "%u VCL %.0f %.0f", sp->xid, a, sp->t_req);
-	/*
-	 * If people set obj.ttl = 0s, they don't expect it to be cacheable
-	 * any longer, but it will still be for up to 1s - epsilon because
-	 * of the rounding to seconds.
-	 * We special case and make sure that rounding does not surprise.
-	 */
-	if (a <= 0)
-		sp->wrk->ttl = sp->t_req - 1;
-	else
-		sp->wrk->ttl = sp->t_req + a;
-}
-
-double
-VRT_r_beresp_ttl(const struct sess *sp)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	return (sp->wrk->ttl - sp->t_req);
-}
-
-void
-VRT_l_beresp_status(const struct sess *sp, int num)
-{
-	char *p;
-
-	assert(num >= 100 && num <= 999);
-	p = WS_Alloc(sp->wrk->beresp->ws, 4);
-	if (p == NULL)
-		WSP(sp, SLT_LostHeader, "%s", "obj.status");
-	else
-		sprintf(p, "%d", num);
-	http_SetH(sp->wrk->beresp, HTTP_HDR_STATUS, p);
-	sp->wrk->beresp->status = num;
-}
-
-int
-VRT_r_beresp_status(const struct sess *sp)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	/* XXX: use http_GetStatus() */
-	if (sp->wrk->beresp->status)
-		return (sp->wrk->beresp->status);
-	AN(sp->wrk->beresp->hd[HTTP_HDR_STATUS].b);
-	return (atoi(sp->wrk->beresp->hd[HTTP_HDR_STATUS].b));
-}
-
-
-void
-VRT_l_bereq_connect_timeout(struct sess *sp, double num)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	sp->wrk->connect_timeout = (num > 0 ? num : 0);
-}
-
-double
-VRT_r_bereq_connect_timeout(struct sess *sp)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	return (sp->wrk->connect_timeout);
-}
-
-void
-VRT_l_bereq_first_byte_timeout(struct sess *sp, double num)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	sp->wrk->first_byte_timeout = (num > 0 ? num : 0);
-}
-
-double
-VRT_r_bereq_first_byte_timeout(struct sess *sp)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	return (sp->wrk->first_byte_timeout);
-}
-
-void
-VRT_l_bereq_between_bytes_timeout(struct sess *sp, double num)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	sp->wrk->between_bytes_timeout = (num > 0 ? num : 0);
-}
-
-double
-VRT_r_bereq_between_bytes_timeout(struct sess *sp)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	return (sp->wrk->between_bytes_timeout);
-}
-
-/*--------------------------------------------------------------------*/
-
 void
 VRT_handling(struct sess *sp, unsigned hand)
 {
 
+	if (sp == NULL) {
+		assert(hand == VCL_RET_OK);
+		return;
+	}
 	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
 	assert(hand < VCL_RET_MAX);
 	sp->handling = hand;
-}
-
-/*--------------------------------------------------------------------
- * XXX: Working relative to t_req is maybe not the right thing, we could
- * XXX: have spent a long time talking to the backend since then.
- * XXX: It might make sense to cache a timestamp as "current time"
- * XXX: before vcl_recv (== t_req) and vcl_fetch.
- * XXX: On the other hand, that might lead to inconsistent behaviour
- * XXX: where an object expires while we are running VCL code, and
- * XXX: and that may not be a good idea either.
- * XXX: See also related t_req use in cache_hash.c
- */
-
-void
-VRT_l_obj_ttl(const struct sess *sp, double a)
-{
-
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	CHECK_OBJ_NOTNULL(sp->obj, OBJECT_MAGIC);	/* XXX */
-	if (sp->obj->objcore == NULL)
-		return;
-	WSP(sp, SLT_TTL, "%u VCL %.0f %.0f",
-	    sp->obj->xid, a, sp->t_req);
-	/*
-	 * If people set obj.ttl = 0s, they don't expect it to be cacheable
-	 * any longer, but it will still be for up to 1s - epsilon because
-	 * of the rounding to seconds.
-	 * We special case and make sure that rounding does not surprise.
-	 */
-	if (a <= 0)
-		sp->obj->ttl = sp->t_req - 1;
-	else
-		sp->obj->ttl = sp->t_req + a;
-	EXP_Rearm(sp->obj);
-}
-
-double
-VRT_r_obj_ttl(const struct sess *sp)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	CHECK_OBJ_NOTNULL(sp->obj, OBJECT_MAGIC);	/* XXX */
-	if (sp->obj->objcore == NULL)
-		return (0.0);
-	return (sp->obj->ttl - sp->t_req);
-}
-
-/*--------------------------------------------------------------------
- * obj.grace is relative to obj.ttl, so no special magic is necessary.
- */
-
-void
-VRT_l_obj_grace(const struct sess *sp, double a)
-{
-
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	CHECK_OBJ_NOTNULL(sp->obj, OBJECT_MAGIC);	/* XXX */
-	if (a < 0)
-		a = 0;
-	sp->obj->grace = a;
-	EXP_Rearm(sp->obj);
-}
-
-double
-VRT_r_obj_grace(const struct sess *sp)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	CHECK_OBJ_NOTNULL(sp->obj, OBJECT_MAGIC);	/* XXX */
-	if (isnan(sp->obj->grace))
-		return ((double)params->default_grace);
-	return (sp->obj->grace);
-}
-
-/*--------------------------------------------------------------------*/
-
-#define VOBJ(type,onm,field)						\
-void									\
-VRT_l_obj_##onm(const struct sess *sp, type a)				\
-{									\
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);				\
-	CHECK_OBJ_NOTNULL(sp->obj, OBJECT_MAGIC);	/* XXX */	\
-	sp->obj->field = a;						\
-}									\
-									\
-type									\
-VRT_r_obj_##onm(const struct sess *sp)					\
-{									\
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);				\
-	CHECK_OBJ_NOTNULL(sp->obj, OBJECT_MAGIC);	/* XXX */	\
-	return (sp->obj->field);					\
-}
-
-VOBJ(unsigned, cacheable, cacheable)
-
-/*--------------------------------------------------------------------*/
-
-void
-VRT_l_req_backend(struct sess *sp, struct director *be)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	sp->director = be;
-}
-
-/*lint -e{818} sp could be const */
-struct director *
-VRT_r_req_backend(struct sess *sp)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	return (sp->director);
-}
-
-/*--------------------------------------------------------------------*/
-
-void
-VRT_l_req_esi(struct sess *sp, unsigned process_esi)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	/* only allow you to turn of esi in the main request
-	   else everything gets confused */
-	if(sp->esis == 0)
-	   sp->disable_esi = !process_esi;
-}
-
-unsigned
-VRT_r_req_esi(struct sess *sp)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	return (!sp->disable_esi);
-}
-
-/*--------------------------------------------------------------------*/
-
-int
-VRT_r_req_restarts(const struct sess *sp)
-{
-
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	return (sp->restarts);
-}
-
-/*--------------------------------------------------------------------
- * req.grace
- */
-
-void
-VRT_l_req_grace(struct sess *sp, double a)
-{
-
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	if (a < 0)
-		a = 0;
-	sp->grace = a;
-}
-
-/*lint -e{818} sp could be const */
-double
-VRT_r_req_grace(struct sess *sp)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	if (isnan(sp->grace))
-		return ((double)params->default_grace);
-	return (sp->grace);
-}
-
-/*--------------------------------------------------------------------
- * req.xid
- */
-
-/*lint -e{818} sp could be const */
-const char *
-VRT_r_req_xid(struct sess *sp)
-{
-	char *p;
-	int size;
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-
-	size = snprintf(NULL, 0, "%u", sp->xid) + 1;
-	AN(p = WS_Alloc(sp->http->ws, size));
-	assert(snprintf(p, size, "%u", sp->xid) < size);
-	return (p);
-}
-
-/*--------------------------------------------------------------------
- * req.hash_ignore_busy
- */
-
-void
-VRT_l_req_hash_ignore_busy(struct sess *sp, unsigned ignore_busy)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	sp->hash_ignore_busy = !!ignore_busy;
-}
-
-unsigned
-VRT_r_req_hash_ignore_busy(struct sess *sp)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	return sp->hash_ignore_busy;
-}
-
-/*--------------------------------------------------------------------
- * req.hash_always_miss
- */
-
-void
-VRT_l_req_hash_always_miss(struct sess *sp, unsigned always_miss)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	sp->hash_always_miss = !!always_miss;
-}
-
-unsigned
-VRT_r_req_hash_always_miss(struct sess *sp)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	return sp->hash_always_miss;
-}
-
-/*--------------------------------------------------------------------*/
-
-struct sockaddr *
-VRT_r_client_ip(const struct sess *sp)
-{
-
-	return (sp->sockaddr);
-}
-
-struct sockaddr *
-VRT_r_server_ip(struct sess *sp)
-{
-	int i;
-
-	if (sp->mysockaddr->sa_family == AF_UNSPEC) {
-		i = getsockname(sp->fd, sp->mysockaddr, &sp->mysockaddrlen);
-		assert(TCP_Check(i));
-	}
-
-	return (sp->mysockaddr);
-}
-
-const char*
-VRT_r_server_identity(struct sess *sp)
-{
-	(void)sp;
-
-	if (heritage.identity[0] != '\0')
-		return heritage.identity;
-	else
-		return heritage.name;
-}
-
-
-const char*
-VRT_r_server_hostname(struct sess *sp)
-{
-	(void)sp;
-
-	if (vrt_hostname[0] == '\0')
-		AZ(gethostname(vrt_hostname, 255));
-
-	return (vrt_hostname);
-}
-
-/*--------------------------------------------------------------------
- * XXX: This is pessimistically silly
- */
-
-int
-VRT_r_server_port(struct sess *sp)
-{
-	char abuf[TCP_ADDRBUFSIZE];
-	char pbuf[TCP_PORTBUFSIZE];
-
-	if (sp->mysockaddr->sa_family == AF_UNSPEC)
-		AZ(getsockname(sp->fd, sp->mysockaddr, &sp->mysockaddrlen));
-	TCP_name(sp->mysockaddr, sp->mysockaddrlen,
-	    abuf, sizeof abuf, pbuf, sizeof pbuf);
-
-	return (atoi(pbuf));
 }
 
 /*--------------------------------------------------------------------
@@ -817,10 +256,19 @@ VRT_r_server_port(struct sess *sp)
  */
 
 void
-VRT_l_req_hash(struct sess *sp, const char *str)
+VRT_hashdata(const struct sess *sp, const char *str, ...)
 {
+	va_list ap;
+	const char *p;
 
 	HSH_AddString(sp, str);
+	va_start(ap, str);
+	while (1) {
+		p = va_arg(ap, const char *);
+		if (p == vrt_magic_string_end)
+			break;
+		HSH_AddString(sp, p);
+	}
 }
 
 /*--------------------------------------------------------------------*/
@@ -833,36 +281,10 @@ VRT_r_now(const struct sess *sp)
 	return (TIM_real());
 }
 
-int
-VRT_r_obj_hits(const struct sess *sp)
-{
-
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	CHECK_OBJ_NOTNULL(sp->obj, OBJECT_MAGIC);	/* XXX */
-	return (sp->obj->hits);
-}
-
-double
-VRT_r_obj_lastuse(const struct sess *sp)
-{
-
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	CHECK_OBJ_NOTNULL(sp->obj, OBJECT_MAGIC);	/* XXX */
-	return (TIM_real() - sp->obj->last_use);
-}
-
-unsigned
-VRT_r_req_backend_healthy(const struct sess *sp)
-{
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	CHECK_OBJ_NOTNULL(sp->director, DIRECTOR_MAGIC);
-	return (VBE_Healthy_sp(sp, sp->director));
-}
-
 /*--------------------------------------------------------------------*/
 
 char *
-VRT_IP_string(const struct sess *sp, const struct sockaddr *sa)
+VRT_IP_string(const struct sess *sp, const struct sockaddr_storage *sa)
 {
 	char *p;
 	const struct sockaddr_in *si4;
@@ -870,7 +292,7 @@ VRT_IP_string(const struct sess *sp, const struct sockaddr *sa)
 	const void *addr;
 	int len;
 
-	switch (sa->sa_family) {
+	switch (sa->ss_family) {
 	case AF_INET:
 		len = INET_ADDRSTRLEN;
 		si4 = (const void *)sa;
@@ -886,7 +308,7 @@ VRT_IP_string(const struct sess *sp, const struct sockaddr *sa)
 	}
 	XXXAN(len);
 	AN(p = WS_Alloc(sp->http->ws, len));
-	AN(inet_ntop(sa->sa_family, addr, p, len));
+	AN(inet_ntop(sa->ss_family, addr, p, len));
 	return (p);
 }
 
@@ -925,12 +347,22 @@ VRT_time_string(const struct sess *sp, double t)
 }
 
 const char *
-VRT_backend_string(struct sess *sp)
+VRT_backend_string(const struct sess *sp, const struct director *d)
 {
 	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-	if (sp->director == NULL)
+	if (d == NULL)
+		d = sp->director;
+	if (d == NULL)
 		return (NULL);
-	return (sp->director->vcl_name);
+	return (d->vcl_name);
+}
+
+const char *
+VRT_bool_string(const struct sess *sp, unsigned val)
+{
+
+	(void)sp;
+	return (val ? "true" : "false");
 }
 
 /*--------------------------------------------------------------------*/
@@ -946,39 +378,21 @@ VRT_Rollback(struct sess *sp)
 /*--------------------------------------------------------------------*/
 
 void
-VRT_ESI(struct sess *sp)
-{
-
-	if (sp->cur_method != VCL_MET_FETCH) {
-		/* XXX: we should catch this at compile time */
-		WSP(sp, SLT_VCL_error,
-		    "esi can only be called from vcl_fetch");
-		return;
-	}
-
-	sp->wrk->do_esi = 1;
-}
-
-/*--------------------------------------------------------------------*/
-
-/*lint -e{818} sp could be const */
-void
-VRT_panic(struct sess *sp, const char *str, ...)
+VRT_panic(const struct sess *sp, const char *str, ...)
 {
 	va_list ap;
 	char *b;
 
 	va_start(ap, str);
-	b = vrt_assemble_string(sp->http, "PANIC: ", str, ap);
+	b = VRT_String(sp->http->ws, "PANIC: ", str, ap);
 	va_end(ap);
-	lbv_assert("VCL", "", 0, b, 0, 2);
+	VAS_Fail("VCL", "", 0, b, 0, 2);
 }
 
 /*--------------------------------------------------------------------*/
 
-/*lint -e{818} sp could be const */
 void
-VRT_synth_page(struct sess *sp, unsigned flags, const char *str, ...)
+VRT_synth_page(const struct sess *sp, unsigned flags, const char *str, ...)
 {
 	va_list ap;
 	const char *p;
@@ -990,13 +404,13 @@ VRT_synth_page(struct sess *sp, unsigned flags, const char *str, ...)
 	vsb = SMS_Makesynth(sp->obj);
 	AN(vsb);
 
-	vsb_cat(vsb, str);
+	VSB_cat(vsb, str);
 	va_start(ap, str);
 	p = va_arg(ap, const char *);
 	while (p != vrt_magic_string_end) {
 		if (p == NULL)
 			p = "(null)";
-		vsb_cat(vsb, p);
+		VSB_cat(vsb, p);
 		p = va_arg(ap, const char *);
 	}
 	va_end(ap);
@@ -1004,20 +418,6 @@ VRT_synth_page(struct sess *sp, unsigned flags, const char *str, ...)
 	http_Unset(sp->obj->http, H_Content_Length);
 	http_PrintfHeader(sp->wrk, sp->fd, sp->obj->http,
 	    "Content-Length: %d", sp->obj->len);
-}
-
-/*--------------------------------------------------------------------*/
-
-void
-VRT_log(struct sess *sp, const char *str, ...)
-{
-	va_list ap;
-	char *b;
-
-	va_start(ap, str);
-	b = vrt_assemble_string(sp->http, NULL, str, ap);
-	va_end(ap);
-	WSP(sp, SLT_VCL_Log, "%s", b);
 }
 
 /*--------------------------------------------------------------------*/
@@ -1058,25 +458,19 @@ VRT_ban(struct sess *sp, char *cmds, ...)
 /*--------------------------------------------------------------------*/
 
 void
-VRT_ban_string(struct sess *sp, const char *str, ...)
+VRT_ban_string(struct sess *sp, const char *str)
 {
-	char *p, *a1, *a2, *a3;
+	char *a1, *a2, *a3;
 	char **av;
-	va_list ap;
 	struct ban *b;
 	int good;
 	int i;
 
-	va_start(ap, str);
-	p = vrt_assemble_string(sp->http, NULL, str, ap);
-	if (p == NULL)
-		/* XXX: report error how ? */
-		return;
-
-	av = ParseArgv(p, 0);
+	(void)sp;
+	av = VAV_Parse(str, NULL, ARGV_NOESC);
 	if (av[0] != NULL) {
 		/* XXX: report error how ? */
-		FreeArgv(av);
+		VAV_Free(av);
 		return;
 	}
 	b = BAN_New();
@@ -1106,7 +500,7 @@ VRT_ban_string(struct sess *sp, const char *str, ...)
 		BAN_Free(b);
 	else
 		BAN_Insert(b);
-	FreeArgv(av);
+	VAV_Free(av);
 }
 
 /*--------------------------------------------------------------------
@@ -1114,7 +508,7 @@ VRT_ban_string(struct sess *sp, const char *str, ...)
  */
 
 void
-VRT_purge(struct sess *sp, double ttl, double grace)
+VRT_purge(const struct sess *sp, double ttl, double grace)
 {
 	if (sp->cur_method == VCL_MET_HIT)
 		HSH_Purge(sp, sp->obj->objcore->objhead, ttl, grace);
@@ -1140,5 +534,3 @@ VRT_memmove(void *dst, const void *src, unsigned len)
 
 	(void)memmove(dst, src, len);
 }
-
-/*lint -restore */

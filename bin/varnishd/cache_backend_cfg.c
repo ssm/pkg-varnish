@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -32,9 +32,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,10 +40,8 @@ SVNID("$Id$")
 
 #include <sys/socket.h>
 
-#include "shmlog.h"
 #include "cache.h"
 #include "vrt.h"
-#include "vsha256.h"
 #include "cache_backend.h"
 #include "cli_priv.h"
 
@@ -58,7 +53,6 @@ struct lock VBE_mtx;
  */
 static VTAILQ_HEAD(, backend) backends = VTAILQ_HEAD_INITIALIZER(backends);
 
-
 /*--------------------------------------------------------------------
  */
 
@@ -68,12 +62,14 @@ VBE_Nuke(struct backend *b)
 
 	ASSERT_CLI();
 	VTAILQ_REMOVE(&backends, b, list);
-	free(b->ident);
-	free(b->hosthdr);
 	free(b->ipv4);
+	free(b->ipv4_addr);
 	free(b->ipv6);
+	free(b->ipv6_addr);
+	free(b->port);
+	VSM_Free(b->vsc);
 	FREE_OBJ(b);
-	VSL_stats->n_backend--;
+	VSC_C_main->n_backend--;
 }
 
 /*--------------------------------------------------------------------
@@ -101,7 +97,7 @@ void
 VBE_DropRefLocked(struct backend *b)
 {
 	int i;
-	struct vbe_conn *vbe, *vbe2;
+	struct vbc *vbe, *vbe2;
 
 	CHECK_OBJ_NOTNULL(b, BACKEND_MAGIC);
 	assert(b->refcount > 0);
@@ -121,19 +117,17 @@ VBE_DropRefLocked(struct backend *b)
 		vbe->backend = NULL;
 		VBE_ReleaseConn(vbe);
 	}
-	if (b->probe != NULL)
-		VBP_Stop(b);
-	else
-		VBE_Nuke(b);
+	VBE_Nuke(b);
 }
 
 void
-VBE_DropRef(struct backend *b)
+VBE_DropRefVcl(struct backend *b)
 {
 
 	CHECK_OBJ_NOTNULL(b, BACKEND_MAGIC);
 
 	Lck_Lock(&b->mtx);
+	b->vsc->vcls--;
 	VBE_DropRefLocked(b);
 }
 
@@ -149,15 +143,18 @@ VBE_DropRefConn(struct backend *b)
 	VBE_DropRefLocked(b);
 }
 
-/*--------------------------------------------------------------------*/
+/*--------------------------------------------------------------------
+ * See lib/libvcl/vcc_backend.c::emit_sockaddr()
+ */
 
 static void
-copy_sockaddr(struct sockaddr **sa, socklen_t *len, const unsigned char *src)
+copy_sockaddr(struct sockaddr_storage **sa, socklen_t *len,
+    const unsigned char *src)
 {
 
 	assert(*src > 0);
-	*sa = malloc(*src);
-	AN(*sa);
+	*sa = calloc(sizeof **sa, 1);
+	XXXAN(*sa);
 	memcpy(*sa, src + 1, *src);
 	*len = *src;
 }
@@ -172,59 +169,46 @@ struct backend *
 VBE_AddBackend(struct cli *cli, const struct vrt_backend *vb)
 {
 	struct backend *b;
-	uint32_t u;
-	struct SHA256Context ctx;
-	uint8_t hash[SHA256_LEN];
+	char buf[128];
 
-	AN(vb->ident);
+	AN(vb->vcl_name);
 	assert(vb->ipv4_sockaddr != NULL || vb->ipv6_sockaddr != NULL);
 	(void)cli;
 	ASSERT_CLI();
 
-	/* calculate a hash of (ident + ipv4_sockaddr + ipv6_sockaddr) */
-	SHA256_Init(&ctx);
-	SHA256_Update(&ctx, vb->ident, strlen(vb->ident));
-	if (vb->ipv4_sockaddr != NULL)
-		SHA256_Update(&ctx,
-		    vb->ipv4_sockaddr + 1, vb->ipv4_sockaddr[0]);
-	if (vb->ipv6_sockaddr != NULL)
-		SHA256_Update(&ctx,
-		    vb->ipv6_sockaddr + 1, vb->ipv6_sockaddr[0]);
-
-	SHA256_Final(hash, &ctx);
-	memcpy(&u, hash, sizeof u);
-
 	/* Run through the list and see if we already have this backend */
 	VTAILQ_FOREACH(b, &backends, list) {
 		CHECK_OBJ_NOTNULL(b, BACKEND_MAGIC);
-		if (u != b->hash)
+		if (strcmp(b->vcl_name, vb->vcl_name))
 			continue;
-		if (strcmp(b->ident, vb->ident))
+		if (vb->ipv4_sockaddr != NULL && (
+		    b->ipv4len != vb->ipv4_sockaddr[0] ||
+		    memcmp(b->ipv4, vb->ipv4_sockaddr + 1, b->ipv4len)))
 			continue;
-		if (vb->ipv4_sockaddr != NULL &&
-		    b->ipv4len != vb->ipv4_sockaddr[0])
-			continue;
-		if (vb->ipv6_sockaddr != NULL &&
-		    b->ipv6len != vb->ipv6_sockaddr[0])
-			continue;
-		if (b->ipv4len != 0 &&
-		    memcmp(b->ipv4, vb->ipv4_sockaddr + 1, b->ipv4len))
-			continue;
-		if (b->ipv6len != 0 &&
-		    memcmp(b->ipv6, vb->ipv6_sockaddr + 1, b->ipv6len))
+		if (vb->ipv6_sockaddr != NULL && (
+		    b->ipv6len != vb->ipv6_sockaddr[0] ||
+		    memcmp(b->ipv6, vb->ipv6_sockaddr + 1, b->ipv6len)))
 			continue;
 		b->refcount++;
+		b->vsc->vcls++;
 		return (b);
 	}
 
 	/* Create new backend */
 	ALLOC_OBJ(b, BACKEND_MAGIC);
 	XXXAN(b);
-	Lck_New(&b->mtx);
+	Lck_New(&b->mtx, lck_backend);
 	b->refcount = 1;
 
+	bprintf(buf, "%s(%s,%s,%s)",
+	    vb->vcl_name,
+	    vb->ipv4_addr == NULL ? "" : vb->ipv4_addr,
+	    vb->ipv6_addr == NULL ? "" : vb->ipv6_addr, vb->port);
+
+	b->vsc = VSM_Alloc(sizeof *b->vsc, VSC_CLASS, VSC_TYPE_VBE, buf);
+	b->vsc->vcls++;
+
 	VTAILQ_INIT(&b->connlist);
-	b->hash = u;
 
 	VTAILQ_INIT(&b->troublelist);
 
@@ -232,15 +216,10 @@ VBE_AddBackend(struct cli *cli, const struct vrt_backend *vb)
 	 * This backend may live longer than the VCL that instantiated it
 	 * so we cannot simply reference the VCL's copy of things.
 	 */
-	REPLACE(b->ident, vb->ident);
 	REPLACE(b->vcl_name, vb->vcl_name);
-	REPLACE(b->hosthdr, vb->hosthdr);
-
-	b->connect_timeout = vb->connect_timeout;
-	b->first_byte_timeout = vb->first_byte_timeout;
-	b->between_bytes_timeout = vb->between_bytes_timeout;
-	b->max_conn = vb->max_connections;
-	b->saintmode_threshold = vb->saintmode_threshold;
+	REPLACE(b->ipv4_addr, vb->ipv4_addr);
+	REPLACE(b->ipv6_addr, vb->ipv6_addr);
+	REPLACE(b->port, vb->port);
 
 	/*
 	 * Copy over the sockaddrs
@@ -252,12 +231,12 @@ VBE_AddBackend(struct cli *cli, const struct vrt_backend *vb)
 
 	assert(b->ipv4 != NULL || b->ipv6 != NULL);
 
-	VBP_Start(b, &vb->probe);
+	b->healthy = 1;
+
 	VTAILQ_INSERT_TAIL(&backends, b, list);
-	VSL_stats->n_backend++;
+	VSC_C_main->n_backend++;
 	return (b);
 }
-
 
 /*--------------------------------------------------------------------*/
 
@@ -291,6 +270,7 @@ VRT_fini_dir(struct cli *cli, struct director *b)
 	ASSERT_CLI();
 	CHECK_OBJ_NOTNULL(b, DIRECTOR_MAGIC);
 	b->fini(b);
+	b->priv = NULL;
 }
 
 /*--------------------------------------------------------------------*/
@@ -305,9 +285,9 @@ cli_debug_backend(struct cli *cli, const char * const *av, void *priv)
 	ASSERT_CLI();
 	VTAILQ_FOREACH(b, &backends, list) {
 		CHECK_OBJ_NOTNULL(b, BACKEND_MAGIC);
-		cli_out(cli, "%p %s %d %d/%d\n",
-		    b, b->vcl_name, b->refcount,
-		    b->n_conn, b->max_conn);
+		VCLI_Out(cli, "%p %s(%s,%s,:%s) %d %d\n",
+		    b, b->vcl_name, b->ipv4_addr, b->ipv6_addr, b->port,
+		    b->refcount, b->n_conn);
 	}
 }
 
@@ -323,6 +303,6 @@ void
 VBE_Init(void)
 {
 
-	Lck_New(&VBE_mtx);
+	Lck_New(&VBE_mtx, lck_vbe);
 	CLI_AddFuncs(debug_cmds);
 }

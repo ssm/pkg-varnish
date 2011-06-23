@@ -1,3 +1,5 @@
+.. _reference-index:
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 The Varnish Reference Manual
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5,6 +7,7 @@ The Varnish Reference Manual
 .. toctree::
 
 	vcl.rst
+	varnish-cli.rst
 	varnishadm.rst
 	varnishd.rst
 	varnishhist.rst
@@ -16,6 +19,9 @@ The Varnish Reference Manual
 	varnishtest.rst
 	varnishtop.rst
 	shmem.rst
+	vmod.rst
+	vmod_std.rst
+	vsl.rst
 
 .. todo::
         The programs:
@@ -47,4 +53,9 @@ The Varnish Reference Manual
         . - rollback
         Varnishtest
         . syntax etc.
+	Shared Memory
+	. internals
+	. Log records
+	Libvarnishapi
+	. function descriptions
 

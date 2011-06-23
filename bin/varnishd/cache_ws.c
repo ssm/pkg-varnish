@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -30,9 +30,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/types.h>
 #include <sys/uio.h>
 
@@ -42,7 +39,6 @@ SVNID("$Id$")
 #include <string.h>
 #include <unistd.h>
 
-#include "shmlog.h"
 #include "vcl.h"
 #include "cli_priv.h"
 #include "cache.h"
@@ -173,6 +169,8 @@ WS_Reserve(struct ws *ws, unsigned bytes)
 	WS_Assert(ws);
 	assert(ws->r == NULL);
 	if (bytes == 0)
+		b2 = ws->e - ws->f;
+	else if (bytes > ws->e - ws->f)
 		b2 = ws->e - ws->f;
 	else
 		b2 = bytes;

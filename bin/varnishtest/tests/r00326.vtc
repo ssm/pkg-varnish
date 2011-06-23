@@ -1,6 +1,4 @@
-# $Id$
-
-test "No zerolength verbatim before <esi:include...>"
+varnishtest "No zerolength verbatim before <esi:include...>"
 
 server s1 {
 	rxreq 
@@ -11,7 +9,7 @@ server s1 {
 
 varnish v1 -vcl+backend {
 	sub vcl_fetch {
-		esi;
+		set beresp.do_esi = true;
 	}
 } -start
 

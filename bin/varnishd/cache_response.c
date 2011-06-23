@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -29,17 +29,14 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/types.h>
 #include <sys/time.h>
 
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "shmlog.h"
 #include "cache.h"
+#include "stevedore.h"
 #include "vct.h"
 
 /*--------------------------------------------------------------------*/
@@ -52,7 +49,7 @@ res_do_304(struct sess *sp)
 
 	http_ClrHeader(sp->wrk->resp);
 	sp->wrk->resp->logtag = HTTP_Tx;
-	http_SetResp(sp->wrk->resp, "HTTP/1.1", "304", "Not Modified");
+	http_SetResp(sp->wrk->resp, "HTTP/1.1", 304, "Not Modified");
 	TIM_format(sp->t_req, lm);
 	http_PrintfHeader(sp->wrk, sp->fd, sp->wrk->resp, "Date: %s", lm);
 	http_SetHeader(sp->wrk, sp->fd, sp->wrk->resp, "Via: 1.1 varnish");
@@ -126,9 +123,9 @@ res_do_conds(struct sess *sp)
 /*--------------------------------------------------------------------*/
 
 static void
-res_dorange(struct sess *sp, const char *r, unsigned *plow, unsigned *phigh)
+res_dorange(struct sess *sp, const char *r, ssize_t *plow, ssize_t *phigh)
 {
-	unsigned low, high, has_low;
+	ssize_t low, high, has_low;
 
 	(void)sp;
 	if (strncmp(r, "bytes=", 6))
@@ -177,12 +174,13 @@ res_dorange(struct sess *sp, const char *r, unsigned *plow, unsigned *phigh)
 		return;
 
 	http_PrintfHeader(sp->wrk, sp->fd, sp->wrk->resp,
-	    "Content-Range: bytes %u-%u/%u", low, high, sp->obj->len);
+	    "Content-Range: bytes %jd-%jd/%jd",
+	    (intmax_t)low, (intmax_t)high, (intmax_t)sp->obj->len);
 	http_Unset(sp->wrk->resp, H_Content_Length);
+	assert(sp->wrk->res_mode & RES_LEN);
 	http_PrintfHeader(sp->wrk, sp->fd, sp->wrk->resp,
-	    "Content-Length: %u", 1 + high - low);
-	http_SetResp(sp->wrk->resp, "HTTP/1.1", "206", "Partial Content");
-
+	    "Content-Length: %jd", (intmax_t)(1 + high - low));
+	http_SetResp(sp->wrk->resp, "HTTP/1.1", 206, "Partial Content");
 
 	*plow = low;
 	*phigh = high;
@@ -206,18 +204,17 @@ RES_BuildHttp(struct sess *sp)
 	http_FilterFields(sp->wrk, sp->fd, sp->wrk->resp, sp->obj->http,
 	    HTTPH_A_DELIVER);
 
-	/* Only HTTP 1.1 can do Chunked encoding */
-	if (!sp->disable_esi && sp->obj->esidata != NULL) {
+	if (!(sp->wrk->res_mode & RES_LEN)) {
 		http_Unset(sp->wrk->resp, H_Content_Length);
-		if(sp->http->protover >= 1.1)
-			http_PrintfHeader(sp->wrk, sp->fd, sp->wrk->resp,
-			    "Transfer-Encoding: chunked");
-		else
-			sp->doclose = "ESI EOF";
-	} else if (params->http_range_support)
+	} else if (params->http_range_support) {
+		/* We only accept ranges if we know the length */
 		http_SetHeader(sp->wrk, sp->fd, sp->wrk->resp,
 		    "Accept-Ranges: bytes");
+	}
 
+	if (sp->wrk->res_mode & RES_CHUNKED)
+		http_PrintfHeader(sp->wrk, sp->fd, sp->wrk->resp,
+		    "Transfer-Encoding: chunked");
 
 	TIM_format(TIM_real(), time_str);
 	http_PrintfHeader(sp->wrk, sp->fd, sp->wrk->resp, "Date: %s", time_str);
@@ -235,75 +232,58 @@ RES_BuildHttp(struct sess *sp)
 	    sp->doclose ? "close" : "keep-alive");
 }
 
-/*--------------------------------------------------------------------*/
+/*--------------------------------------------------------------------
+ * We have a gzip'ed object and need to ungzip it for a client which
+ * does not understand gzip.
+ * XXX: handle invalid gzip data better (how ?)
+ */
 
-void
-RES_WriteObj(struct sess *sp)
+static void
+res_WriteGunzipObj(struct sess *sp)
 {
 	struct storage *st;
 	unsigned u = 0;
-	char lenbuf[20];
-	char *r;
-	unsigned low, high, ptr, off, len;
+	struct vgz *vg;
+	char obuf[params->gzip_stack_buffer];
+	ssize_t obufl = 0;
+	int i;
 
 	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
+
+	vg = VGZ_NewUngzip(sp, "U D -");
+
+	VGZ_Obuf(vg, obuf, sizeof obuf);
+	VTAILQ_FOREACH(st, &sp->obj->store, list) {
+		CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
+		CHECK_OBJ_NOTNULL(st, STORAGE_MAGIC);
+		u += st->len;
+
+		sp->acct_tmp.bodybytes += st->len;	/* XXX ? */
+		VSC_C_main->n_objwrite++;
+
+		i = VGZ_WrwGunzip(sp, vg,
+		    st->ptr, st->len,
+		    obuf, sizeof obuf, &obufl);
+		/* XXX: error check */
+	}
+	if (obufl) {
+		(void)WRW_Write(sp->wrk, obuf, obufl);
+		(void)WRW_Flush(sp->wrk);
+	}
+	VGZ_Destroy(&vg);
+	assert(u == sp->obj->len);
+}
+
+/*--------------------------------------------------------------------*/
+
+static void
+res_WriteDirObj(struct sess *sp, ssize_t low, ssize_t high)
+{
+	ssize_t u = 0;
+	size_t ptr, off, len;
+	struct storage *st;
+
 	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
-
-	WRW_Reserve(sp->wrk, &sp->fd);
-
-	/*
-	 * ESI objects get special delivery
-	 */
-	if (!sp->disable_esi && sp->obj->esidata != NULL) {
-
-		if (sp->esis == 0)
-			/* no headers for interior ESI includes */
-			sp->acct_tmp.hdrbytes +=
-			    http_Write(sp->wrk, sp->wrk->resp, 1);
-
-		if (WRW_FlushRelease(sp->wrk)) {
-			vca_close_session(sp, "remote closed");
-		} else if (sp->wantbody)
-			ESI_Deliver(sp);
-		return;
-	}
-
-	/*
-	 * How much of the object we want to deliver
-	 */
-	low = 0;
-	high = sp->obj->len - 1;
-
-	if (sp->disable_esi || sp->esis == 0) {
-		/* For none ESI and non ESI-included objects, try Range */
-		if (params->http_range_support &&
-		    (sp->disable_esi || sp->esis == 0) &&
-		    sp->obj->response == 200 &&
-		    sp->wantbody &&
-		    http_GetHdr(sp->http, H_Range, &r))
-			res_dorange(sp, r, &low, &high);
-
-		sp->acct_tmp.hdrbytes += http_Write(sp->wrk, sp->wrk->resp, 1);
-	} else if (!sp->disable_esi &&
-	    sp->esis > 0 &&
-	    sp->http->protover >= 1.1 &&
-	    sp->obj->len > 0) {
-		/*
-		 * Interior ESI includes (which are not themselves ESI
-		 * objects) use chunked encoding (here) or EOF (nothing)
-		 */
-		assert(sp->wantbody);
-		sprintf(lenbuf, "%x\r\n", sp->obj->len);
-		(void)WRW_Write(sp->wrk, lenbuf, -1);
-	}
-
-	if (!sp->wantbody) {
-		/* This was a HEAD request */
-		assert(sp->esis == 0);
-		if (WRW_FlushRelease(sp->wrk))
-			vca_close_session(sp, "remote closed");
-		return;
-	}
 
 	ptr = 0;
 	VTAILQ_FOREACH(st, &sp->obj->store, list) {
@@ -339,23 +319,176 @@ RES_WriteObj(struct sess *sp)
 		 */
 		if (st->fd >= 0 &&
 		    st->len >= params->sendfile_threshold) {
-			VSL_stats->n_objsendfile++;
+			VSC_C_main->n_objsendfile++;
 			WRW_Sendfile(sp->wrk, st->fd, st->where + off, len);
 			continue;
 		}
 #endif /* SENDFILE_WORKS */
-		VSL_stats->n_objwrite++;
+		VSC_C_main->n_objwrite++;
 		(void)WRW_Write(sp->wrk, st->ptr + off, len);
 	}
 	assert(u == sp->obj->len);
-	if (!sp->disable_esi &&
-	    sp->esis > 0 &&
-	    sp->http->protover >= 1.1 &&
-	    sp->obj->len > 0) {
-		/* post-chunk new line */
-		(void)WRW_Write(sp->wrk, "\r\n", -1);
+}
+
+/*--------------------------------------------------------------------*/
+
+void
+RES_WriteObj(struct sess *sp)
+{
+	char *r;
+	ssize_t low, high;
+
+	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
+
+	WRW_Reserve(sp->wrk, &sp->fd);
+
+	/*
+	 * If nothing special planned, we can attempt Range support
+	 */
+	low = 0;
+	high = sp->obj->len - 1;
+	if (!(sp->wrk->res_mode & (RES_ESI|RES_ESI_CHILD|RES_GUNZIP)) &&
+	    params->http_range_support && sp->obj->response == 200 &&
+	    sp->wantbody && http_GetHdr(sp->http, H_Range, &r))
+		res_dorange(sp, r, &low, &high);
+
+	/*
+	 * Always remove C-E if client don't grok it
+	 */
+	if (sp->wrk->res_mode & RES_GUNZIP)
+		http_Unset(sp->wrk->resp, H_Content_Encoding);
+
+	/*
+	 * Send HTTP protocol header, unless interior ESI object
+	 */
+	if (!(sp->wrk->res_mode & RES_ESI_CHILD))
+		sp->acct_tmp.hdrbytes +=
+		    http_Write(sp->wrk, sp->wrk->resp, 1);
+
+	if (!sp->wantbody)
+		sp->wrk->res_mode &= ~RES_CHUNKED;
+
+	if (sp->wrk->res_mode & RES_CHUNKED)
+		WRW_Chunked(sp->wrk);
+
+	if (!sp->wantbody) {
+		/* This was a HEAD request */
+	} else if (sp->obj->len == 0) {
+		/* Nothing to do here */
+	} else if (sp->wrk->res_mode & RES_ESI) {
+		ESI_Deliver(sp);
+	} else if (sp->wrk->res_mode & RES_ESI_CHILD && sp->wrk->gzip_resp) {
+		ESI_DeliverChild(sp);
+	} else if (sp->wrk->res_mode & RES_GUNZIP) {
+		res_WriteGunzipObj(sp);
+	} else {
+		res_WriteDirObj(sp, low, high);
 	}
 
+	if (sp->wrk->res_mode & RES_CHUNKED &&
+	    !(sp->wrk->res_mode & RES_ESI_CHILD))
+		WRW_EndChunk(sp->wrk);
+
+	if (WRW_FlushRelease(sp->wrk))
+		vca_close_session(sp, "remote closed");
+}
+
+/*--------------------------------------------------------------------*/
+
+void
+RES_StreamStart(struct sess *sp)
+{
+	struct stream_ctx *sctx;
+
+	sctx = sp->wrk->sctx;
+	CHECK_OBJ_NOTNULL(sctx, STREAM_CTX_MAGIC);
+
+	AZ(sp->wrk->res_mode & RES_ESI_CHILD);
+	AN(sp->wantbody);
+
+	WRW_Reserve(sp->wrk, &sp->fd);
+	/*
+	 * Always remove C-E if client don't grok it
+	 */
+	if (sp->wrk->res_mode & RES_GUNZIP)
+		http_Unset(sp->wrk->resp, H_Content_Encoding);
+
+	if (!(sp->wrk->res_mode & RES_CHUNKED) &&
+	    sp->wrk->h_content_length != NULL)
+		http_PrintfHeader(sp->wrk, sp->fd, sp->wrk->resp,
+		    "Content-Length: %s", sp->wrk->h_content_length);
+
+	sp->acct_tmp.hdrbytes +=
+	    http_Write(sp->wrk, sp->wrk->resp, 1);
+
+	if (sp->wrk->res_mode & RES_CHUNKED)
+		WRW_Chunked(sp->wrk);
+}
+
+void
+RES_StreamPoll(const struct sess *sp)
+{
+	struct stream_ctx *sctx;
+	struct storage *st;
+	ssize_t l, l2;
+	void *ptr;
+
+	sctx = sp->wrk->sctx;
+	CHECK_OBJ_NOTNULL(sctx, STREAM_CTX_MAGIC);
+	if (sp->obj->len == sctx->stream_next)
+		return;
+	assert(sp->obj->len > sctx->stream_next);
+	l = sctx->stream_front;
+	VTAILQ_FOREACH(st, &sp->obj->store, list) {
+		if (st->len + l <= sctx->stream_next) {
+			l += st->len;
+			continue;
+		}
+		l2 = st->len + l - sctx->stream_next;
+		ptr = st->ptr + (sctx->stream_next - l);
+		if (sp->wrk->res_mode & RES_GUNZIP) {
+			(void)VGZ_WrwGunzip(sp, sctx->vgz, ptr, l2,
+			    sctx->obuf, sctx->obuf_len, &sctx->obuf_ptr);
+		} else {
+			(void)WRW_Write(sp->wrk, ptr, l2);
+		}
+		l += st->len;
+		sctx->stream_next += l2;
+	}
+	if (!(sp->wrk->res_mode & RES_GUNZIP))
+		(void)WRW_Flush(sp->wrk);
+
+	if (sp->obj->objcore == NULL ||
+	    (sp->obj->objcore->flags & OC_F_PASS)) {
+		/*
+		 * This is a pass object, release storage as soon as we
+		 * have delivered it.
+		 */
+		while (1) {
+			st = VTAILQ_FIRST(&sp->obj->store);
+			if (st == NULL ||
+			    sctx->stream_front + st->len > sctx->stream_next)
+				break;
+			VTAILQ_REMOVE(&sp->obj->store, st, list);
+			sctx->stream_front += st->len;
+			STV_free(st);
+		}
+	}
+}
+
+void
+RES_StreamEnd(struct sess *sp)
+{
+	struct stream_ctx *sctx;
+
+	sctx = sp->wrk->sctx;
+	CHECK_OBJ_NOTNULL(sctx, STREAM_CTX_MAGIC);
+
+	if (sp->wrk->res_mode & RES_GUNZIP && sctx->obuf_ptr > 0)
+		(void)WRW_Write(sp->wrk, sctx->obuf, sctx->obuf_ptr);
+	if (sp->wrk->res_mode & RES_CHUNKED &&
+	    !(sp->wrk->res_mode & RES_ESI_CHILD))
+		WRW_EndChunk(sp->wrk);
 	if (WRW_FlushRelease(sp->wrk))
 		vca_close_session(sp, "remote closed");
 }

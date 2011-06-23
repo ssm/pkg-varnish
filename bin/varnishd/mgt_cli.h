@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2009 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -26,12 +26,13 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $Id$
  */
 
 /* mgt_child.c */
 cli_func_t mcf_server_startstop;
 cli_func_t mcf_server_status;
+cli_func_t mcf_panic_show;
+cli_func_t mcf_panic_clear;
 
 /* mgt_param.c */
 cli_func_t mcf_param_show;
@@ -44,3 +45,6 @@ cli_func_t mcf_config_use;
 cli_func_t mcf_config_discard;
 cli_func_t mcf_config_list;
 cli_func_t mcf_config_show;
+
+/* stevedore.c */
+extern struct cli_proto cli_stv[];

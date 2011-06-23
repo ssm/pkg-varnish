@@ -1,6 +1,5 @@
 /*-
- * Copyright (c) 2009 Redpill Linpro AS
- * Copyright (c) 2010 Varnish Software AS
+ * Copyright (c) 2009-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Kristian Lyngstol <kristian@bohemians.org>
@@ -29,9 +28,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -50,8 +46,7 @@ SVNID("$Id$")
  * Parse directors
  */
 
-
-static struct tokenlist_dir_backend_defaults {
+static struct vcc_dir_backend_defaults {
 	char *port;
 	char *hostheader;
 	double connect_timeout;
@@ -74,8 +69,9 @@ vcc_dir_initialize_defaults(void)
 }
 
 static const struct token *dns_first;
+
 static void
-print_backend(struct tokenlist *tl,
+print_backend(struct vcc *tl,
 	      int serial,
 	      const uint8_t *ip)
 {
@@ -87,7 +83,7 @@ print_backend(struct tokenlist *tl,
 	bprintf(strip, "%u.%u.%u.%u", ip[3], ip[2], ip[1], ip[0]);
 	tmptok.dec = strip;
 	bprintf(vgcname, "%.*s_%d", PF(tl->t_dir), serial);
-	vsb = vsb_newauto();
+	vsb = VSB_new_auto();
 	AN(vsb);
 	tl->fb = vsb;
 	Fc(tl, 0, "\t{ .host = VGC_backend_%s },\n",vgcname);
@@ -101,7 +97,6 @@ print_backend(struct tokenlist *tl,
 		Fb(tl, 0, "[%d]", serial);
 	Fb(tl, 0, "\",\n");
 	Emit_Sockaddr(tl, &tmptok, b_defaults.port);
-	vcc_EmitBeIdent(tl, tl->fb, serial, dns_first , tl->t);
 
 	Fb(tl, 0, "\t.hosthdr = \"");
 	if (b_defaults.hostheader != NULL)
@@ -121,9 +116,9 @@ print_backend(struct tokenlist *tl,
 
 	Fb(tl, 0, "};\n");
 	tl->fb = NULL;
-	vsb_finish(vsb);
-	Fh(tl, 0, "%s", vsb_data(vsb));
-	vsb_delete(vsb);
+	AZ(VSB_finish(vsb));
+	Fh(tl, 0, "%s", VSB_data(vsb));
+	VSB_delete(vsb);
 	Fi(tl, 0, "\tVRT_init_dir(cli, VCL_conf.director, \"simple\",\n"
 	    "\t    VGC_backend_%s, &vgc_dir_priv_%s);\n", vgcname, vgcname);
 	Ff(tl, 0, "\tVRT_fini_dir(cli, VGCDIR(%s));\n", vgcname);
@@ -139,7 +134,7 @@ print_backend(struct tokenlist *tl,
  * uint8_ts.
  */
 static void
-vcc_dir_dns_makebackend(struct tokenlist *tl, 
+vcc_dir_dns_makebackend(struct vcc *tl,
 			int *serial,
 			const unsigned char a[],
 			int inmask)
@@ -154,12 +149,14 @@ vcc_dir_dns_makebackend(struct tokenlist *tl,
 	ip4 |= a[3] ;
 
 	ip4end = ip4 | ~mask;
-	assert (ip4 == (ip4 & mask));
+	if (ip4 != (ip4 & mask)) {
+		VSB_printf(tl->sb, "IP and network mask not compatible: ");
+		vcc_ErrToken(tl, tl->t);
+		VSB_printf(tl->sb, " at\n");
+		vcc_ErrWhere(tl, tl->t);
+		ERRCHK(tl);
+	}
 
-/*	printf("uip4: \t0x%.8X\na: \t0x", ip4,ip4);
-	for (int i=0;i<4;i++) printf("%.2X",a[i]);
-	printf("\nmask:\t0x%.8X\nend:\t0x%.8X\n", mask, ip4end);
-*/
 	while (ip4 <= ip4end) {
 		uint8_t *b;
 		b=(uint8_t *)&ip4;
@@ -168,8 +165,9 @@ vcc_dir_dns_makebackend(struct tokenlist *tl,
 		ip4++;
 	}
 }
+
 static void
-vcc_dir_dns_parse_backend_options(struct tokenlist *tl)
+vcc_dir_dns_parse_backend_options(struct vcc *tl)
 {
 	struct fld_spec *fs;
 	struct token *t_field;
@@ -229,10 +227,10 @@ vcc_dir_dns_parse_backend_options(struct tokenlist *tl)
 			 * not allowed here.
 			 */
 			if (u == UINT_MAX) {
-				vsb_printf(tl->sb,
+				VSB_printf(tl->sb,
 				    "Value outside allowed range: ");
 				vcc_ErrToken(tl, tl->t);
-				vsb_printf(tl->sb, " at\n");
+				VSB_printf(tl->sb, " at\n");
 				vcc_ErrWhere(tl, tl->t);
 			}
 			ERRCHK(tl);
@@ -250,19 +248,29 @@ vcc_dir_dns_parse_backend_options(struct tokenlist *tl)
  * all relevant backends.
  */
 static void
-vcc_dir_dns_parse_list(struct tokenlist *tl, int *serial)
+vcc_dir_dns_parse_list(struct vcc *tl, int *serial)
 {
 	unsigned char a[4],mask;
 	int ret;
 	ERRCHK(tl);
 	SkipToken(tl, '{');
-	if (tl->t->tok != CSTR)
+	if (tl->t->tok != CSTR) {
 		vcc_dir_dns_parse_backend_options(tl);
+		ERRCHK(tl);
+	}
+
 	while (tl->t->tok == CSTR) {
 		mask = 32;
 		ret = sscanf(tl->t->dec, "%hhu.%hhu.%hhu.%hhu",
 		    &a[0], &a[1], &a[2], &a[3]);
-		assert(ret == 4);
+		if (ret != 4) {
+			VSB_printf(tl->sb, "Incomplete IP supplied: ");
+			vcc_ErrToken(tl, tl->t);
+			VSB_printf(tl->sb, " at\n");
+			vcc_ErrWhere(tl, tl->t);
+			ERRCHK(tl);
+		}
+
 		vcc_NextToken(tl);
 		if (tl->t->tok == '/') {
 			vcc_NextToken(tl);
@@ -276,7 +284,7 @@ vcc_dir_dns_parse_list(struct tokenlist *tl, int *serial)
 }
 
 void
-vcc_ParseDnsDirector(struct tokenlist *tl)
+vcc_ParseDnsDirector(struct vcc *tl)
 {
 	struct token *t_field, *t_be, *t_suffix = NULL;
 	double ttl = 60.0;
@@ -318,7 +326,7 @@ vcc_ParseDnsDirector(struct tokenlist *tl)
 			}
 			vcc_FieldsOk(tl, fs);
 			if (tl->err) {
-				vsb_printf(tl->sb, "\nIn member host"
+				VSB_printf(tl->sb, "\nIn member host"
 				    " specification starting at:\n");
 				vcc_ErrWhere(tl, t_be);
 				return;
@@ -356,5 +364,4 @@ vcc_ParseDnsDirector(struct tokenlist *tl)
 	Fc(tl, 0, "\t.ttl = %f", ttl);
 	Fc(tl, 0, ",\n");
 	Fc(tl, 0, "};\n");
-	Ff(tl, 0, "\tVRT_fini_dir(cli, VGCDIR(_%.*s));\n", PF(tl->t_dir));
 }

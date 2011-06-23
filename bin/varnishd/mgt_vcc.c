@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -31,9 +31,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/types.h>
 #include <sys/wait.h>
 
@@ -47,7 +44,7 @@ SVNID("$Id$")
 #include "vsb.h"
 
 #include "libvcl.h"
-#include "cli.h"
+#include "vcli.h"
 #include "cli_priv.h"
 #include "cli_common.h"
 
@@ -55,7 +52,7 @@ SVNID("$Id$")
 #include "mgt_cli.h"
 #include "heritage.h"
 
-#include "vss.h"
+#include "vcl.h"
 
 struct vclprog {
 	VTAILQ_ENTRY(vclprog)	list;
@@ -67,17 +64,19 @@ struct vclprog {
 static VTAILQ_HEAD(, vclprog) vclhead = VTAILQ_HEAD_INITIALIZER(vclhead);
 
 char *mgt_cc_cmd;
+const char *mgt_vcl_dir;
+const char *mgt_vmod_dir;
+unsigned mgt_vcc_err_unref;
+
+static struct vcc *vcc;
 
 /*--------------------------------------------------------------------*/
 
-/*
- * Keep this in synch with man/vcl.7 and etc/default.vcl!
- */
 static const char * const default_vcl =
 #include "default_vcl.h"
     ""	;
 
-/*
+/*--------------------------------------------------------------------
  * Prepare the compiler command line
  */
 static struct vsb *
@@ -87,37 +86,85 @@ mgt_make_cc_cmd(const char *sf, const char *of)
 	int pct;
 	char *p;
 
-	sb = vsb_newauto();
+	sb = VSB_new_auto();
 	XXXAN(sb);
 	for (p = mgt_cc_cmd, pct = 0; *p; ++p) {
 		if (pct) {
 			switch (*p) {
 			case 's':
-				vsb_cat(sb, sf);
+				VSB_cat(sb, sf);
 				break;
 			case 'o':
-				vsb_cat(sb, of);
+				VSB_cat(sb, of);
 				break;
 			case '%':
-				vsb_putc(sb, '%');
+				VSB_putc(sb, '%');
 				break;
 			default:
-				vsb_putc(sb, '%');
-				vsb_putc(sb, *p);
+				VSB_putc(sb, '%');
+				VSB_putc(sb, *p);
 				break;
 			}
 			pct = 0;
 		} else if (*p == '%') {
 			pct = 1;
 		} else {
-			vsb_putc(sb, *p);
+			VSB_putc(sb, *p);
 		}
 	}
 	if (pct)
-		vsb_putc(sb, '%');
-	vsb_finish(sb);
-	AZ(vsb_overflowed(sb));
+		VSB_putc(sb, '%');
+	AZ(VSB_finish(sb));
 	return (sb);
+}
+
+/*--------------------------------------------------------------------
+ * Invoke system VCC compiler in a sub-process
+ */
+
+struct vcc_priv {
+	unsigned	magic;
+#define VCC_PRIV_MAGIC	0x70080cb8
+	char		*sf;
+	const char	*vcl;
+};
+
+static void
+run_vcc(void *priv)
+{
+	char *csrc;
+	struct vsb *sb;
+	struct vcc_priv *vp;
+	int fd, i, l;
+
+	CAST_OBJ_NOTNULL(vp, priv, VCC_PRIV_MAGIC);
+	sb = VSB_new_auto();
+	XXXAN(sb);
+	VCC_VCL_dir(vcc, mgt_vcl_dir);
+	VCC_VMOD_dir(vcc, mgt_vmod_dir);
+	VCC_Err_Unref(vcc, mgt_vcc_err_unref);
+	csrc = VCC_Compile(vcc, sb, vp->vcl);
+	AZ(VSB_finish(sb));
+	if (VSB_len(sb))
+		printf("%s", VSB_data(sb));
+	VSB_delete(sb);
+	if (csrc == NULL)
+		exit (1);
+
+	fd = open(vp->sf, O_WRONLY);
+	if (fd < 0) {
+		fprintf(stderr, "Cannot open %s", vp->sf);
+		exit (1);
+	}
+	l = strlen(csrc);
+	i = write(fd, csrc, l);
+	if (i != l) {
+		fprintf(stderr, "Cannot write %s", vp->sf);
+		exit (1);
+	}
+	AZ(close(fd));
+	free(csrc);
+	exit (0);
 }
 
 /*--------------------------------------------------------------------
@@ -131,49 +178,44 @@ run_cc(void *priv)
 }
 
 /*--------------------------------------------------------------------
- * Invoke system VCC compiler in a sub-process
+ * Attempt to open compiled VCL in a sub-process
  */
 
-struct vcc_priv {
-	char		*sf;
-	const char	*vcl;
-};
-
-static void
-run_vcc(void *priv)
+static void __match_proto__(sub_func_f)
+run_dlopen(void *priv)
 {
-	char *csrc;
-	struct vsb *sb;
-	struct vcc_priv *vp;
-	int fd, i, l;
+	const char *of;
+	void *dlh;
+	struct VCL_conf const *cnf;
 
-	vp = priv;
-	sb = vsb_newauto();
-	XXXAN(sb);
-	csrc = VCC_Compile(sb, vp->vcl, NULL);
-	vsb_finish(sb);
-	AZ(vsb_overflowed(sb));
-	if (vsb_len(sb))
-		printf("%s", vsb_data(sb));
-	vsb_delete(sb);
-	if (csrc == NULL)
-		exit (1);
+	of = priv;
 
-	fd = open(vp->sf, O_WRONLY);
-	if (fd < 0) {
-		fprintf(stderr, "Cannot open %s", vp->sf);
-		exit (1);
+	/* Try to load the object into the management process */
+	if ((dlh = dlopen(of, RTLD_NOW | RTLD_LOCAL)) == NULL) {
+		fprintf(stderr,
+		    "Compiled VCL program failed to load:\n  %s\n",
+		    dlerror());
+		exit(1);
 	}
-	mgt_got_fd(fd);
-	l = strlen(csrc);
-	i = write(fd, csrc, l);
-	if (i != l) {
-		fprintf(stderr, "Cannot write %s", vp->sf);
-		exit (1);
+
+	cnf = dlsym(dlh, "VCL_conf");
+	if (cnf == NULL) {
+		fprintf(stderr, "Compiled VCL program, metadata not found\n");
+		exit(1);
 	}
-	AZ(close(fd));
-	free(csrc);
-	exit (0);
+
+	if (cnf->magic != VCL_CONF_MAGIC) {
+		fprintf(stderr, "Compiled VCL program, mangled metadata\n");
+		exit(1);
+	}
+
+	if (dlclose(dlh)) {
+		fprintf(stderr,
+		    "Compiled VCL program failed to unload:\n  %s\n",
+		    dlerror());
+		exit(1);
+	}
+	exit(0);
 }
 
 /*--------------------------------------------------------------------
@@ -189,18 +231,19 @@ mgt_run_cc(const char *vcl, struct vsb *sb, int C_flag)
 	char of[sizeof sf + 1];
 	char *retval;
 	int sfd, i;
-	void *dlh;
 	struct vcc_priv vp;
 
 	/* Create temporary C source file */
 	sfd = vtmpfile(sf);
 	if (sfd < 0) {
-		vsb_printf(sb, "Failed to create %s: %s", sf, strerror(errno));
+		VSB_printf(sb, "Failed to create %s: %s", sf, strerror(errno));
 		return (NULL);
 	}
 	AZ(close(sfd));
 
 	/* Run the VCC compiler in a sub-process */
+	memset(&vp, 0, sizeof vp);
+	vp.magic = VCC_PRIV_MAGIC;
 	vp.sf = sf;
 	vp.vcl = vcl;
 	if (SUB_run(sb, run_vcc, &vp, "VCC-compiler", -1)) {
@@ -209,7 +252,7 @@ mgt_run_cc(const char *vcl, struct vsb *sb, int C_flag)
 	}
 
 	if (C_flag) {
-		csrc = vreadfile(sf);
+		csrc = vreadfile(NULL, sf, NULL);
 		XXXAN(csrc);
 		(void)fputs(csrc, stdout);
 		free(csrc);
@@ -226,30 +269,19 @@ mgt_run_cc(const char *vcl, struct vsb *sb, int C_flag)
 	cmdsb = mgt_make_cc_cmd(sf, of);
 
 	/* Run the C-compiler in a sub-shell */
-	i = SUB_run(sb, run_cc, vsb_data(cmdsb), "C-compiler", 10);
+	i = SUB_run(sb, run_cc, VSB_data(cmdsb), "C-compiler", 10);
 
 	(void)unlink(sf);
-	vsb_delete(cmdsb);
+	VSB_delete(cmdsb);
+
+	if (!i)
+		i = SUB_run(sb, run_dlopen, of, "dlopen", 10);
 
 	if (i) {
 		(void)unlink(of);
 		return (NULL);
 	}
 
-	/* Try to load the object into the management process */
-	if ((dlh = dlopen(of, RTLD_NOW | RTLD_LOCAL)) == NULL) {
-		vsb_printf(sb,
-		    "Compiled VCL program failed to load:\n  %s", dlerror());
-		(void)unlink(of);
-		return (NULL);
-	}
-
-	/*
-	 * XXX: we should look up and check the handle in the loaded
-	 * object
-	 */
-
-	AZ(dlclose(dlh));
 	retval = strdup(of);
 	XXXAN(retval);
 	return (retval);
@@ -262,11 +294,10 @@ mgt_VccCompile(struct vsb **sb, const char *b, int C_flag)
 {
 	char *vf;
 
-	*sb = vsb_newauto();
+	*sb = VSB_new_auto();
 	XXXAN(*sb);
 	vf = mgt_run_cc(b, *sb, C_flag);
-	vsb_finish(*sb);
-	AZ(vsb_overflowed(*sb));
+	AZ(VSB_finish(*sb));
 	return (vf);
 }
 
@@ -334,6 +365,7 @@ mgt_vcc_default(const char *b_arg, const char *f_arg, char *vcl, int C_flag)
 
 	/* XXX: annotate vcl with -b/-f arg so people know where it came from */
 	(void)f_arg;
+
 	if (b_arg != NULL) {
 		AZ(vcl);
 		/*
@@ -355,9 +387,9 @@ mgt_vcc_default(const char *b_arg, const char *f_arg, char *vcl, int C_flag)
 
 	vf = mgt_VccCompile(&sb, vcl, C_flag);
 	free(vcl);
-	if (vsb_len(sb) > 0)
-		fprintf(stderr, "%s", vsb_data(sb));
-	vsb_delete(sb);
+	if (VSB_len(sb) > 0)
+		fprintf(stderr, "%s", VSB_data(sb));
+	VSB_delete(sb);
 	if (C_flag) {
 		if (vf != NULL)
 			AZ(unlink(vf));
@@ -430,7 +462,9 @@ void
 mgt_vcc_init(void)
 {
 
-	VCC_InitCompile(default_vcl);
+	vcc = VCC_New();
+	AN(vcc);
+	VCC_Default_VCL(vcc, default_vcl);
 	AZ(atexit(mgt_vcc_atexit));
 }
 
@@ -448,25 +482,25 @@ mcf_config_inline(struct cli *cli, const char * const *av, void *priv)
 
 	vp = mgt_vcc_byname(av[2]);
 	if (vp != NULL) {
-		cli_out(cli, "Already a VCL program named %s", av[2]);
-		cli_result(cli, CLIS_PARAM);
+		VCLI_Out(cli, "Already a VCL program named %s", av[2]);
+		VCLI_SetResult(cli, CLIS_PARAM);
 		return;
 	}
 
 	vf = mgt_VccCompile(&sb, av[3], 0);
-	if (vsb_len(sb) > 0)
-		cli_out(cli, "%s\n", vsb_data(sb));
-	vsb_delete(sb);
+	if (VSB_len(sb) > 0)
+		VCLI_Out(cli, "%s\n", VSB_data(sb));
+	VSB_delete(sb);
 	if (vf == NULL) {
-		cli_out(cli, "VCL compilation failed");
-		cli_result(cli, CLIS_PARAM);
+		VCLI_Out(cli, "VCL compilation failed");
+		VCLI_SetResult(cli, CLIS_PARAM);
 		return;
 	}
-	cli_out(cli, "VCL compiled.");
+	VCLI_Out(cli, "VCL compiled.");
 	if (child_pid >= 0 &&
 	    mgt_cli_askchild(&status, &p, "vcl.load %s %s\n", av[2], vf)) {
-		cli_result(cli, status);
-		cli_out(cli, "%s", p);
+		VCLI_SetResult(cli, status);
+		VCLI_Out(cli, "%s", p);
 	} else {
 		(void)mgt_vcc_add(av[2], vf);
 	}
@@ -485,34 +519,34 @@ mcf_config_load(struct cli *cli, const char * const *av, void *priv)
 	(void)priv;
 	vp = mgt_vcc_byname(av[2]);
 	if (vp != NULL) {
-		cli_out(cli, "Already a VCL program named %s", av[2]);
-		cli_result(cli, CLIS_PARAM);
+		VCLI_Out(cli, "Already a VCL program named %s", av[2]);
+		VCLI_SetResult(cli, CLIS_PARAM);
 		return;
 	}
 
-	vcl = vreadfile(av[3]);
+	vcl = vreadfile(mgt_vcl_dir, av[3], NULL);
 	if (vcl == NULL) {
-		cli_out(cli, "Cannot open '%s'", av[3]);
-		cli_result(cli, CLIS_PARAM);
+		VCLI_Out(cli, "Cannot open '%s'", av[3]);
+		VCLI_SetResult(cli, CLIS_PARAM);
 		return;
 	}
 
 	vf = mgt_VccCompile(&sb, vcl, 0);
 	free(vcl);
 
-	if (vsb_len(sb) > 0)
-		cli_out(cli, "%s", vsb_data(sb));
-	vsb_delete(sb);
+	if (VSB_len(sb) > 0)
+		VCLI_Out(cli, "%s", VSB_data(sb));
+	VSB_delete(sb);
 	if (vf == NULL) {
-		cli_out(cli, "VCL compilation failed");
-		cli_result(cli, CLIS_PARAM);
+		VCLI_Out(cli, "VCL compilation failed");
+		VCLI_SetResult(cli, CLIS_PARAM);
 		return;
 	}
-	cli_out(cli, "VCL compiled.");
+	VCLI_Out(cli, "VCL compiled.");
 	if (child_pid >= 0 &&
 	    mgt_cli_askchild(&status, &p, "vcl.load %s %s\n", av[2], vf)) {
-		cli_result(cli, status);
-		cli_out(cli, "%s", p);
+		VCLI_SetResult(cli, status);
+		VCLI_Out(cli, "%s", p);
 	} else {
 		(void)mgt_vcc_add(av[2], vf);
 	}
@@ -527,8 +561,8 @@ mcf_find_vcl(struct cli *cli, const char *name)
 	vp = mgt_vcc_byname(name);
 	if (vp != NULL)
 		return (vp);
-	cli_result(cli, CLIS_PARAM);
-	cli_out(cli, "No configuration named %s known.", name);
+	VCLI_SetResult(cli, CLIS_PARAM);
+	VCLI_Out(cli, "No configuration named %s known.", name);
 	return (NULL);
 }
 
@@ -547,8 +581,8 @@ mcf_config_use(struct cli *cli, const char * const *av, void *priv)
 		return;
 	if (child_pid >= 0 &&
 	    mgt_cli_askchild(&status, &p, "vcl.use %s\n", av[2])) {
-		cli_result(cli, status);
-		cli_out(cli, "%s", p);
+		VCLI_SetResult(cli, status);
+		VCLI_Out(cli, "%s", p);
 	} else {
 		vp->active = 2;
 		VTAILQ_FOREACH(vp, &vclhead, list) {
@@ -571,14 +605,14 @@ mcf_config_discard(struct cli *cli, const char * const *av, void *priv)
 	(void)priv;
 	vp = mcf_find_vcl(cli, av[2]);
 	if (vp != NULL && vp->active) {
-		cli_result(cli, CLIS_PARAM);
-		cli_out(cli, "Cannot discard active VCL program\n");
+		VCLI_SetResult(cli, CLIS_PARAM);
+		VCLI_Out(cli, "Cannot discard active VCL program\n");
 	} else if (vp != NULL) {
 		if (child_pid >= 0 &&
 		    mgt_cli_askchild(&status, &p,
 		    "vcl.discard %s\n", av[2])) {
-			cli_result(cli, status);
-			cli_out(cli, "%s", p);
+			VCLI_SetResult(cli, status);
+			VCLI_Out(cli, "%s", p);
 		} else {
 			AZ(mgt_vcc_delbyname(av[2]));
 		}
@@ -598,8 +632,8 @@ mcf_config_list(struct cli *cli, const char * const *av, void *priv)
 	(void)priv;
 	if (child_pid >= 0) {
 		if (!mgt_cli_askchild(&status, &p, "vcl.list\n")) {
-			cli_result(cli, status);
-			cli_out(cli, "%s", p);
+			VCLI_SetResult(cli, status);
+			VCLI_Out(cli, "%s", p);
 		}
 		free(p);
 	} else {
@@ -608,7 +642,7 @@ mcf_config_list(struct cli *cli, const char * const *av, void *priv)
 				flg = "active";
 			} else
 				flg = "available";
-			cli_out(cli, "%-10s %6s %s\n",
+			VCLI_Out(cli, "%-10s %6s %s\n",
 			    flg, "N/A", vp->name);
 		}
 	}
@@ -629,18 +663,18 @@ mcf_config_show(struct cli *cli, const char * const *av, void *priv)
 	(void)priv;
 	if ((vp = mcf_find_vcl(cli, av[2])) != NULL) {
 		if ((dlh = dlopen(vp->fname, RTLD_NOW | RTLD_LOCAL)) == NULL) {
-			cli_out(cli, "failed to load %s: %s\n",
+			VCLI_Out(cli, "failed to load %s: %s\n",
 			    vp->name, dlerror());
-			cli_result(cli, CLIS_CANT);
+			VCLI_SetResult(cli, CLIS_CANT);
 		} else if ((sym = dlsym(dlh, "srcbody")) == NULL) {
-			cli_out(cli, "failed to locate source for %s: %s\n",
+			VCLI_Out(cli, "failed to locate source for %s: %s\n",
 			    vp->name, dlerror());
-			cli_result(cli, CLIS_CANT);
+			VCLI_SetResult(cli, CLIS_CANT);
 			AZ(dlclose(dlh));
 		} else {
 			src = sym;
-			cli_out(cli, "%s", src[0]);
-			/* cli_out(cli, src[1]); */
+			VCLI_Out(cli, "%s", src[0]);
+			/* VCLI_Out(cli, src[1]); */
 			AZ(dlclose(dlh));
 		}
 	}

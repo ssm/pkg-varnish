@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2010 Redpill Linpro AS
+ * Copyright (c) 2006-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -30,9 +30,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
@@ -40,7 +37,6 @@ SVNID("$Id$")
 #include <unistd.h>
 #include <poll.h>
 
-#include "shmlog.h"
 #include "cache.h"
 #include "cache_waiter.h"
 
@@ -166,7 +162,7 @@ vca_main(void *arg)
 			} else if (sp->t_open <= deadline) {
 				VTAILQ_REMOVE(&sesshead, sp, list);
 				vca_unpoll(fd);
-				// XXX: not yet (void)TCP_linger(sp->fd, 0);
+				// XXX: not yet (void)VTCP_linger(sp->fd, 0);
 				vca_close_session(sp, "timeout");
 				SES_Delete(sp);
 			}

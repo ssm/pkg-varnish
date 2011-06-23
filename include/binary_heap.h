@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2009 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -25,8 +25,6 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * $Id$
  *
  * Binary Heap API (see: http://en.wikipedia.org/wiki/Binary_heap)
  *
@@ -63,7 +61,7 @@ void binheap_insert(struct binheap *, void *);
 	 * Insert an item
 	 */
 
-void binheap_reorder(struct binheap *, unsigned idx);
+void binheap_reorder(const struct binheap *, unsigned idx);
 	/*
 	 * Move an order after changing its key value.
 	 */
@@ -79,3 +77,4 @@ void *binheap_root(const struct binheap *);
 	 * Return the root item
 	 */
 
+#define BINHEAP_NOIDX	0

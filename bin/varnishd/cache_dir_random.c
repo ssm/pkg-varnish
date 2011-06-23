@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2010 Redpill Linpro AS
+ * Copyright (c) 2006-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -41,9 +41,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -53,11 +50,11 @@ SVNID("$Id$")
 #include <string.h>
 #include <unistd.h>
 
-#include "shmlog.h"
 #include "cache.h"
 #include "cache_backend.h"
 #include "vrt.h"
 #include "vsha256.h"
+#include "vend.h"
 
 /*--------------------------------------------------------------------*/
 
@@ -80,17 +77,17 @@ struct vdi_random {
 	unsigned		nhosts;
 };
 
-static struct vbe_conn *
+static struct vbc *
 vdi_random_getfd(const struct director *d, struct sess *sp)
 {
 	int i, k;
 	struct vdi_random *vs;
 	double r, s1;
 	unsigned u = 0;
-	struct vbe_conn *vbe;
+	struct vbc *vbe;
 	struct director *d2;
 	struct SHA256Context ctx;
-	unsigned char sign[SHA256_LEN], *hp;
+	uint8_t sign[SHA256_LEN], *hp = NULL;
 
 	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
 	CHECK_OBJ_NOTNULL(d, DIRECTOR_MAGIC);
@@ -128,10 +125,8 @@ vdi_random_getfd(const struct director *d, struct sess *sp)
 	 * amongst the healthy set.
 	 */
 	if (vs->criteria != c_random) {
-		u = hp[3] << 24;
-		u |= hp[2] << 16;
-		u |= hp[1] << 8;
-		u |= hp[0] << 0;
+		AN(hp);
+		u = vle32dec(hp);
 		r = u / 4294967296.0;
 		assert(r >= 0.0 && r < 1.0);
 		r *= vs->tot_weight;
@@ -141,9 +136,9 @@ vdi_random_getfd(const struct director *d, struct sess *sp)
 			if (r >= s1)
 				continue;
 			d2 = vs->hosts[i].backend;
-			if (!VBE_Healthy_sp(sp, d2))
+			if (!VDI_Healthy(d2, sp))
 				break;
-			vbe = VBE_GetFd(d2, sp);
+			vbe = VDI_GetFd(d2, sp);
 			if (vbe != NULL)
 				return (vbe);
 			break;
@@ -156,7 +151,7 @@ vdi_random_getfd(const struct director *d, struct sess *sp)
 		for (i = 0; i < vs->nhosts; i++) {
 			d2 = vs->hosts[i].backend;
 			/* XXX: cache result of healty to avoid double work */
-			if (VBE_Healthy_sp(sp, d2))
+			if (VDI_Healthy(d2, sp))
 				s1 += vs->hosts[i].weight;
 		}
 
@@ -175,12 +170,12 @@ vdi_random_getfd(const struct director *d, struct sess *sp)
 		s1 = 0.0;
 		for (i = 0; i < vs->nhosts; i++)  {
 			d2 = vs->hosts[i].backend;
-			if (!VBE_Healthy_sp(sp, d2))
+			if (!VDI_Healthy(d2, sp))
 				continue;
 			s1 += vs->hosts[i].weight;
 			if (r >= s1)
 				continue;
-			vbe = VBE_GetFd(d2, sp);
+			vbe = VDI_GetFd(d2, sp);
 			if (vbe != NULL)
 				return (vbe);
 			break;
@@ -191,7 +186,7 @@ vdi_random_getfd(const struct director *d, struct sess *sp)
 }
 
 static unsigned
-vdi_random_healthy(double now, const struct director *d, uintptr_t target)
+vdi_random_healthy(const struct director *d, const struct sess *sp)
 {
 	struct vdi_random *vs;
 	int i;
@@ -200,15 +195,14 @@ vdi_random_healthy(double now, const struct director *d, uintptr_t target)
 	CAST_OBJ_NOTNULL(vs, d->priv, VDI_RANDOM_MAGIC);
 
 	for (i = 0; i < vs->nhosts; i++) {
-		if (VBE_Healthy(now, vs->hosts[i].backend, target))
-			return 1;
+		if (VDI_Healthy(vs->hosts[i].backend, sp))
+			return (1);
 	}
-	return 0;
+	return (0);
 }
 
-/*lint -e{818} not const-able */
 static void
-vdi_random_fini(struct director *d)
+vdi_random_fini(const struct director *d)
 {
 	struct vdi_random *vs;
 

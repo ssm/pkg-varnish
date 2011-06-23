@@ -41,15 +41,15 @@ app. You'll see lines like these.::
 The first column is an arbitrary number, it defines the request. Lines
 with the same number are part of the same HTTP transaction. The second
 column is the *tag* of the log message. All log entries are tagged
-with a tag indicating what sort of activity is beeing logged. Tags
+with a tag indicating what sort of activity is being logged. Tags
 starting with Rx indicate Varnish is recieving data and Tx indicates
 sending data.
 
-The third column tell us whether this is is data comming or going to
+The third column tell us whether this is is data coming or going to
 the client (c) or to/from the backend (b). The forth column is the
 data being logged.
 
-Now, you can filter quite a bit with varnishlog. The basics option you
+Now, you can filter quite a bit with varnishlog. The basic option you
 want to know are:
 
 -b
@@ -73,5 +73,5 @@ want to know are:
  Group log entries by request ID.
 
 
-Now that Varnish seem to work OK its time to put Varnish on port 80
+Now that Varnish seem to work OK it's time to put Varnish on port 80
 while we tune it.

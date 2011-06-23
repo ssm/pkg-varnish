@@ -1,6 +1,4 @@
-# $Id$
-
-test "Test CLI help and parameter functions"
+varnishtest "Test CLI help and parameter functions"
 
 varnish v1 -arg "-b ${bad_ip}:9080" 
 
@@ -12,7 +10,7 @@ varnish v1 -cliok "help -d"
 
 varnish v1 -cliok "help vcl.load"
 
-varnish v1 -cliok "help purge"
+varnish v1 -cliok "help ban"
 
 varnish v1 -clierr 101 "FOO?"
 
@@ -31,8 +29,6 @@ varnish v1 -cliok "param.set diag_bitmap 0x0"
 varnish v1 -start
 
 varnish v1 -cliok "help"
-
-varnish v1 -cliok "stats"
 
 varnish v1 -cliok "param.set waiter default"
 

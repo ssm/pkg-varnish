@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -31,9 +31,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
@@ -41,7 +38,6 @@ SVNID("$Id$")
 #include <stdlib.h>
 #include <sys/socket.h>
 
-#include "shmlog.h"
 #include "cache.h"
 
 static int
@@ -66,7 +62,7 @@ rdf(int fd0, int fd1)
 void
 PipeSession(struct sess *sp)
 {
-	struct vbe_conn *vc;
+	struct vbc *vc;
 	struct worker *w;
 	struct pollfd fds[2];
 	int i;
@@ -75,11 +71,11 @@ PipeSession(struct sess *sp)
 	CHECK_OBJ_NOTNULL(sp->wrk, WORKER_MAGIC);
 	w = sp->wrk;
 
-	sp->vbe = VBE_GetFd(NULL, sp);
-	if (sp->vbe == NULL)
+	sp->vbc = VDI_GetFd(NULL, sp);
+	if (sp->vbc == NULL)
 		return;
-	vc = sp->vbe;
-	(void)TCP_blocking(vc->fd);
+	vc = sp->vbc;
+	(void)VTCP_blocking(vc->fd);
 
 	WRW_Reserve(w, &vc->fd);
 	sp->acct_req.hdrbytes += http_Write(w, sp->wrk->bereq, 0);
@@ -92,7 +88,7 @@ PipeSession(struct sess *sp)
 
 	if (i) {
 		vca_close_session(sp, "pipe");
-		VBE_CloseFd(sp);
+		VDI_CloseFd(sp);
 		return;
 	}
 
@@ -100,11 +96,11 @@ PipeSession(struct sess *sp)
 
 	memset(fds, 0, sizeof fds);
 
-	// XXX: not yet (void)TCP_linger(vc->fd, 0);
+	// XXX: not yet (void)VTCP_linger(vc->fd, 0);
 	fds[0].fd = vc->fd;
 	fds[0].events = POLLIN | POLLERR;
 
-	// XXX: not yet (void)TCP_linger(sp->fd, 0);
+	// XXX: not yet (void)VTCP_linger(sp->fd, 0);
 	fds[1].fd = sp->fd;
 	fds[1].events = POLLIN | POLLERR;
 
@@ -132,5 +128,5 @@ PipeSession(struct sess *sp)
 		}
 	}
 	vca_close_session(sp, "pipe");
-	VBE_CloseFd(sp);
+	VDI_CloseFd(sp);
 }

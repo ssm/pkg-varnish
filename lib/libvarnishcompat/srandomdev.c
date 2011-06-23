@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Dag-Erling Smørgrav <des@des.no>
@@ -29,9 +29,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #ifndef HAVE_SRANDOMDEV
 
 #include <sys/time.h>
@@ -47,7 +44,7 @@ void
 srandomdev(void)
 {
 	struct timeval tv;
-	unsigned int seed;
+	unsigned long seed;
 	int fd;
 
 	if ((fd = open("/dev/urandom", O_RDONLY)) >= 0 ||
