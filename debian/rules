@@ -37,11 +37,16 @@ override_dh_auto_configure:
 	$(CURDIR)/autogen.sh
 	dh_auto_configure -- $(LOCAL_CONFIGURE_FLAGS)
 
-# Override to rewrite default.vcl
 override_dh_auto_install:
 	dh_auto_install -a
+	@ # Activate the default backend
 	sed -i '/backend default {/,/}/ s/^#[[:space:]]//'  \
 		$(CURDIR)/debian/tmp/etc/varnish/default.vcl
+	@ # Remove dependency_libs from .la files
+	@ # (See http://wiki.debian.org/ReleaseGoals/LAFileRemoval)
+	sed -i "/dependency_libs/ s/'.*'/''/" \
+		$(wildcard debian/tmp/usr/lib/*.la) \
+		$(wildcard debian/tmp/usr/lib/varnish/*.la)
 
 # Override to add the "reload-vcl" script
 override_dh_install:
