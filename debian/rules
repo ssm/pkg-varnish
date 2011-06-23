@@ -39,7 +39,7 @@ override_dh_auto_configure:
 
 override_dh_auto_build:
 	dh_auto_build
-	$(MAKE) -C $(CURDIR)/doc/sphinx html
+	$(MAKE) dist
 
 override_dh_auto_install:
 	dh_auto_install -a
