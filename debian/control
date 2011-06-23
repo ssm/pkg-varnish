@@ -29,14 +29,14 @@ Description: a state-of-the-art, high-performance HTTP accelerator
   * URL rewriting
   * Graceful handling of "dead" backends
 
-Package: libvarnish1
+Package: libvarnishapi1
 Section: libs
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: shared libraries for Varnish
  Shared libraries for the Varnish HTTP accelerator.
 
-Package: libvarnish-dev
+Package: libvarnishapi-dev
 Section: libdevel
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, libvarnish1 (= ${binary:Version})
