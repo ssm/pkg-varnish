@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2008-2009 Linpro AS
+ * Copyright (c) 2008-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Petter Knudsen <petter@linpro.no>
@@ -29,9 +29,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -40,7 +37,6 @@ SVNID("$Id$")
 #include <string.h>
 #include <unistd.h>
 
-#include "shmlog.h"
 #include "cache.h"
 #include "cache_backend.h"
 #include "vrt.h"
@@ -60,13 +56,13 @@ struct vdi_round_robin {
 	unsigned			next_host;
 };
 
-static struct vbe_conn *
+static struct vbc *
 vdi_round_robin_getfd(const struct director *d, struct sess *sp)
 {
 	int i;
 	struct vdi_round_robin *vs;
 	struct director *backend;
-	struct vbe_conn *vbe;
+	struct vbc *vbe;
 
 	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
 	CHECK_OBJ_NOTNULL(d, DIRECTOR_MAGIC);
@@ -75,9 +71,9 @@ vdi_round_robin_getfd(const struct director *d, struct sess *sp)
 	for (i = 0; i < vs->nhosts; i++) {
 		backend = vs->hosts[vs->next_host].backend;
 		vs->next_host = (vs->next_host + 1) % vs->nhosts;
-		if (!VBE_Healthy_sp(sp, backend))
+		if (!VDI_Healthy(backend, sp))
 			continue;
-		vbe = VBE_GetFd(backend, sp);
+		vbe = VDI_GetFd(backend, sp);
 		if (vbe != NULL)
 			return (vbe);
 	}
@@ -86,7 +82,7 @@ vdi_round_robin_getfd(const struct director *d, struct sess *sp)
 }
 
 static unsigned
-vdi_round_robin_healthy(double now, const struct director *d, uintptr_t target)
+vdi_round_robin_healthy(const struct director *d, const struct sess *sp)
 {
 	struct vdi_round_robin *vs;
 	struct director *backend;
@@ -97,15 +93,14 @@ vdi_round_robin_healthy(double now, const struct director *d, uintptr_t target)
 
 	for (i = 0; i < vs->nhosts; i++) {
 		backend = vs->hosts[i].backend;
-		if (VBE_Healthy(now, backend, target))
-			return 1;
+		if (VDI_Healthy(backend, sp))
+			return (1);
 	}
-	return 0;
+	return (0);
 }
 
-/*lint -e{818} not const-able */
 static void
-vdi_round_robin_fini(struct director *d)
+vdi_round_robin_fini(const struct director *d)
 {
 	struct vdi_round_robin *vs;
 

@@ -103,13 +103,16 @@ EXTRA_DIST = \
 	installation/install.rst \
 	installation/prerequisites.rst \
 	phk/autocrap.rst \
+	phk/backends.rst \
 	phk/barriers.rst \
 	phk/index.rst \
 	phk/ipv6suckage.rst \
 	phk/platforms.rst \
 	phk/sphinx.rst \
 	phk/thoughts.rst \
+	phk/vcl_expr.rst \
 	reference/index.rst \
+	reference/shmem.rst \
 	reference/varnishadm.rst \
 	reference/varnishd.rst \
 	reference/varnishhist.rst \
@@ -120,7 +123,10 @@ EXTRA_DIST = \
 	reference/varnishstat.rst \
 	reference/varnishtest.rst \
 	reference/varnishtop.rst \
+	reference/varnish-cli.rst \
 	reference/vcl.rst \
+	reference/vmod.rst \
+	reference/vmod_std.rst \
 	tutorial/advanced_backend_servers.rst \
 	tutorial/advanced_topics.rst \
 	tutorial/backend_servers.rst \

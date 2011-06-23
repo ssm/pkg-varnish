@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -26,7 +26,6 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $Id$
  */
 
 struct sess;
@@ -35,6 +34,7 @@ struct object;
 
 typedef void hash_init_f(int ac, char * const *av);
 typedef void hash_start_f(void);
+typedef void hash_prep_f(const struct sess *sp);
 typedef struct objhead *
     hash_lookup_f(const struct sess *sp, struct objhead *nobj);
 typedef int hash_deref_f(struct objhead *obj);
@@ -45,28 +45,31 @@ struct hash_slinger {
 	const char		*name;
 	hash_init_f		*init;
 	hash_start_f		*start;
+	hash_prep_f		*prep;
 	hash_lookup_f		*lookup;
 	hash_deref_f		*deref;
 };
 
 /* cache_hash.c */
-void HSH_Object(const struct sess *sp);
 void HSH_Prealloc(const struct sess *sp);
 void HSH_Cleanup(struct worker *w);
-void HSH_Freestore(struct object *o);
 struct objcore *HSH_Lookup(struct sess *sp, struct objhead **poh);
 void HSH_Unbusy(const struct sess *sp);
-void HSH_Ref(struct object *o);
+void HSH_Ref(struct objcore *o);
 void HSH_Drop(struct sess *sp);
-double HSH_Grace(double g);
 void HSH_Init(void);
 void HSH_AddString(const struct sess *sp, const char *str);
-void HSH_DerefObjCore(struct sess *sp);
-void HSH_FindBan(struct sess *sp, struct objcore **oc);
 struct objcore *HSH_Insert(const struct sess *sp);
-void HSH_Purge(struct sess *, struct objhead *, double ttl, double grace);
+void HSH_Purge(const struct sess *, struct objhead *, double ttl, double grace);
+void HSH_config(const char *h_arg);
 
 #ifdef VARNISH_CACHE_CHILD
+
+struct waitinglist {
+	unsigned		magic;
+#define WAITINGLIST_MAGIC	0x063a477a
+	VTAILQ_HEAD(, sess)	list;
+};
 
 struct objhead {
 	unsigned		magic;
@@ -76,33 +79,26 @@ struct objhead {
 	int			refcnt;
 	VTAILQ_HEAD(,objcore)	objcs;
 	unsigned char		digest[DIGEST_LEN];
-	union {
-		VTAILQ_HEAD(, sess)	__u_waitinglist;
-		VTAILQ_ENTRY(objhead)	__u_coollist;
-	} __u;
-#define waitinglist __u.__u_waitinglist
-#define coollist __u.__u_coollist
+	struct waitinglist	*waitinglist;
 
 	/*----------------------------------------------------
 	 * The fields below are for the sole private use of
 	 * the hash implementation(s).
 	 */
 	union {
-		void		*filler[3];
 		struct {
 			VTAILQ_ENTRY(objhead)	u_n_hoh_list;
 			void			*u_n_hoh_head;
 		} n;
-	} u;
-#define hoh_list u.n.u_n_hoh_list
-#define hoh_head u.n.u_n_hoh_head
+	} _u;
+#define hoh_list _u.n.u_n_hoh_list
+#define hoh_head _u.n.u_n_hoh_head
 };
 
 void HSH_DeleteObjHead(struct worker *w, struct objhead *oh);
-void HSH_Deref(struct worker *w, struct object **o);
+int HSH_Deref(struct worker *w, struct objcore *oc, struct object **o);
 #endif /* VARNISH_CACHE_CHILD */
 
-extern struct hash_slinger hsl_slinger;
-extern struct hash_slinger hcl_slinger;
-extern struct hash_slinger hcb_slinger;
-extern const struct choice hsh_choice[];
+extern const struct hash_slinger hsl_slinger;
+extern const struct hash_slinger hcl_slinger;
+extern const struct hash_slinger hcb_slinger;

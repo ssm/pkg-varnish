@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2009 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -29,15 +29,11 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <signal.h>
 
-#include "shmlog.h"
 #include "cache.h"
 #include "stevedore.h"
 #include "hash_slinger.h"
@@ -105,7 +101,7 @@ child_main(void)
 
 	VSL_Init();	/* First, LCK needs it. */
 
-	LCK_Init();	/* Locking, must be first */
+	LCK_Init();	/* Second, locking */
 
 	PAN_Init();
 	CLI_Init();
@@ -128,7 +124,10 @@ child_main(void)
 	VCA_Init();
 
 	SMS_Init();
+	SMP_Init();
 	STV_open();
+
+	VMOD_Init();
 
 	BAN_Compile();
 

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2006 Linpro AS
+ * Copyright (c) 2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Cecilie Fritzvold <cecilihf@linpro.no>
@@ -28,9 +28,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/types.h>
 #include <sys/signal.h>
 #include <sys/uio.h>
@@ -51,10 +48,6 @@ SVNID("$Id$")
 #include "libvarnish.h"
 #include "varnishapi.h"
 #include "vss.h"
-
-#ifndef HAVE_STRNDUP
-#include "compat/strndup.h"
-#endif
 
 #define freez(x) do { if (x) free(x); x = NULL; } while (0);
 
@@ -97,7 +90,7 @@ isequal(const char *str, const char *reference, const char *end)
  */
 
 struct message {
-	enum shmlogtag tag;
+	enum VSL_tag_e tag;
 	size_t len;
 	char *ptr;
 	VSTAILQ_ENTRY(message) list;
@@ -500,7 +493,7 @@ replay_thread(void *arg)
 	char space[1] = " ", crlf[2] = "\r\n";
 	struct replay_thread *thr = arg;
 	struct message *msg;
-	enum shmlogtag tag;
+	enum VSL_tag_e tag;
 	size_t len;
 	char *ptr;
 	const char *next;
@@ -642,14 +635,15 @@ clear:
 }
 
 static int
-gen_traffic(void *priv, enum shmlogtag tag, unsigned fd,
-    unsigned len, unsigned spec, const char *ptr)
+gen_traffic(void *priv, enum VSL_tag_e tag, unsigned fd,
+    unsigned len, unsigned spec, const char *ptr, uint64_t bitmap)
 {
 	struct replay_thread *thr;
 	const char *end;
 	struct message *msg;
 
 	(void)priv;
+	(void)bitmap;
 
 	end = ptr + len;
 
@@ -663,7 +657,9 @@ gen_traffic(void *priv, enum shmlogtag tag, unsigned fd,
 	msg = malloc(sizeof (struct message));
 	msg->tag = tag;
 	msg->len = len;
-	msg->ptr = strndup(ptr, len);
+	msg->ptr = malloc(len);
+	AN(msg->ptr);
+	memcpy(msg->ptr, ptr, len);
 	mailbox_put(&thr->mbox, msg);
 
 	return (0);
@@ -710,14 +706,15 @@ int
 main(int argc, char *argv[])
 {
 	int c;
-	struct VSL_data *vd;
+	struct VSM_data *vd;
 	const char *address = NULL;
 
-	vd = VSL_New();
+	vd = VSM_New();
+	VSL_Setup(vd);
 	debug = 0;
 
 	VSL_Arg(vd, 'c', NULL);
-	while ((c = getopt(argc, argv, "a:Dr:")) != -1) {
+	while ((c = getopt(argc, argv, "a:Dr:n:")) != -1) {
 		switch (c) {
 		case 'a':
 			address = optarg;
@@ -736,7 +733,7 @@ main(int argc, char *argv[])
 		usage();
 	}
 
-	if (VSL_OpenLog(vd, NULL))
+	if (VSL_Open(vd, 1))
 		exit(1);
 
 	addr_info = init_connection(address);

@@ -17,15 +17,17 @@ Varnish object size request histogram
 SYNOPSIS
 ========
 
-varnishsizes [-b] [-C] [-c] [-d] [-I regex] [-i tag] [-n varnish_name]
-             [-r file] [-V] [-w delay] [-X regex] [-x tag]
+varnishsizes [-b] [-C] [-c] [-d] [-I regex] [-i tag] [-m tag:regex ...]
+	     [-n varnish_name] [-r file] [-V] [-w delay] [-X regex] [-x tag]
 
 DESCRIPTION
 ===========
 
-The varnishsizes utility reads varnishd(1) shared memory logs and presents a continuously updated histogram
-showing the distribution of the last N requests by their processing.  The value of N and the vertical scale are
-displayed in the top left corner.  The horizontal scale is logarithmic.  Hits are marked with a pipe character
+The varnishsizes utility reads varnishd(1) shared memory logs and presents
+a continuously updated histogram showing the distribution of the last N
+requests by their processing.  The value of N and the vertical scale are
+displayed in the top left corner.  The horizontal scale is a logarithmic
+representation of bytes.  Hits are marked with a pipe character
 ("|"), and misses are marked with a hash character ("#").
 
 The following options are available:
@@ -46,6 +48,9 @@ The following options are available:
 
 -i tag      Include log entries with the specified tag.  If neither -I nor -i 
    	    is specified, all log entries are included.
+
+-m tag:regex only list record where tag matches regex. Multiple -m
+             options are AND-ed together.
 
 -n          Specifies the name of the varnishd instance to get logs from.  
 	    If -n is not specified, the host name is used.

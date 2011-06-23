@@ -1,6 +1,4 @@
-# $Id$
-
-test "Test restarts in vcl_hit"
+varnishtest "Test restarts in vcl_hit"
 
 server s1 {
 	rxreq
@@ -13,8 +11,8 @@ server s1 {
 
 varnish v1 -vcl+backend { 
 	sub vcl_hit {
-		set obj.cacheable = false;
-		restart;
+		set obj.ttl = 0s;
+		return (restart);
 	}
 } -start
 

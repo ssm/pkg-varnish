@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2008-2009 Linpro AS
+/*-
+ * Copyright (c) 2008-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -28,14 +28,10 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <pthread.h>
 
 #include "vtc.h"
 

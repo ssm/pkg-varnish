@@ -1,6 +1,4 @@
-# $Id$
-
-test "Url workspace gets overwritten/reused"
+varnishtest "Url workspace gets overwritten/reused"
 
 server s1 {
 	rxreq
@@ -39,7 +37,7 @@ varnish v1 -vcl+backend {
 		return (pass);
 	}
 	sub vcl_fetch {
-		esi;
+		set beresp.do_esi = true;
 	}
 } -start
 

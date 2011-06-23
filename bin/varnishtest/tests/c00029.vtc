@@ -1,6 +1,4 @@
-# $Id$
-
-test "Test that saintmode_threshold correctly marks a backend as sick"
+varnishtest "Test that saintmode_threshold correctly marks a backend as sick"
 
 server s1 {
 	rxreq
@@ -18,11 +16,17 @@ server s1 {
 	rxreq
 	txresp -hdr "X-Saint: yes"
 
-	rxreq
-	txresp -hdr "X-Saint: yes"
+	accept
 
 	rxreq
 	txresp -hdr "X-Saint: yes"
+
+	accept
+
+	rxreq
+	txresp -hdr "X-Saint: yes"
+
+	accept
 
 	rxreq
 	txresp -hdr "X-Saint: yes"
@@ -36,7 +40,7 @@ varnish v1 -arg "-p saintmode_threshold=2" -vcl+backend {
 	sub vcl_fetch {
 		if (beresp.http.X-Saint == "yes") {
 			set beresp.saintmode = 20s;
-			restart;
+			return(restart);
 		}
 		set beresp.grace = 1h;
 		set beresp.ttl = 1s;
@@ -101,4 +105,3 @@ client c1 {
 	expect resp.http.X-Restarts == "0"
 
 } -run
-

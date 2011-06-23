@@ -1,6 +1,4 @@
-# $Id$
-
-test "ESI CDATA"
+varnishtest "ESI CDATA"
 
 
 server s1 {
@@ -16,7 +14,7 @@ server s1 {
 
 varnish v1 -vcl+backend {
 	sub vcl_fetch {
-		esi;
+		set beresp.do_esi = true;
 	}
 } -start
 

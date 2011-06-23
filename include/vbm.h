@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -25,8 +25,6 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * $Id$
  *
  * Self-sizeing bitmap operations
  */
@@ -73,6 +71,16 @@ vbit_init(unsigned initial)
 		initial = VBITMAP_LUMP;
 	vbit_expand(vb, initial);
 	return (vb);
+}
+
+static inline void
+vbit_destroy(struct vbitmap *vb)
+{
+
+	if (vb == NULL)
+		return;
+	free(vb->bits);
+	free(vb);
 }
 
 static inline void

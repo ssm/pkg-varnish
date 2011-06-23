@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2010 Redpill Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -31,9 +31,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/stat.h>
 
 #include <ctype.h>
@@ -53,20 +50,16 @@ SVNID("$Id$")
 
 #include "compat/daemon.h"
 
-#ifndef HAVE_STRLCPY
-#include "compat/strlcpy.h"
-#endif
-
 #include "vsb.h"
 #include "vev.h"
 #include "vpf.h"
 #include "vsha256.h"
 
-#include "cli.h"
+#include "vcli.h"
 #include "cli_priv.h"
 #include "cli_common.h"
 
-#include "shmlog.h"
+#include "vin.h"
 #include "heritage.h"
 #include "mgt.h"
 #include "hash_slinger.h"
@@ -90,18 +83,18 @@ build_vident(void)
 {
 	struct utsname uts;
 
-	vident = vsb_newauto();
+	vident = VSB_new_auto();
 	AN(vident);
 	if (!uname(&uts)) {
-		vsb_printf(vident, ",%s", uts.sysname);
-		vsb_printf(vident, ",%s", uts.release);
-		vsb_printf(vident, ",%s", uts.machine);
+		VSB_printf(vident, ",%s", uts.sysname);
+		VSB_printf(vident, ",%s", uts.release);
+		VSB_printf(vident, ",%s", uts.machine);
 	}
 }
 
 /*--------------------------------------------------------------------*/
 
-static void *
+const void *
 pick(const struct choice *cp, const char *which, const char *kind)
 {
 
@@ -129,68 +122,6 @@ arg_ul(const char *p)
 /*--------------------------------------------------------------------*/
 
 static void
-setup_storage(const char *spec)
-{
-	char **av;
-	void *priv;
-	int ac;
-
-	av = ParseArgv(spec, ARGV_COMMA);
-	AN(av);
-
-	if (av[0] != NULL)
-		ARGV_ERR("%s\n", av[0]);
-
-	if (av[1] == NULL)
-		ARGV_ERR("-s argument is empty\n");
-
-	for (ac = 0; av[ac + 2] != NULL; ac++)
-		continue;
-
-	priv = pick(STV_choice, av[1], "storage");
-	AN(priv);
-	vsb_printf(vident, ",-s%s", av[1]);
-
-	STV_add(priv, ac, av + 2);
-
-	/* We do not free av, to make life simpler for stevedores */
-}
-
-/*--------------------------------------------------------------------*/
-
-static void
-setup_hash(const char *h_arg)
-{
-	char **av;
-	int ac;
-	struct hash_slinger *hp;
-
-	av = ParseArgv(h_arg, ARGV_COMMA);
-	AN(av);
-
-	if (av[0] != NULL)
-		ARGV_ERR("%s\n", av[0]);
-
-	if (av[1] == NULL)
-		ARGV_ERR("-h argument is empty\n");
-
-	for (ac = 0; av[ac + 2] != NULL; ac++)
-		continue;
-
-	hp = pick(hsh_choice, av[1], "hash");
-	CHECK_OBJ_NOTNULL(hp, SLINGER_MAGIC);
-	vsb_printf(vident, ",-h%s", av[1]);
-	heritage.hash = hp;
-	if (hp->init != NULL)
-		hp->init(ac, av + 2);
-	else if (ac > 0)
-		ARGV_ERR("Hash method \"%s\" takes no arguments\n",
-		    hp->name);
-}
-
-/*--------------------------------------------------------------------*/
-
-static void
 usage(void)
 {
 #define FMT "    %-28s # %s\n"
@@ -205,11 +136,15 @@ usage(void)
 	fprintf(stderr, FMT, "-f file", "VCL script");
 	fprintf(stderr, FMT, "-F", "Run in foreground");
 	fprintf(stderr, FMT, "-h kind[,hashoptions]", "Hash specification");
+	fprintf(stderr, FMT, "", "  -h critbit [default]");
 	fprintf(stderr, FMT, "", "  -h simple_list");
-	fprintf(stderr, FMT, "", "  -h classic  [default]");
+	fprintf(stderr, FMT, "", "  -h classic");
 	fprintf(stderr, FMT, "", "  -h classic,<buckets>");
 	fprintf(stderr, FMT, "-i identity", "Identity of varnish instance");
-	fprintf(stderr, FMT, "-l bytesize", "Size of shared memory log");
+	fprintf(stderr, FMT, "-l shl,free,fill", "Size of shared memory file");
+	fprintf(stderr, FMT, "", "  shl: space for SHL records [80m]");
+	fprintf(stderr, FMT, "", "  free: space for other allocations [1m]");
+	fprintf(stderr, FMT, "", "  fill: prefill new file [+]");
 	fprintf(stderr, FMT, "-M address:port", "CLI-master to connect to.");
 	fprintf(stderr, FMT, "-n dir", "varnishd working directory");
 	fprintf(stderr, FMT, "-P file", "PID file");
@@ -223,6 +158,7 @@ usage(void)
 	fprintf(stderr, FMT, "", "  -s file  [default: use /tmp]");
 	fprintf(stderr, FMT, "", "  -s file,<dir_or_file>");
 	fprintf(stderr, FMT, "", "  -s file,<dir_or_file>,<size>");
+	fprintf(stderr, FMT, "", "  -s persist{experimenta}");
 	fprintf(stderr, FMT, "",
 	    "  -s file,<dir_or_file>,<size>,<granularity>");
 	fprintf(stderr, FMT, "-t", "Default TTL");
@@ -249,7 +185,7 @@ tackle_warg(const char *argv)
 	char **av;
 	unsigned int u;
 
-	av = ParseArgv(argv, ARGV_COMMA);
+	av = VAV_Parse(argv, NULL, ARGV_COMMA);
 	AN(av);
 
 	if (av[0] != NULL)
@@ -274,7 +210,7 @@ tackle_warg(const char *argv)
 			params->wthread_timeout = u;
 		}
 	}
-	FreeArgv(av);
+	VAV_Free(av);
 }
 
 /*--------------------------------------------------------------------*/
@@ -283,12 +219,11 @@ static void
 cli_check(const struct cli *cli)
 {
 	if (cli->result == CLIS_OK) {
-		vsb_clear(cli->sb);
+		VSB_clear(cli->sb);
 		return;
 	}
-	vsb_finish(cli->sb);
-	AZ(vsb_overflowed(cli->sb));
-	fprintf(stderr, "Error:\n%s\n", vsb_data(cli->sb));
+	AZ(VSB_finish(cli->sb));
+	fprintf(stderr, "Error:\n%s\n", VSB_data(cli->sb));
 	exit (2);
 }
 
@@ -327,7 +262,7 @@ Symbol_Lookup(struct vsb *vsb, void *ptr)
 	}
 	if (s0 == NULL)
 		return (-1);
-	vsb_printf(vsb, "%p: %s+%jx", ptr, s0->n, (uintmax_t)pp - s0->a);
+	VSB_printf(vsb, "%p: %s+%jx", ptr, s0->n, (uintmax_t)pp - s0->a);
 	return (0);
 }
 
@@ -408,9 +343,7 @@ main(int argc, char * const *argv)
 	const char *b_arg = NULL;
 	const char *f_arg = NULL;
 	const char *i_arg = NULL;
-	const char *l_arg = "80m";
-	uintmax_t l_size;
-	const char *q;
+	const char *l_arg = NULL;	/* default in mgt_shmem.c */
 	const char *h_arg = "critbit";
 	const char *M_arg = NULL;
 	const char *n_arg = NULL;
@@ -421,8 +354,8 @@ main(int argc, char * const *argv)
 	const char *T_arg = NULL;
 	char *p, *vcl = NULL;
 	struct cli cli[1];
-	struct pidfh *pfh = NULL;
-	char dirname[1024];
+	struct vpf_fh *pfh = NULL;
+	char *dirname;
 
 	/*
 	 * Start out by closing all unwanted file descriptors we might
@@ -430,6 +363,8 @@ main(int argc, char * const *argv)
 	 */
 	for (o = getdtablesize(); o > STDERR_FILENO; o--)
 		(void)close(o);
+
+	AZ(seed_random());
 
 	mgt_got_fd(STDERR_FILENO);
 
@@ -461,13 +396,11 @@ main(int argc, char * const *argv)
 	SHA256_Test();
 
 	memset(cli, 0, sizeof cli);
-	cli[0].sb = vsb_newauto();
+	cli[0].sb = VSB_new_auto();
 	XXXAN(cli[0].sb);
 	cli[0].result = CLIS_OK;
 
 	VTAILQ_INIT(&heritage.socks);
-
-	mgt_vcc_init();
 
 	MCF_ParamInit(cli);
 
@@ -479,14 +412,23 @@ main(int argc, char * const *argv)
 		MCF_ParamSet(cli, "sess_workspace", "16384");
 		cli_check(cli);
 
-		MCF_ParamSet(cli, "thread_pool_stack", "32");
+		MCF_ParamSet(cli, "thread_pool_workspace", "16384");
+		cli_check(cli);
+
+		MCF_ParamSet(cli, "http_resp_size", "8192");
+		cli_check(cli);
+
+		MCF_ParamSet(cli, "thread_pool_stack", "32bit");
+		cli_check(cli);
+
+		MCF_ParamSet(cli, "gzip_stack_buffer", "4096");
 		cli_check(cli);
 	}
 
 	cli_check(cli);
 
 	while ((o = getopt(argc, argv,
-	    "a:b:Cdf:Fg:h:i:l:M:n:P:p:S:s:T:t:u:Vx:w:")) != -1)
+	    "a:b:Cdf:Fg:h:i:l:L:M:n:P:p:S:s:T:t:u:Vx:w:")) != -1)
 		switch (o) {
 		case 'a':
 			MCF_ParamSet(cli, "listen_address", optarg);
@@ -539,7 +481,7 @@ main(int argc, char * const *argv)
 			break;
 		case 's':
 			s_arg_given = 1;
-			setup_storage(optarg);
+			STV_Config(optarg);
 			break;
 		case 't':
 			MCF_ParamSet(cli, "default_ttl", optarg);
@@ -555,12 +497,12 @@ main(int argc, char * const *argv)
 			break;
 		case 'V':
 			/* XXX: we should print the ident here */
-			varnish_version("varnishd");
+			VCS_Message("varnishd");
 			exit(0);
 		case 'x':
 #ifdef DIAGNOSTICS
-			if (!strcmp(optarg, "dumpmdoc")) {
-				MCF_DumpMdoc();
+			if (!strcmp(optarg, "dumprst")) {
+				MCF_DumpRst();
 				exit (0);
 			}
 #endif /* DIAGNOSTICS */
@@ -576,24 +518,18 @@ main(int argc, char * const *argv)
 	argc -= optind;
 	argv += optind;
 
+	mgt_vcc_init();
+
 	if (argc != 0) {
 		fprintf(stderr, "Too many arguments (%s...)\n", argv[0]);
 		usage();
 	}
 
-	q = str2bytes(l_arg, &l_size, 0);
-	if (q != NULL) {
-		fprintf(stderr, "Parameter error:\n");
-		fprintf(stderr, "\t-l ...:  %s\n", q);
-		exit (1);
-	}
-
 	/* XXX: we can have multiple CLI actions above, is this enough ? */
 	if (cli[0].result != CLIS_OK) {
 		fprintf(stderr, "Parameter errors:\n");
-		vsb_finish(cli[0].sb);
-		AZ(vsb_overflowed(cli[0].sb));
-		fprintf(stderr, "%s\n", vsb_data(cli[0].sb));
+		AZ(VSB_finish(cli[0].sb));
+		fprintf(stderr, "%s\n", VSB_data(cli[0].sb));
 		exit(1);
 	}
 
@@ -607,14 +543,15 @@ main(int argc, char * const *argv)
 		usage();
 	}
 	if (S_arg == NULL && T_arg == NULL && d_flag == 0 && b_arg == NULL &&
-	    f_arg == NULL) {
+	    f_arg == NULL && M_arg == NULL) {
 		fprintf(stderr,
-		    "At least one of -d, -b, -f, -S or -T must be specified\n");
+		    "At least one of -d, -b, -f, -M, -S or -T "
+		    "must be specified\n");
 		usage();
 	}
 
 	if (f_arg != NULL) {
-		vcl = vreadfile(f_arg);
+		vcl = vreadfile(NULL, f_arg, NULL);
 		if (vcl == NULL) {
 			fprintf(stderr, "Cannot read '%s': %s\n",
 			    f_arg, strerror(errno));
@@ -622,8 +559,7 @@ main(int argc, char * const *argv)
 		}
 	}
 
-	if (varnish_instance(n_arg, heritage.name, sizeof heritage.name,
-	    dirname, sizeof dirname) != 0) {
+	if (VIN_N_Arg(n_arg, &heritage.name, &dirname, NULL) != 0) {
 		fprintf(stderr, "Invalid instance name: %s\n",
 		    strerror(errno));
 		exit(1);
@@ -656,7 +592,7 @@ main(int argc, char * const *argv)
 	}
 
 	/* XXX: should this be relative to the -n arg ? */
-	if (P_arg && (pfh = vpf_open(P_arg, 0644, NULL)) == NULL) {
+	if (P_arg && (pfh = VPF_Open(P_arg, 0644, NULL)) == NULL) {
 		perror(P_arg);
 		exit(1);
 	}
@@ -668,26 +604,30 @@ main(int argc, char * const *argv)
 	if (C_flag)
 		exit (0);
 
+	/* If no -s argument specified, process default -s argument */
 	if (!s_arg_given)
-		setup_storage(s_arg);
+		STV_Config(s_arg);
 
-	setup_hash(h_arg);
+	/* Configure Transient storage, if user did not */
+	STV_Config_Transient();
 
-	VSL_MgtInit(SHMLOG_FILENAME, l_size);
+	HSH_config(h_arg);
 
-	vsb_finish(vident);
-	AZ(vsb_overflowed(vident));
+	mgt_SHM_Init(l_arg);
+
+	AZ(VSB_finish(vident));
 
 	if (!d_flag && !F_flag)
 		AZ(varnish_daemon(1, 0));
 
-	VSL_MgtPid();
+	mgt_SHM_Pid();
 
-	if (pfh != NULL && vpf_write(pfh))
+	if (pfh != NULL && VPF_Write(pfh))
 		fprintf(stderr, "NOTE: Could not write PID file\n");
 
 	if (d_flag)
-		fprintf(stderr, "Varnish on %s\n", vsb_data(vident) + 1);
+		fprintf(stderr, "Platform: %s\n", VSB_data(vident) + 1);
+	syslog(LOG_NOTICE, "Platform: %s\n", VSB_data(vident) + 1);
 
 	/* Do this again after debugstunt and daemon has run */
 	mgt_pid = getpid();
@@ -704,9 +644,11 @@ main(int argc, char * const *argv)
 	if (T_arg != NULL)
 		mgt_cli_telnet(T_arg);
 
+	AN(VSM_Alloc(0, VSM_CLASS_MARK, "", ""));
+
 	MGT_Run();
 
 	if (pfh != NULL)
-		(void)vpf_remove(pfh);
+		(void)VPF_Remove(pfh);
 	exit(exit_status);
 }

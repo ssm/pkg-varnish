@@ -1,6 +1,4 @@
-# $Id$
-
-test "Check synthetic error page caching"
+varnishtest "Check synthetic error page caching"
 
 # First test that an internally generated error is not cached
 
@@ -57,7 +55,6 @@ server s1 {
 varnish v1 -vcl+backend {
 	sub vcl_fetch {
 		if (beresp.status == 502) {
-			set beresp.cacheable = true;
 			set beresp.ttl = 10m;
 		}
 	}

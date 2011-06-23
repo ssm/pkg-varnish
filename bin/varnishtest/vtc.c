@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2008-2010 Redpill Linpro AS
+/*-
+ * Copyright (c) 2008-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -28,41 +28,39 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
 #include <fcntl.h>
-#include <math.h>
-#include <pthread.h>
+#include <limits.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 
 #include "libvarnish.h"
+#include "vev.h"
 #include "vsb.h"
 #include "vqueue.h"
 #include "miniobj.h"
 
 #include "vtc.h"
 
-#define		MAX_FILESIZE		(1024 * 1024)
+#ifndef HAVE_SRANDOMDEV
+#include "compat/srandomdev.h"
+#endif
+
 #define		MAX_TOKENS		200
 
-static const char	*vtc_file;
 static char		*vtc_desc;
-int			vtc_error;	/* Error encountered */
+volatile sig_atomic_t	vtc_error;	/* Error encountered */
 int			vtc_stop;	/* Stops current test without error */
 pthread_t		vtc_thread;
-char			*vtc_tmpdir;
 static struct vtclog	*vltop;
-static pthread_mutex_t	vtc_mtx;
-static pthread_cond_t	vtc_cond;
+int			in_tree = 0;	/* Are we running in-tree */
 
 /**********************************************************************
  * Macro facility
@@ -129,12 +127,15 @@ macro_def(struct vtclog *vl, const char *instance, const char *name,
 }
 
 static char *
-macro_get(const char *name)
+macro_get(const char *b, const char *e)
 {
 	struct macro *m;
+	int l;
 	char *retval = NULL;
 
-	if (!strcmp(name, "date")) {
+	l = e - b;
+
+	if (l == 4 && !memcmp(b, "date", l)) {
 		double t = TIM_real();
 		retval = malloc(64);
 		AN(retval);
@@ -144,7 +145,7 @@ macro_get(const char *name)
 
 	AZ(pthread_mutex_lock(&macro_mtx));
 	VTAILQ_FOREACH(m, &macro_list, list)
-		if (!strcmp(name, m->name))
+		if (!memcmp(b, m->name, l) && m->name[l] == '\0')
 			break;
 	if (m != NULL)
 		retval = strdup(m->val);
@@ -153,65 +154,100 @@ macro_get(const char *name)
 }
 
 struct vsb *
-macro_expand(const char *name)
+macro_expand(struct vtclog *vl, const char *text)
 {
 	struct vsb *vsb;
-	char *p, *q;
+	const char *p, *q;
+	char *m;
 
-	vsb = vsb_newauto();
+	vsb = VSB_new_auto();
 	AN(vsb);
-	while (*name != '\0') {
-		p = strstr(name, "${");
+	while (*text != '\0') {
+		p = strstr(text, "${");
 		if (p == NULL) {
-			vsb_cat(vsb, name);
+			VSB_cat(vsb, text);
 			break;
 		}
-		vsb_bcat(vsb, name, p - name);
+		VSB_bcat(vsb, text, p - text);
 		q = strchr(p, '}');
 		if (q == NULL) {
-			vsb_cat(vsb, name);
+			VSB_cat(vsb, text);
 			break;
 		}
 		assert(p[0] == '$');
 		assert(p[1] == '{');
 		assert(q[0] == '}');
 		p += 2;
-		*q = '\0';
-		vsb_cat(vsb, macro_get(p));
-		name = q + 1;
+		m = macro_get(p, q);
+		if (m == NULL) {
+			VSB_delete(vsb);
+			vtc_log(vl, 0, "Macro ${%s} not found", p);
+			return (NULL);
+		}
+		VSB_printf(vsb, "%s", m);
+		text = q + 1;
 	}
-	vsb_finish(vsb);
+	AZ(VSB_finish(vsb));
 	return (vsb);
 }
 
-/**********************************************************************
- * Read a file into memory
- */
+/* extmacro is a list of macro's that are defined from the
+   command line and are applied to the macro list of each test
+   instance. No locking is required as they are set before any tests
+   are started.
+*/
 
-static char *
-read_file(const char *fn)
+struct extmacro {
+	VTAILQ_ENTRY(extmacro)	list;
+	char			*name;
+	char			*val;
+};
+
+static VTAILQ_HEAD(, extmacro) extmacro_list =
+	VTAILQ_HEAD_INITIALIZER(extmacro_list);
+
+void
+extmacro_def(const char *name, const char *fmt, ...)
 {
-	char *buf;
-	ssize_t sz = MAX_FILESIZE;
-	ssize_t s;
-	int fd;
+	char buf[256];
+	struct extmacro *m;
+	va_list ap;
 
-	fd = open(fn, O_RDONLY);
-	if (fd < 0)
-		return (NULL);
-	buf = malloc(sz);
-	assert(buf != NULL);
-	s = read(fd, buf, sz - 1);
-	if (s <= 0) {
-		free(buf);
-		return (NULL);
+	VTAILQ_FOREACH(m, &extmacro_list, list)
+		if (!strcmp(name, m->name))
+			break;
+	if (m == NULL && fmt != NULL) {
+		m = calloc(sizeof *m, 1);
+		AN(m);
+		REPLACE(m->name, name);
+		VTAILQ_INSERT_TAIL(&extmacro_list, m, list);
 	}
-	AZ(close (fd));
-	assert(s < sz);		/* XXX: increase MAX_FILESIZE */
-	buf[s] = '\0';
-	buf = realloc(buf, s + 1);
-	assert(buf != NULL);
-	return (buf);
+	if (fmt != NULL) {
+		AN(m);
+		va_start(ap, fmt);
+		free(m->val);
+		vbprintf(buf, fmt, ap);
+		va_end(ap);
+		m->val = strdup(buf);
+		AN(m->val);
+	} else if (m != NULL) {
+		VTAILQ_REMOVE(&extmacro_list, m, list);
+		free(m->name);
+		free(m->val);
+		free(m);
+	}
+}
+
+const char *
+extmacro_get(const char *name)
+{
+	struct extmacro *m;
+
+	VTAILQ_FOREACH(m, &extmacro_list, list)
+		if (!strcmp(name, m->name))
+			return (m->val);
+
+	return (NULL);
 }
 
 /**********************************************************************
@@ -266,7 +302,7 @@ parse_string(char *buf, const struct cmds *cmd, void *priv, struct vtclog *vl)
 					if (*p == '"')
 						break;
 					if (*p == '\\') {
-						p += BackSlash(p, q) - 1;
+						p += VAV_BackSlash(p, q) - 1;
 						q++;
 					} else {
 						if (*p == '\n')
@@ -307,16 +343,21 @@ parse_string(char *buf, const struct cmds *cmd, void *priv, struct vtclog *vl)
 			*token_e[tn] = '\0';	/*lint !e771 */
 			if (NULL == strstr(token_s[tn], "${"))
 				continue;
-			token_exp[tn] = macro_expand(token_s[tn]);
-			token_s[tn] = vsb_data(token_exp[tn]);
+			token_exp[tn] = macro_expand(vl, token_s[tn]);
+			if (vtc_error)
+				return;
+			token_s[tn] = VSB_data(token_exp[tn]);
 			token_e[tn] = strchr(token_s[tn], '\0');
 		}
 
 		for (cp = cmd; cp->name != NULL; cp++)
 			if (!strcmp(token_s[0], cp->name))
 				break;
-		if (cp->name == NULL)
+		if (cp->name == NULL) {
 			vtc_log(vl, 0, "Unknown command: \"%s\"", token_s[0]);
+			return;
+		}
+		vtc_log(vl, 3, "%s", token_s[0]);
 
 		assert(cp->cmd != NULL);
 		cp->cmd(token_s, priv, cmd, vl);
@@ -340,7 +381,7 @@ reset_cmds(const struct cmds *cmd)
  */
 
 static void
-cmd_test(CMD_ARGS)
+cmd_varnishtest(CMD_ARGS)
 {
 
 	(void)priv;
@@ -349,7 +390,7 @@ cmd_test(CMD_ARGS)
 
 	if (av == NULL)
 		return;
-	assert(!strcmp(av[0], "test"));
+	assert(!strcmp(av[0], "varnishtest"));
 
 	vtc_log(vl, 1, "TEST %s", av[1]);
 	AZ(av[2]);
@@ -371,7 +412,7 @@ cmd_shell(CMD_ARGS)
 		return;
 	AN(av[1]);
 	AZ(av[2]);
-	vtc_dump(vl, 4, "shell", av[1]);
+	vtc_dump(vl, 4, "shell", av[1], -1);
 	r = system(av[1]);
 	assert(WEXITSTATUS(r) == 0);
 }
@@ -394,23 +435,6 @@ cmd_delay(CMD_ARGS)
 	f = strtod(av[1], NULL);
 	vtc_log(vl, 3, "delaying %g second(s)", f);
 	TIM_sleep(f);
-}
-
-/**********************************************************************
- * Dump command arguments
- */
-
-void
-cmd_dump(CMD_ARGS)
-{
-
-	(void)cmd;
-	(void)vl;
-	if (av == NULL)
-		return;
-	printf("cmd_dump(%p)\n", priv);
-	while (*av)
-		printf("\t<%s>\n", *av++);
 }
 
 /**********************************************************************
@@ -478,6 +502,9 @@ cmd_feature(CMD_ARGS)
 		if (!strcmp(av[i], "SO_RCVTIMEO_WORKS"))
 			continue;
 #endif
+		if (sizeof(void*) == 8 && !strcmp(av[i], "64bit"))
+			continue;
+
 		vtc_log(vl, 1, "SKIPPING test, missing feature %s", av[i]);
 		vtc_stop = 1;
 		return;
@@ -493,7 +520,7 @@ static const struct cmds cmds[] = {
 	{ "client",	cmd_client },
 	{ "varnish",	cmd_varnish },
 	{ "delay",	cmd_delay },
-	{ "test",	cmd_test },
+	{ "varnishtest",cmd_varnishtest },
 	{ "shell",	cmd_shell },
 	{ "sema",	cmd_sema },
 	{ "random",	cmd_random },
@@ -501,207 +528,62 @@ static const struct cmds cmds[] = {
 	{ NULL,		NULL }
 };
 
-struct priv_exec {
-	const char	*fn;
-	char		*buf;
-};
-
-static void *
-exec_file_thread(void *priv)
+int
+exec_file(const char *fn, const char *script, const char *tmpdir,
+    char *logbuf, unsigned loglen)
 {
 	unsigned old_err;
-	struct priv_exec *pe;
+	char *cwd, *p;
+	FILE *f;
+	struct extmacro *m;
 
-	pe = priv;
-
-	parse_string(pe->buf, cmds, NULL, vltop);
-	old_err = vtc_error;
-	vtc_stop = 1;
-	vtc_log(vltop, 1, "RESETTING after %s", pe->fn);
-	reset_cmds(cmds);
-	vtc_error = old_err;
-	AZ(pthread_mutex_lock(&vtc_mtx));
-	AZ(pthread_cond_signal(&vtc_cond));
-	AZ(pthread_mutex_unlock(&vtc_mtx));
-	return (NULL);
-}
-
-static double
-exec_file(const char *fn, unsigned dur)
-{
-	double t0, t;
-	struct priv_exec pe;
-	pthread_t pt;
-	struct timespec ts;
-	void *v;
-	int i;
-
-	t0 = TIM_mono();
-	vtc_stop = 0;
-	vtc_file = fn;
-	vtc_desc = NULL;
-	vtc_log(vltop, 1, "TEST %s starting", fn);
-	pe.buf = read_file(fn);
-	if (pe.buf == NULL)
-		vtc_log(vltop, 0, "Cannot read file '%s': %s",
-		    fn, strerror(errno));
-	pe.fn = fn;
-
-	t = TIM_real() + dur;
-	ts.tv_sec = floor(t);
-	ts.tv_nsec = (t - ts.tv_sec) * 1e9;
-
-	AZ(pthread_mutex_lock(&vtc_mtx));
-	AZ(pthread_create(&pt, NULL, exec_file_thread, &pe));
-	i = pthread_cond_timedwait(&vtc_cond, &vtc_mtx, &ts);
-
-	if (i == 0) {
-		AZ(pthread_mutex_unlock(&vtc_mtx));
-		AZ(pthread_join(pt, &v));
-	} else {
-		if (i != ETIMEDOUT)
-			vtc_log(vltop, 1, "Weird condwait return: %d %s",
-			    i, strerror(i));
-		/*
-		 * We are all going to die anyway, so don't waste time
-		 * trying to clean things up, it seems to trigger a
-		 * problem in the tinderbox
-		 *   AZ(pthread_mutex_unlock(&vtc_mtx));
-		 *   AZ(pthread_cancel(pt));
-		 *   AZ(pthread_join(pt, &v));
-		 */
-		vtc_log(vltop, 1, "Test timed out");
-		vtc_error = 1;
-	}
-
-	if (vtc_error)
-		vtc_log(vltop, 1, "TEST %s FAILED", fn);
-	else {
-		vtc_log(vltop, 1, "TEST %s completed", fn);
-		vtc_logreset();
-	}
-
-	t0 = TIM_mono() - t0;
-
-	if (vtc_error && vtc_verbosity == 0)
-		printf("%s", vtc_logfull());
-	else if (vtc_verbosity == 0)
-		printf("#    top  TEST %s passed (%.3fs)\n", fn, t0);
-
-	vtc_file = NULL;
-	free(vtc_desc);
-	return (t0);
-}
-
-/**********************************************************************
- * Print usage
- */
-
-static void
-usage(void)
-{
-	fprintf(stderr, "usage: varnishtest [-n iter] [-qv] file ...\n");
-	exit(1);
-}
-
-/**********************************************************************
- * Main
- */
-
-/**********************************************************************
- * Main
- */
-
-int
-main(int argc, char * const *argv)
-{
-	int ch, i, ntest = 1, ncheck = 0;
-	FILE *fok;
-	double tmax, t0, t00;
-	unsigned dur = 30;
-	const char *nmax;
-	char tmpdir[BUFSIZ];
-	char cmd[BUFSIZ];
-
-	setbuf(stdout, NULL);
-	setbuf(stderr, NULL);
-	vtc_loginit();
+	vtc_loginit(logbuf, loglen);
 	vltop = vtc_logopen("top");
 	AN(vltop);
-	while ((ch = getopt(argc, argv, "n:qt:v")) != -1) {
-		switch (ch) {
-		case 'n':
-			ntest = strtoul(optarg, NULL, 0);
-			break;
-		case 'q':
-			vtc_verbosity--;
-			break;
-		case 't':
-			dur = strtoul(optarg, NULL, 0);
-			break;
-		case 'v':
-			vtc_verbosity++;
-			break;
-		default:
-			usage();
-		}
-	}
-	argc -= optind;
-	argv += optind;
-
-	if (argc == 0)
-		usage();
 
 	init_macro();
 	init_sema();
 
-	bprintf(tmpdir, "/tmp/vtc.%d.%08x", getpid(), (unsigned)random());
-	vtc_tmpdir = tmpdir;
-	AN(vtc_tmpdir);
-	AZ(mkdir(vtc_tmpdir, 0700));
-	macro_def(vltop, NULL, "tmpdir", vtc_tmpdir);
-	vtc_thread = pthread_self();
+	/* Apply extmacro definitions */
+	VTAILQ_FOREACH(m, &extmacro_list, list)
+		macro_def(vltop, NULL, m->name, m->val);
 
-	AZ(pthread_mutex_init(&vtc_mtx, NULL));
-	AZ(pthread_cond_init(&vtc_cond, NULL));
-
+	/* Other macro definitions */
+	cwd = getcwd(NULL, PATH_MAX);
+	macro_def(vltop, NULL, "pwd", cwd);
+	macro_def(vltop, NULL, "topbuild", "%s/%s", cwd, TOP_BUILDDIR);
 	macro_def(vltop, NULL, "bad_ip", "10.255.255.255");
-	tmax = 0;
-	nmax = NULL;
-	t00 = TIM_mono();
-	for (i = 0; i < ntest; i++) {
-		for (ch = 0; ch < argc; ch++) {
-			t0 = exec_file(argv[ch], dur);
-			ncheck++;
-			if (t0 > tmax) {
-				tmax = t0;
-				nmax = argv[ch];
-			}
-			if (vtc_error)
-				break;
-		}
-		if (vtc_error)
-			break;
-	}
 
-	/* Remove tmpdir on success or non-verbosity */
-	if (vtc_error == 0 || vtc_verbosity == 0) {
-		bprintf(cmd, "rm -rf %s", vtc_tmpdir);
-		AZ(system(cmd));
-	}
+	/* Move into our tmpdir */
+	AZ(chdir(tmpdir));
+	macro_def(vltop, NULL, "tmpdir", tmpdir);
+
+	/* Drop file to tell what was going on here */
+	f = fopen("INFO", "w");
+	AN(f);
+	fprintf(f, "Test case: %s\n", fn);
+	AZ(fclose(f));
+
+	vtc_stop = 0;
+	vtc_desc = NULL;
+	vtc_log(vltop, 1, "TEST %s starting", fn);
+
+	p = strdup(script);
+	AN(p);
+
+	vtc_thread = pthread_self();
+	parse_string(p, cmds, NULL, vltop);
+	old_err = vtc_error;
+	vtc_stop = 1;
+	vtc_log(vltop, 1, "RESETTING after %s", fn);
+	reset_cmds(cmds);
+	vtc_error = old_err;
 
 	if (vtc_error)
-		return (2);
+		vtc_log(vltop, 1, "TEST %s FAILED", fn);
+	else
+		vtc_log(vltop, 1, "TEST %s completed", fn);
 
-	t00 = TIM_mono() - t00;
-	if (ncheck > 1) {
-		printf("#    top  Slowest test: %s %.3fs\n", nmax, tmax);
-		printf("#    top  Total tests run:   %d\n", ncheck);
-		printf("#    top  Total duration: %.3fs\n", t00);
-	}
-
-	fok = fopen("_.ok", "w");
-	if (fok != NULL)
-		AZ(fclose(fok));
-	return (0);
+	free(vtc_desc);
+	return (vtc_error);
 }

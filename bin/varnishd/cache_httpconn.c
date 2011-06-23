@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2009 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -31,23 +31,18 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
 #include <unistd.h>
 
-#include "shmlog.h"
 #include "cache.h"
 
 /*--------------------------------------------------------------------
  * Check if we have a complete HTTP request or response yet
  *
  * Return values:
- *	-1  No, and you can nuke the (white-space) content.
  *	 0  No, keep trying
  *	>0  Yes, it is this many bytes long.
  */
@@ -84,14 +79,17 @@ htc_header_complete(txt *t)
 /*--------------------------------------------------------------------*/
 
 void
-HTC_Init(struct http_conn *htc, struct ws *ws, int fd)
+HTC_Init(struct http_conn *htc, struct ws *ws, int fd, unsigned maxbytes,
+    unsigned maxhdr)
 {
 
 	htc->magic = HTTP_CONN_MAGIC;
 	htc->ws = ws;
 	htc->fd = fd;
-	/* XXX: ->s or ->f ? or param ? */
-	(void)WS_Reserve(htc->ws, (htc->ws->e - htc->ws->s) / 2);
+	htc->maxbytes = maxbytes;
+	htc->maxhdr = maxhdr;
+
+	(void)WS_Reserve(htc->ws, htc->maxbytes);
 	htc->rxbuf.b = ws->f;
 	htc->rxbuf.e = ws->f;
 	*htc->rxbuf.e = '\0';
@@ -111,7 +109,7 @@ HTC_Reinit(struct http_conn *htc)
 	unsigned l;
 
 	CHECK_OBJ_NOTNULL(htc, HTTP_CONN_MAGIC);
-	(void)WS_Reserve(htc->ws, (htc->ws->e - htc->ws->s) / 2);
+	(void)WS_Reserve(htc->ws, htc->maxbytes);
 	htc->rxbuf.b = htc->ws->f;
 	htc->rxbuf.e = htc->ws->f;
 	if (htc->pipeline.b != NULL) {
@@ -179,12 +177,12 @@ HTC_Rx(struct http_conn *htc)
 	return (HTC_Complete(htc));
 }
 
-int
-HTC_Read(struct http_conn *htc, void *d, unsigned len)
+ssize_t
+HTC_Read(struct http_conn *htc, void *d, size_t len)
 {
-	unsigned l;
+	size_t l;
 	unsigned char *p;
-	int i;
+	ssize_t i;
 
 	l = 0;
 	p = d;

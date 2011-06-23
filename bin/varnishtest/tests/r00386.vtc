@@ -1,6 +1,4 @@
-# $Id$
-
-test "#386, failure to insert include"
+varnishtest "#386, failure to insert include"
 
 server s1 {
 	rxreq
@@ -14,7 +12,7 @@ server s1 {
 varnish v1 -arg "-p diag_bitmap=0x20" -vcl+backend {
 	sub vcl_fetch {
 		if (req.url == "/") {
-			esi;
+			set beresp.do_esi = true;
 		}
 	}
 } -start

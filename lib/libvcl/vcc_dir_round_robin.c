@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2008-2009 Linpro AS
+ * Copyright (c) 2008-2009 Varnish Software AS
  * All rights reserved.
  *
  * Author: Petter Knudsen <petter@linpro.no>
@@ -28,9 +28,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -49,7 +46,7 @@ SVNID("$Id$")
  */
 
 void
-vcc_ParseRoundRobinDirector(struct tokenlist *tl)
+vcc_ParseRoundRobinDirector(struct vcc *tl)
 {
 	struct token *t_field, *t_be;
 	int nelem;
@@ -86,7 +83,7 @@ vcc_ParseRoundRobinDirector(struct tokenlist *tl)
 		}
 		vcc_FieldsOk(tl, fs);
 		if (tl->err) {
-			vsb_printf(tl->sb,
+			VSB_printf(tl->sb,
 			    "\nIn member host specification starting at:\n");
 			vcc_ErrWhere(tl, t_be);
 			return;

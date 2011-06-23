@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2008-2009 Linpro AS
+ * Copyright (c) 2008-2009 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -29,9 +29,6 @@
  */
 
 #include "config.h"
-
-#include "svnid.h"
-SVNID("$Id$")
 
 #include <math.h>
 #include <stdio.h>
@@ -115,7 +112,7 @@ str2bytes(const char *p, uintmax_t *r, uintmax_t rel)
 
 #ifdef NUM_C_TEST
 /* Compile with: "cc -o foo -DNUM_C_TEST -I../.. -I../../include num.c -lm" */
-#include <assert.h>
+#include "vas.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>

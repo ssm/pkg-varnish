@@ -1,6 +1,4 @@
-# $Id$
-
-test "VCL compiler coverage test: vcc_xref.c"
+varnishtest "VCL compiler coverage test: vcc_xref.c"
 
 varnish v1 -badvcl {
 	backend b { .host = "127.0.0.1"; }
@@ -50,3 +48,22 @@ varnish v1 -badvcl {
 
 }
 
+varnish v1 -badvcl {
+	backend b { .host = "127.0.0.1"; }
+
+	sub foo {
+	}
+}
+
+
+varnish v1 -badvcl {
+	backend b { .host = "127.0.0.1"; }
+
+	sub vcl_recv {
+		call foo;
+	}
+
+	sub foo {
+		return (deliver);
+	}
+}

@@ -1,6 +1,4 @@
-# $Id$
-
-test "very very very long return header"
+varnishtest "very very very long return header"
 
 server s1 {
 	rxreq
@@ -10,6 +8,8 @@ server s1 {
 
 varnish v1 -vcl+backend {
 } -start
+
+varnish v1 -cliok "param.set http_resp_hdr_len 32768"
 
 client c1 {
 	txreq 

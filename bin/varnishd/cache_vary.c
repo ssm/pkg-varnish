@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -54,14 +54,10 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <ctype.h>
 #include <string.h>
 #include <stdlib.h>
 
-#include "shmlog.h"
 #include "cache.h"
 
 struct vsb *
@@ -76,11 +72,11 @@ VRY_Create(const struct sess *sp, const struct http *hp)
 		return (NULL);
 
 	/* For vary matching string */
-	sb = vsb_newauto();
+	sb = VSB_new_auto();
 	AN(sb);
 
 	/* For header matching strings */
-	sbh = vsb_newauto();
+	sbh = VSB_new_auto();
 	AN(sbh);
 
 	if (*v == ':') {
@@ -96,15 +92,15 @@ VRY_Create(const struct sess *sp, const struct http *hp)
 			continue;
 
 		/* Build a header-matching string out of it */
-		vsb_clear(sbh);
-		vsb_printf(sbh, "%c%.*s:%c", 1 + (q - p), q - p, p, 0);
-		vsb_finish(sbh);
-		AZ(vsb_overflowed(sbh));
+		VSB_clear(sbh);
+		VSB_printf(sbh, "%c%.*s:%c",
+		    (char)(1 + (q - p)), (int)(q - p), p, 0);
+		AZ(VSB_finish(sbh));
 
 		/* Append to vary matching string */
-		vsb_bcat(sb, vsb_data(sbh), vsb_len(sbh));
+		VSB_bcat(sb, VSB_data(sbh), VSB_len(sbh));
 
-		if (http_GetHdr(sp->http, vsb_data(sbh), &h)) {
+		if (http_GetHdr(sp->http, VSB_data(sbh), &h)) {
 			/* Trim leading and trailing space */
 			while (isspace(*h))
 				h++;
@@ -114,11 +110,11 @@ VRY_Create(const struct sess *sp, const struct http *hp)
 			/* Encode two byte length and contents */
 			l = e - h;
 			assert(!(l & ~0xffff));
-			vsb_printf(sb, "%c%c", (unsigned)l >> 8, l & 0xff);
-			vsb_bcat(sb, h, e - h);
+			VSB_printf(sb, "%c%c", (unsigned)l >> 8, l & 0xff);
+			VSB_bcat(sb, h, e - h);
 		} else {
 			/* Mark as "not present" */
-			vsb_printf(sb, "%c%c", 0xff, 0xff);
+			VSB_printf(sb, "%c%c", 0xff, 0xff);
 		}
 
 		while (isspace(*q))
@@ -129,11 +125,10 @@ VRY_Create(const struct sess *sp, const struct http *hp)
 		p = q;
 	}
 	/* Terminate vary matching string */
-	vsb_printf(sb, "%c", 0);
+	VSB_printf(sb, "%c", 0);
 
-	vsb_delete(sbh);
-	vsb_finish(sb);
-	AZ(vsb_overflowed(sb));
+	VSB_delete(sbh);
+	AZ(VSB_finish(sb));
 	return(sb);
 }
 
@@ -145,6 +140,24 @@ VRY_Match(const struct sess *sp, const unsigned char *vary)
 
 	while (*vary) {
 
+		if (params->http_gzip_support &&
+		    !strcasecmp(H_Accept_Encoding, (const char*)vary)) {
+			/*
+			 * If we do gzip processing, we do not vary on
+			 * Accept-Encoding, because we want everybody to
+			 * get the gzip'ed object, and varnish will gunzip
+			 * as necessary.  We implement the skip at check
+			 * time, rather than create time, so that object
+			 * in persistent storage can be used with either
+			 *  setting of http_gzip_support.
+			 */
+			vary += *vary + 2;
+			l = vary[0] * 256 + vary[1];
+			vary += 2;
+			if (l != 0xffff)
+				vary += l;
+			continue;
+		}
 		/* Look for header */
 		i = http_GetHdr(sp->http, (const char*)vary, &h);
 		vary += *vary + 2;

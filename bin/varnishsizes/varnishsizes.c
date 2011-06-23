@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -32,9 +32,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/types.h>
 #include <curses.h>
 #include <errno.h>
@@ -49,7 +46,7 @@ SVNID("$Id$")
 #include <unistd.h>
 
 #include "libvarnish.h"
-#include "shmlog.h"
+#include "vsl.h"
 #include "varnishapi.h"
 
 #define HIST_N 2000 /* how far back we remember */
@@ -68,6 +65,7 @@ static unsigned next_hist;
 static unsigned bucket_miss[HIST_BUCKETS];
 static unsigned bucket_hit[HIST_BUCKETS];
 static unsigned char hh[FD_SETSIZE];
+static uint64_t bitmap[FD_SETSIZE];
 
 static double log_ten;
 
@@ -96,7 +94,7 @@ static int scales[] = {
 };
 
 static void
-update(void)
+update(struct VSM_data *vd)
 {
 	int w = COLS / HIST_RANGE;
 	int n = w * HIST_RANGE;
@@ -110,13 +108,13 @@ update(void)
 	w = COLS / HIST_RANGE;
 	n = w * HIST_RANGE;
 	for (i = 0; i < n; ++i)
-		mvaddch(LINES - 2, i, '-');
+		(void)mvaddch(LINES - 2, i, '-');
 	for (i = 0, j = HIST_LOW; i < HIST_RANGE; ++i, ++j) {
-		mvaddch(LINES - 2, w * i, '+');
+		(void)mvaddch(LINES - 2, w * i, '+');
 		mvprintw(LINES - 1, w * i, "|1e%d", j);
 	}
 
-	mvprintw(0, 0, "%*s", COLS - 1, VSL_Name());
+	mvprintw(0, 0, "%*s", COLS - 1, VSM_Name(vd));
 
 	/* count our flock */
 	for (i = 0; i < n; ++i)
@@ -139,22 +137,22 @@ update(void)
 	/* show them */
 	for (i = 0; i < n; ++i) {
 		for (j = 0; j < bm[i] / scale; ++j)
-			mvaddch(LINES - 3 - j, i, '#');
+			(void)mvaddch(LINES - 3 - j, i, '#');
 		for (; j < (bm[i] + bh[i]) / scale; ++j)
-			mvaddch(LINES - 3 - j, i, '|');
+			(void)mvaddch(LINES - 3 - j, i, '|');
 	}
 
 	refresh();
 }
 
 static int
-h_hist(void *priv, enum shmlogtag tag, unsigned fd, unsigned len,
-    unsigned spec, const char *ptr)
+h_hist(void *priv, enum VSL_tag_e tag, unsigned fd, unsigned len,
+    unsigned spec, const char *ptr, uint64_t bm)
 {
 	double b;
 	int i, j, tmp;
+	struct VSM_data *vd = priv;
 
-	(void)priv;
 	(void)len;
 	(void)spec;
 
@@ -162,12 +160,20 @@ h_hist(void *priv, enum shmlogtag tag, unsigned fd, unsigned len,
 		/* oops */
 		return (0);
 
+	bitmap[fd] |= bm;
+
 	if (tag == SLT_Hit) {
 		hh[fd] = 1;
 		return (0);
 	}
 	if (tag != SLT_Length)
 		return (0);
+
+	if (!VSL_Matched(vd, bitmap[fd])) {
+		bitmap[fd] = 0;
+		hh[fd] = 0;
+		return (0);
+	}
 
 	/* determine processing time */
 	i = sscanf(ptr, "%d", &tmp);
@@ -216,6 +222,7 @@ h_hist(void *priv, enum shmlogtag tag, unsigned fd, unsigned len,
 		next_hist = 0;
 	}
 	hh[fd] = 0;
+	bitmap[fd] = 0;
 
 	pthread_mutex_unlock(&mtx);
 
@@ -225,11 +232,11 @@ h_hist(void *priv, enum shmlogtag tag, unsigned fd, unsigned len,
 static void *
 accumulate_thread(void *arg)
 {
-	struct VSL_data *vd = arg;
+	struct VSM_data *vd = arg;
 	int i;
 
 	for (;;) {
-		i = VSL_Dispatch(vd, h_hist, NULL);
+		i = VSL_Dispatch(vd, h_hist, vd);
 		if (i < 0)
 			break;
 		if (i == 0)
@@ -239,7 +246,7 @@ accumulate_thread(void *arg)
 }
 
 static void
-do_curses(struct VSL_data *vd)
+do_curses(struct VSM_data *vd)
 {
 	pthread_t thr;
 	int ch;
@@ -258,7 +265,7 @@ do_curses(struct VSL_data *vd)
 	erase();
 	for (;;) {
 		pthread_mutex_lock(&mtx);
-		update();
+		update(vd);
 		pthread_mutex_unlock(&mtx);
 
 		timeout(delay * 1000);
@@ -320,18 +327,15 @@ int
 main(int argc, char **argv)
 {
 	int o;
-	struct VSL_data *vd;
-	const char *n_arg = NULL;
+	struct VSM_data *vd;
 
-	vd = VSL_New();
+	vd = VSM_New();
+	VSL_Setup(vd);
 
-	while ((o = getopt(argc, argv, VSL_ARGS "n:Vw:")) != -1) {
+	while ((o = getopt(argc, argv, VSL_ARGS "Vw:")) != -1) {
 		switch (o) {
-		case 'n':
-			n_arg = optarg;
-			break;
 		case 'V':
-			varnish_version("varnishsizes");
+			VCS_Message("varnishsizes");
 			exit(0);
 		case 'w':
 			delay = atoi(optarg);
@@ -343,7 +347,7 @@ main(int argc, char **argv)
 		}
 	}
 
-	if (VSL_OpenLog(vd, n_arg))
+	if (VSL_Open(vd, 1))
 		exit(1);
 
 	log_ten = log(10.0);

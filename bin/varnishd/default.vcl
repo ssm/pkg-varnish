@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -26,8 +26,6 @@
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
- * $Id$
- *
  * The default VCL code.
  *
  * NB! You do NOT need to copy & paste all of these functions into your
@@ -43,7 +41,7 @@ sub vcl_recv {
     if (req.restarts == 0) {
 	if (req.http.x-forwarded-for) {
 	    set req.http.X-Forwarded-For =
-		req.http.X-Forwarded-For ", " client.ip;
+		req.http.X-Forwarded-For + ", " + client.ip;
 	} else {
 	    set req.http.X-Forwarded-For = client.ip;
 	}
@@ -84,19 +82,16 @@ sub vcl_pass {
 }
 
 sub vcl_hash {
-    set req.hash += req.url;
+    hash_data(req.url);
     if (req.http.host) {
-        set req.hash += req.http.host;
+        hash_data(req.http.host);
     } else {
-        set req.hash += server.ip;
+        hash_data(server.ip);
     }
     return (hash);
 }
 
 sub vcl_hit {
-    if (!obj.cacheable) {
-        return (pass);
-    }
     return (deliver);
 }
 
@@ -105,11 +100,14 @@ sub vcl_miss {
 }
 
 sub vcl_fetch {
-    if (!beresp.cacheable) {
-        return (pass);
-    }
-    if (beresp.http.Set-Cookie) {
-        return (pass);
+    if (beresp.ttl <= 0s ||
+        beresp.http.Set-Cookie ||
+        beresp.http.Vary == "*") {
+		/*
+		 * Mark as "Hit-For-Pass" for the next 2 minutes
+		 */
+		set beresp.ttl = 120 s;
+		return (hit_for_pass);
     }
     return (deliver);
 }
@@ -120,23 +118,32 @@ sub vcl_deliver {
 
 sub vcl_error {
     set obj.http.Content-Type = "text/html; charset=utf-8";
+    set obj.http.Retry-After = "5";
     synthetic {"
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html>
   <head>
-    <title>"} obj.status " " obj.response {"</title>
+    <title>"} + obj.status + " " + obj.response + {"</title>
   </head>
   <body>
-    <h1>Error "} obj.status " " obj.response {"</h1>
-    <p>"} obj.response {"</p>
+    <h1>Error "} + obj.status + " " + obj.response + {"</h1>
+    <p>"} + obj.response + {"</p>
     <h3>Guru Meditation:</h3>
-    <p>XID: "} req.xid {"</p>
+    <p>XID: "} + req.xid + {"</p>
     <hr>
     <p>Varnish cache server</p>
   </body>
 </html>
 "};
     return (deliver);
+}
+
+sub vcl_init {
+	return (ok);
+}
+
+sub vcl_fini {
+	return (ok);
 }

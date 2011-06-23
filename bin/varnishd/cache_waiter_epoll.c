@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Rogerio Carvalho Schneider <stockrt@gmail.com>
@@ -33,9 +33,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #if defined(HAVE_EPOLL_CTL)
 
 #include <stdio.h>
@@ -51,7 +48,6 @@ SVNID("$Id$")
 #  define EPOLLRDHUP 0
 #endif
 
-#include "shmlog.h"
 #include "cache.h"
 #include "cache_waiter.h"
 
@@ -197,7 +193,7 @@ vca_main(void *arg)
 			if (sp->t_open > deadline)
 				break;
 			VTAILQ_REMOVE(&sesshead, sp, list);
-			// XXX: not yet TCP_linger(sp->fd, 0);
+			// XXX: not yet VTCP_linger(sp->fd, 0);
 			vca_close_session(sp, "timeout");
 			SES_Delete(sp);
 		}

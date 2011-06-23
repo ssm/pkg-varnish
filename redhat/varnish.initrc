@@ -1,12 +1,12 @@
 #! /bin/sh
 #
-# varnish Control the varnish HTTP accelerator
+# varnish Control the Varnish Cache
 #
 # chkconfig: - 90 10
 # description: Varnish is a high-perfomance HTTP accelerator
 # processname: varnishd
 # config: /etc/sysconfig/varnish
-# pidfile: /var/run/varnish/varnishd.pid
+# pidfile: /var/run/varnishd.pid
 
 ### BEGIN INIT INFO
 # Provides: varnish
@@ -26,7 +26,7 @@ retval=0
 pidfile=/var/run/varnish.pid
 
 exec="/usr/sbin/varnishd"
-reload_exec="/usr/sbin/varnish_reload_vcl"
+reload_exec="/usr/bin/varnish_reload_vcl"
 prog="varnishd"
 config="/etc/sysconfig/varnish"
 lockfile="/var/lock/subsys/varnish"
@@ -48,7 +48,7 @@ start() {
 		echo $config not found
 		exit 6
 	fi
-	echo -n "Starting varnish HTTP accelerator: "
+	echo -n "Starting Varnish Cache: "
 
 	# Open files (usually 1024, which is way too small for varnish)
 	ulimit -n ${NFILES:-131072}
@@ -80,7 +80,7 @@ start() {
 }
 
 stop() {
-	echo -n "Stopping varnish HTTP accelerator: "
+	echo -n "Stopping Varnish Cache: "
 	killproc -p $pidfile $prog
 	retval=$?
 	echo
@@ -114,6 +114,14 @@ rh_status_q() {
 	rh_status >/dev/null 2>&1
 }
 
+configtest() {
+    if [ -f "$VARNISH_VCL_CONF" ]; then
+        $exec -f "$VARNISH_VCL_CONF" -C -n /tmp > /dev/null && echo "Syntax ok"
+    else
+	echo "VARNISH_VCL_CONF is  unset or does not point to a file"
+    fi
+}
+
 # See how we were called.
 case "$1" in
 	start)
@@ -140,6 +148,9 @@ case "$1" in
 	condrestart|try-restart)
 		rh_status_q || exit 0
 		restart
+		;;
+	configtest)
+		configtest
 		;;
 	*)
 	echo "Usage: $0 {start|stop|status|restart|condrestart|try-restart|reload|force-reload}"

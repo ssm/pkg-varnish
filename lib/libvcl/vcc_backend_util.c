@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -29,9 +29,6 @@
  */
 
 #include "config.h"
-
-#include "svnid.h"
-SVNID("$Id$")
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -67,7 +64,7 @@ vcc_ResetFldSpec(struct fld_spec *f)
 }
 
 struct fld_spec *
-vcc_FldSpec(struct tokenlist *tl, const char *first, ...)
+vcc_FldSpec(struct vcc *tl, const char *first, ...)
 {
 	struct fld_spec f[100], *r;
 	int n = 0;
@@ -94,7 +91,7 @@ vcc_FldSpec(struct tokenlist *tl, const char *first, ...)
 }
 
 void
-vcc_IsField(struct tokenlist *tl, struct token **t, struct fld_spec *fs)
+vcc_IsField(struct vcc *tl, struct token **t, struct fld_spec *fs)
 {
 	struct token *t_field;
 
@@ -112,28 +109,28 @@ vcc_IsField(struct tokenlist *tl, struct token **t, struct fld_spec *fs)
 			fs->found = t_field;
 			return;
 		}
-		vsb_printf(tl->sb, "Field ");
+		VSB_printf(tl->sb, "Field ");
 		vcc_ErrToken(tl, t_field);
-		vsb_printf(tl->sb, " redefined at:\n");
+		VSB_printf(tl->sb, " redefined at:\n");
 		vcc_ErrWhere(tl, t_field);
-		vsb_printf(tl->sb, "\nFirst defined at:\n");
+		VSB_printf(tl->sb, "\nFirst defined at:\n");
 		vcc_ErrWhere(tl, fs->found);
 		return;
 	}
-	vsb_printf(tl->sb, "Unknown field: ");
+	VSB_printf(tl->sb, "Unknown field: ");
 	vcc_ErrToken(tl, t_field);
-	vsb_printf(tl->sb, " at\n");
+	VSB_printf(tl->sb, " at\n");
 	vcc_ErrWhere(tl, t_field);
 	return;
 }
 
 void
-vcc_FieldsOk(struct tokenlist *tl, const struct fld_spec *fs)
+vcc_FieldsOk(struct vcc *tl, const struct fld_spec *fs)
 {
 
 	for (; fs->name != NULL; fs++) {
 		if (*fs->name == '!' && fs->found == NULL) {
-			vsb_printf(tl->sb,
+			VSB_printf(tl->sb,
 			    "Mandatory field '%s' missing.\n", fs->name + 1);
 			tl->err = 1;
 		}

@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -30,9 +30,6 @@
  */
 
 #include "config.h"
-
-#include "svnid.h"
-SVNID("$Id$")
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -195,7 +192,7 @@ STV_FileSize(int fd, const char *size, unsigned *granularity, const char *ctx)
 	if ((size == NULL || *size == '\0') && st.st_size != 0) {
 		/*
 		 * We have no size specification, but an existing file,
-		 * use it's existing size.
+		 * use its existing size.
 		 */
 		l = st.st_size;
 	} else {
@@ -204,6 +201,10 @@ STV_FileSize(int fd, const char *size, unsigned *granularity, const char *ctx)
 
 		if (q != NULL)
 			ARGV_ERR("(%s) size \"%s\": %s\n", size, ctx, q);
+
+		if (l < 1024*1024)
+			ARGV_ERR("(-spersistent) size \"%s\": too small, "
+				 "did you forget to specify M or G?\n", size);
 	}
 
 	/*
@@ -227,7 +228,7 @@ STV_FileSize(int fd, const char *size, unsigned *granularity, const char *ctx)
 		    " to %ju (80%% of available disk space)\n", ctx, l);
 	}
 
-	if (sizeof(void *) == 4 && l > INT32_MAX) { /*lint !e506 !e774 */
+	if (sizeof(void *) == 4 && l > INT32_MAX) { /*lint !e506 !e774 !e845 */
 		fprintf(stderr,
 		    "NB: Storage size limited to 2GB on 32 bit architecture,\n"
 		    "NB: otherwise we could run out of address space.\n"

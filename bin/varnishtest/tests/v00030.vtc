@@ -1,6 +1,4 @@
-# $Id: v00028.vtc 5125 2010-08-25 08:57:04Z phk $
-
-test "DNS director bad VCL tests"
+varnishtest "DNS director bad VCL tests"
 
 varnish v1 -badvcl {
        director directorname dns {
@@ -20,6 +18,14 @@ varnish v1 -badvcl {
        }
 }
 
+varnish v9 -badvcl {
+       director directorname dns {
+               .list = {
+                       .host_hdr = "192.168.1.1";
+		       "192.168.1.2";
+               }
+       }
+}
 varnish v1 -badvcl {
        director directorname dns {
                .list = {
@@ -44,6 +50,7 @@ varnish v1 -badvcl {
                }
        }
 }
+
 varnish v1 -badvcl {
        director directorname dns {
                .list = {

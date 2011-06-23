@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2008-2009 Linpro AS
+ * Copyright (c) 2008-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -25,7 +25,6 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $Id$
  */
 
 /*
@@ -44,11 +43,11 @@
  *	sha256[...]			checksum of same
  *
  *	struct smp_sign;
- *	struct smp_segment_1[N];	Segment table
+ *	struct smp_segment_1[N];	First Segment table
  *	sha256[...]			checksum of same
  *
  *	struct smp_sign;
- *	struct smp_segment_2[N];	Segment table
+ *	struct smp_segment_2[N];	Second Segment table
  *	sha256[...]			checksum of same
  *
  *	N segments {
@@ -79,9 +78,9 @@ struct smp_ident {
 
 	uint32_t		major_version;
 
-	uint32_t		minor_version;
-
 	uint32_t		unique;
+
+	uint32_t		align;		/* alignment in silo */
 
 	uint32_t		granularity;	/* smallest ... in bytes */
 
@@ -122,19 +121,22 @@ struct smp_sign {
  */
 
 struct smp_segptr {
-	uint64_t		offset;
-	uint64_t		length;
-	uint64_t		objlist;
-	uint32_t		nalloc;
+	uint64_t		offset;		/* rel to silo */
+	uint64_t		length;		/* rel to offset */
+	uint64_t		objlist;	/* rel to silo */
+	uint32_t		lobjlist;	/* len of objlist */
 };
 
 /*
  * An object descriptor
+ *
+ * A positive ttl is obj.ttl with obj.grace being NAN
+ * A negative ttl is - (obj.ttl + obj.grace)
  */
 
 struct smp_object {
-	unsigned char		hash[32];
+	uint8_t			hash[32];	/* really: DIGEST_LEN */
 	double			ttl;
 	double			ban;
-	struct object		*ptr;
+	uint64_t		ptr;		/* rel to silo */
 };

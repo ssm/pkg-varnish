@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -33,14 +33,11 @@
  *
  * Any object on the LRU is also on the binheap and vice versa.
  *
- * We hold one object reference for both data structures.
+ * We hold a single object reference for both data structures.
  *
  */
 
 #include "config.h"
-
-#include "svnid.h"
-SVNID("$Id$")
 
 #include <unistd.h>
 #include <stdio.h>
@@ -48,10 +45,8 @@ SVNID("$Id$")
 #include <string.h>
 #include <math.h>
 
-#include "shmlog.h"
 #include "binary_heap.h"
 #include "cache.h"
-#include "vcl.h"
 #include "hash_slinger.h"
 #include "stevedore.h"
 
@@ -59,12 +54,85 @@ static pthread_t exp_thread;
 static struct binheap *exp_heap;
 static struct lock exp_mtx;
 
-/*
- * This is a magic marker for the objects currently on the SIOP [look it up]
- * so that other users of the object will not stumble trying to change the
- * ttl or lru position.
+/*--------------------------------------------------------------------
+ * struct exp manipulations
+ *
+ * The Get/Set functions encapsulate the mutual magic between the
+ * fields in one single place.
  */
-#define BINHEAP_NOIDX 0
+
+void
+EXP_Clr(struct exp *e)
+{
+
+	e->ttl = -1;
+	e->grace = -1;
+	e->keep = -1;
+}
+
+#define EXP_ACCESS(fld, low_val, extra)				\
+	double							\
+	EXP_Get_##fld(const struct exp *e)			\
+	{							\
+		return (e->fld > 0. ? e->fld : low_val);	\
+	}							\
+								\
+	void							\
+	EXP_Set_##fld(struct exp *e, double v)			\
+	{							\
+		if (v > 0.)					\
+			e->fld = v;				\
+		else {						\
+			e->fld = -1.;				\
+			extra;					\
+		}						\
+	}							\
+
+EXP_ACCESS(ttl, -1., (e->grace = e->keep = -1.))
+EXP_ACCESS(grace, 0., )
+EXP_ACCESS(keep, 0.,)
+
+/*--------------------------------------------------------------------
+ * Calculate when an object is out of ttl or grace, possibly constrained
+ * by per-session limits.
+ */
+
+static double
+EXP_Keep(const struct sess *sp, const struct object *o)
+{
+	double r;
+
+	r = (double)params->default_keep;
+	if (o->exp.keep > 0.)
+		r = o->exp.keep;
+	if (sp != NULL && sp->exp.keep > 0. && sp->exp.keep < r)
+		r = sp->exp.keep;
+	return (EXP_Ttl(sp, o) + r);
+}
+
+double
+EXP_Grace(const struct sess *sp, const struct object *o)
+{
+	double r;
+
+	r = (double)params->default_grace;
+	if (o->exp.grace >= 0.)
+		r = o->exp.grace;
+	if (sp != NULL && sp->exp.grace > 0. && sp->exp.grace < r)
+		r = sp->exp.grace;
+	return (EXP_Ttl(sp, o) + r);
+}
+
+double
+EXP_Ttl(const struct sess *sp, const struct object *o)
+{
+	double r;
+
+	r = o->exp.ttl;
+	if (sp != NULL && sp->exp.ttl > 0. && sp->exp.ttl < r)
+		r = sp->exp.ttl;
+	return (o->entered + r);
+}
 
 /*--------------------------------------------------------------------
  * When & why does the timer fire for this object ?
@@ -74,14 +142,17 @@ static int
 update_object_when(const struct object *o)
 {
 	struct objcore *oc;
-	double when;
+	double when, w2;
 
 	CHECK_OBJ_NOTNULL(o, OBJECT_MAGIC);
 	oc = o->objcore;
 	CHECK_OBJ_NOTNULL(oc, OBJCORE_MAGIC);
 	Lck_AssertHeld(&exp_mtx);
 
-	when = o->ttl + HSH_Grace(o->grace);
+	when = EXP_Keep(NULL, o);
+	w2 = EXP_Grace(NULL, o);
+	if (w2 > when)
+		when = w2;
 	assert(!isnan(when));
 	if (when == oc->timer_when)
 		return (0);
@@ -89,28 +160,39 @@ update_object_when(const struct object *o)
 	return (1);
 }
 
+/*--------------------------------------------------------------------*/
+
+static void
+exp_insert(struct objcore *oc, struct lru *lru)
+{
+	CHECK_OBJ_NOTNULL(oc, OBJCORE_MAGIC);
+	CHECK_OBJ_NOTNULL(lru, LRU_MAGIC);
+
+	assert(oc->timer_idx == BINHEAP_NOIDX);
+	binheap_insert(exp_heap, oc);
+	assert(oc->timer_idx != BINHEAP_NOIDX);
+	VTAILQ_INSERT_TAIL(&lru->lru_head, oc, lru_list);
+}
+
 /*--------------------------------------------------------------------
  * Object has been added to cache, record in lru & binheap.
  *
- * We grab a reference to the object, which will keep it around until
- * we decide its time to let it go.
+ * The objcore comes with a reference, which we inherit.
  */
 
 void
-EXP_Inject(struct objcore *oc, struct lru *lru, double ttl)
+EXP_Inject(struct objcore *oc, struct lru *lru, double when)
 {
 
 	CHECK_OBJ_NOTNULL(oc, OBJCORE_MAGIC);
 	CHECK_OBJ_NOTNULL(lru, LRU_MAGIC);
 
+	Lck_Lock(&lru->mtx);
 	Lck_Lock(&exp_mtx);
-	assert(oc->timer_idx == BINHEAP_NOIDX);
-	oc->timer_when = ttl;
-	binheap_insert(exp_heap, oc);
-	assert(oc->timer_idx != BINHEAP_NOIDX);
-	VLIST_INSERT_BEFORE(&lru->senteniel, oc, lru_list);
-	oc->flags |= OC_F_ONLRU;
+	oc->timer_when = when;
+	exp_insert(oc, lru);
 	Lck_Unlock(&exp_mtx);
+	Lck_Unlock(&lru->mtx);
 }
 
 /*--------------------------------------------------------------------
@@ -127,28 +209,23 @@ EXP_Insert(struct object *o)
 	struct lru *lru;
 
 	CHECK_OBJ_NOTNULL(o, OBJECT_MAGIC);
-	CHECK_OBJ_NOTNULL(o->objcore, OBJCORE_MAGIC);
-	AN(ObjIsBusy(o));
-	assert(o->cacheable);
-	HSH_Ref(o);
 	oc = o->objcore;
+	CHECK_OBJ_NOTNULL(oc, OBJCORE_MAGIC);
+	AssertObjBusy(o);
+	HSH_Ref(oc);
 
 	assert(o->entered != 0 && !isnan(o->entered));
 	o->last_lru = o->entered;
+
+	lru = oc_getlru(oc);
+	CHECK_OBJ_NOTNULL(lru, LRU_MAGIC);
+	Lck_Lock(&lru->mtx);
 	Lck_Lock(&exp_mtx);
-	assert(oc->timer_idx == BINHEAP_NOIDX);
 	(void)update_object_when(o);
-	binheap_insert(exp_heap, oc);
-	assert(oc->timer_idx != BINHEAP_NOIDX);
-	if (o->objstore != NULL) {
-		lru = STV_lru(o->objstore);
-		CHECK_OBJ_NOTNULL(lru, LRU_MAGIC);
-		VLIST_INSERT_BEFORE(&lru->senteniel, oc, lru_list);
-		oc->flags |= OC_F_ONLRU;
-	}
+	exp_insert(oc, lru);
 	Lck_Unlock(&exp_mtx);
-	if (o->objcore->smp_seg != NULL)
-		SMP_TTLchanged(o);
+	Lck_Unlock(&lru->mtx);
+	oc_updatemeta(oc);
 }
 
 /*--------------------------------------------------------------------
@@ -156,24 +233,15 @@ EXP_Insert(struct object *o)
  *
  * To avoid the exp_mtx becoming a hotspot, we only attempt to move
  * objects if they have not been moved recently and if the lock is available.
- * This optimization obviously leaves the LRU list imperfectly sorted, but
- * that can be worked around by examining obj.last_use in vcl_discard{}
+ * This optimization obviously leaves the LRU list imperfectly sorted.
  */
 
 int
-EXP_Touch(const struct object *o)
+EXP_Touch(struct objcore *oc)
 {
-	int retval;
-	struct objcore *oc;
 	struct lru *lru;
 
-	CHECK_OBJ_NOTNULL(o, OBJECT_MAGIC);
-	oc = o->objcore;
-	if (oc == NULL)
-		return (0);
 	CHECK_OBJ_NOTNULL(oc, OBJCORE_MAGIC);
-	/* We must have an objhead, otherwise we have no business on a LRU */
-	CHECK_OBJ_NOTNULL(oc->objhead, OBJHEAD_MAGIC);
 
 	/*
 	 * For -spersistent we don't move objects on the lru list.  Each
@@ -185,21 +253,25 @@ EXP_Touch(const struct object *o)
 	if (oc->flags & OC_F_LRUDONTMOVE)
 		return (0);
 
-	if (o->objstore == NULL)	/* XXX ?? */
-		return (0);
-	lru = STV_lru(o->objstore);
+	lru = oc_getlru(oc);
 	CHECK_OBJ_NOTNULL(lru, LRU_MAGIC);
-	retval = 0;
-	if (Lck_Trylock(&exp_mtx))
-		return (retval);
-	if (oc->flags & OC_F_ONLRU) {	/* XXX ?? */
-		VLIST_REMOVE(oc, lru_list);
-		VLIST_INSERT_BEFORE(&lru->senteniel, oc, lru_list);
-		VSL_stats->n_lru_moved++;
-		retval = 1;
+
+	/*
+	 * We only need the LRU lock here.  The locking order is LRU->EXP
+	 * so we can trust the content of the oc->timer_idx without the
+	 * EXP lock.   Since each lru list has its own lock, this should
+	 * reduce contention a fair bit
+	 */
+	if (Lck_Trylock(&lru->mtx))
+		return (0);
+
+	if (oc->timer_idx != BINHEAP_NOIDX) {
+		VTAILQ_REMOVE(&lru->lru_head, oc, lru_list);
+		VTAILQ_INSERT_TAIL(&lru->lru_head, oc, lru_list);
+		VSC_C_main->n_lru_moved++;
 	}
-	Lck_Unlock(&exp_mtx);
-	return (retval);
+	Lck_Unlock(&lru->mtx);
+	return (1);
 }
 
 /*--------------------------------------------------------------------
@@ -215,12 +287,15 @@ void
 EXP_Rearm(const struct object *o)
 {
 	struct objcore *oc;
+	struct lru *lru;
 
 	CHECK_OBJ_NOTNULL(o, OBJECT_MAGIC);
 	oc = o->objcore;
 	if (oc == NULL)
 		return;
 	CHECK_OBJ_NOTNULL(oc, OBJCORE_MAGIC);
+	lru = oc_getlru(oc);
+	Lck_Lock(&lru->mtx);
 	Lck_Lock(&exp_mtx);
 	/*
 	 * The hang-man might have this object of the binheap while
@@ -232,48 +307,68 @@ EXP_Rearm(const struct object *o)
 		assert(oc->timer_idx != BINHEAP_NOIDX);
 	}
 	Lck_Unlock(&exp_mtx);
-	if (o->objcore->smp_seg != NULL)
-		SMP_TTLchanged(o);
+	Lck_Unlock(&lru->mtx);
+	oc_updatemeta(oc);
 }
-
 
 /*--------------------------------------------------------------------
  * This thread monitors the root of the binary heap and whenever an
  * object expires, accounting also for graceability, it is killed.
  */
 
-static void *
+static void * __match_proto__(void *start_routine(void *))
 exp_timer(struct sess *sp, void *priv)
 {
 	struct objcore *oc;
-	struct object *o;
+	struct lru *lru;
 	double t;
 
 	(void)priv;
-	VCL_Get(&sp->vcl);
 	t = TIM_real();
+	oc = NULL;
 	while (1) {
+		if (oc == NULL) {
+			WSL_Flush(sp->wrk, 0);
+			WRK_SumStat(sp->wrk);
+			TIM_sleep(params->expiry_sleep);
+			t = TIM_real();
+		}
+
 		Lck_Lock(&exp_mtx);
 		oc = binheap_root(exp_heap);
-		CHECK_OBJ_ORNULL(oc, OBJCORE_MAGIC);
+		if (oc == NULL) {
+			Lck_Unlock(&exp_mtx);
+			continue;
+		}
+		CHECK_OBJ_NOTNULL(oc, OBJCORE_MAGIC);
+
 		/*
 		 * We may have expired so many objects that our timestamp
 		 * got out of date, refresh it and check again.
 		 */
-		if (oc != NULL && oc->timer_when > t)
+		if (oc->timer_when > t)
 			t = TIM_real();
-		if (oc == NULL || oc->timer_when > t) { /* XXX: > or >= ? */
+		if (oc->timer_when > t) {
 			Lck_Unlock(&exp_mtx);
-			WSL_Flush(sp->wrk, 0);
-			WRK_SumStat(sp->wrk);
-			TIM_sleep(params->expiry_sleep);
-			VCL_Refresh(&sp->vcl);
-			t = TIM_real();
+			oc = NULL;
 			continue;
 		}
 
-		/* It's time... */
-		CHECK_OBJ_NOTNULL(oc->objhead, OBJHEAD_MAGIC);
+		/*
+		 * It's time...
+		 * Technically we should drop the exp_mtx, get the lru->mtx
+		 * get the exp_mtx again and then check that the oc is still
+		 * on the binheap.  We take the shorter route and try to
+		 * get the lru->mtx and punt if we fail.
+		 */
+
+		lru = oc_getlru(oc);
+		CHECK_OBJ_NOTNULL(lru, LRU_MAGIC);
+		if (Lck_Trylock(&lru->mtx)) {
+			Lck_Unlock(&exp_mtx);
+			oc = NULL;
+			continue;
+		}
 
 		/* Remove from binheap */
 		assert(oc->timer_idx != BINHEAP_NOIDX);
@@ -281,86 +376,62 @@ exp_timer(struct sess *sp, void *priv)
 		assert(oc->timer_idx == BINHEAP_NOIDX);
 
 		/* And from LRU */
-		if (oc->flags & OC_F_ONLRU) {
-			VLIST_REMOVE(oc, lru_list);
-			oc->flags &= ~OC_F_ONLRU;
-		}
-
-		VSL_stats->n_expired++;
+		lru = oc_getlru(oc);
+		VTAILQ_REMOVE(&lru->lru_head, oc, lru_list);
 
 		Lck_Unlock(&exp_mtx);
+		Lck_Unlock(&lru->mtx);
+
+		VSC_C_main->n_expired++;
 
 		CHECK_OBJ_NOTNULL(oc->objhead, OBJHEAD_MAGIC);
-		if (!(oc->flags & OC_F_PERSISTENT)) {
-			o = oc->obj;
-			CHECK_OBJ_NOTNULL(o, OBJECT_MAGIC);
-			WSL(sp->wrk, SLT_ExpKill, 0, "%u %d",
-			    o->xid, (int)(o->ttl - t));
-			HSH_Deref(sp->wrk, &o);
-		} else {
-			WSL(sp->wrk, SLT_ExpKill, 1, "-1 %d",
-			    (int)(oc->timer_when - t));
-			sp->objhead = oc->objhead;
-			sp->objcore = oc;
-			HSH_DerefObjCore(sp);
-			AZ(sp->objcore);
-			AZ(sp->objhead);
-			sp->wrk->stats.n_vampireobject--;
-		}
+		(void)HSH_Deref(sp->wrk, oc, NULL);
 	}
 	NEEDLESS_RETURN(NULL);
 }
 
 /*--------------------------------------------------------------------
- * Attempt to make space by nuking, the oldest object on the LRU list
+ * Attempt to make space by nuking the oldest object on the LRU list
  * which isn't in use.
  * Returns: 1: did, 0: didn't, -1: can't
  */
 
 int
-EXP_NukeOne(const struct sess *sp, const struct lru *lru)
+EXP_NukeOne(const struct sess *sp, struct lru *lru)
 {
 	struct objcore *oc;
 	struct object *o;
 
-	/*
-	 * Find the first currently unused object on the LRU.
-	 *
-	 * Ideally we would have the refcnt in the objcore so we object does
-	 * not need to get paged in for this check, but it does not pay off
-	 * the complexity:  The chances of an object being in front of the LRU,
-	 * with active references, likely means that it is already in core. An
-	 * object with no active references will be prodded further anyway.
-	 *
-	 */
+	/* Find the first currently unused object on the LRU.  */
+	Lck_Lock(&lru->mtx);
 	Lck_Lock(&exp_mtx);
-	VLIST_FOREACH(oc, &lru->lru_head, lru_list) {
-		if (oc == &lru->senteniel) {
-			AZ(VLIST_NEXT(oc, lru_list));
-			oc = NULL;
-			break;
-		}
+	VTAILQ_FOREACH(oc, &lru->lru_head, lru_list) {
 		CHECK_OBJ_NOTNULL(oc, OBJCORE_MAGIC);
-		if (oc->timer_idx == BINHEAP_NOIDX)	/* exp_timer has it */
-			continue;
+		assert (oc->timer_idx != BINHEAP_NOIDX);
+		/*
+		 * It wont release any space if we cannot release the last
+		 * reference, besides, if somebody else has a reference,
+		 * it's a bad idea to nuke this object anyway.
+		 */
 		if (oc->refcnt == 1)
 			break;
 	}
 	if (oc != NULL) {
-		VLIST_REMOVE(oc, lru_list);
-		oc->flags &= ~OC_F_ONLRU;
+		VTAILQ_REMOVE(&lru->lru_head, oc, lru_list);
 		binheap_delete(exp_heap, oc->timer_idx);
 		assert(oc->timer_idx == BINHEAP_NOIDX);
-		VSL_stats->n_lru_nuked++;
+		VSC_C_main->n_lru_nuked++;
 	}
 	Lck_Unlock(&exp_mtx);
+	Lck_Unlock(&lru->mtx);
 
 	if (oc == NULL)
 		return (-1);
 
-	WSL(sp->wrk, SLT_ExpKill, 0, "%u LRU", oc->obj->xid);
-	o = oc->obj;
-	HSH_Deref(sp->wrk, &o);
+	/* XXX: bad idea for -spersistent */
+	o = oc_getobj(sp->wrk, oc);
+	WSL(sp->wrk, SLT_ExpKill, 0, "%u LRU", o->xid);
+	(void)HSH_Deref(sp->wrk, NULL, &o);
 	return (1);
 }
 
@@ -395,7 +466,7 @@ void
 EXP_Init(void)
 {
 
-	Lck_New(&exp_mtx);
+	Lck_New(&exp_mtx, lck_exp);
 	exp_heap = binheap_new(NULL, object_cmp, object_update);
 	XXXAN(exp_heap);
 	WRK_BgThread(&exp_thread, "cache-timeout", exp_timer, NULL);

@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -31,9 +31,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -41,7 +38,7 @@ SVNID("$Id$")
 #include "libvarnish.h"
 
 static void
-lbv_assert_default(const char *func, const char *file, int line,
+VAS_Fail_default(const char *func, const char *file, int line,
     const char *cond, int err, int xxx)
 {
 
@@ -62,4 +59,4 @@ lbv_assert_default(const char *func, const char *file, int line,
 	abort();
 }
 
-lbv_assert_f *lbv_assert = lbv_assert_default;
+vas_f *VAS_Fail = VAS_Fail_default;

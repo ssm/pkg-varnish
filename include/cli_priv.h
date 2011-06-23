@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -25,8 +25,6 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * $Id$
  *
  * Varnish process internal CLI stuff.
  *
@@ -54,6 +52,6 @@ struct cli_proto {
 };
 
 /* The implementation must provide these functions */
-void cli_out(struct cli *cli, const char *fmt, ...);
-void cli_quote(struct cli *cli, const char *str);
-void cli_result(struct cli *cli, unsigned r);
+void VCLI_Out(struct cli *cli, const char *fmt, ...);
+void VCLI_Quote(struct cli *cli, const char *str);
+void VCLI_SetResult(struct cli *cli, unsigned r);

@@ -1,6 +1,4 @@
-# $Id$
-
-test "Check <esi: detector"
+varnishtest "Check <esi: detector"
 
 server s1 {
         rxreq
@@ -13,7 +11,7 @@ server s1 {
 
 varnish v1 -vcl+backend {
         sub vcl_fetch {
-                esi;
+                set beresp.do_esi = true;
         }
 } -start
 
@@ -25,5 +23,4 @@ client c1 {
 	expect resp.bodylen == 49
 } -run
 
-varnish v1 -expect esi_parse == 0
 varnish v1 -expect esi_errors == 0

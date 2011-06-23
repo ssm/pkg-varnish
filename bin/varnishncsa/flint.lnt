@@ -1,13 +1,5 @@
--passes=3
-
--header(../../config.h)
 
 +d__attribute__()=
-
-// Fix strchr() semtics, it can only return NULL if arg2 != 0
--sem(strchr, 1p, type(1), 2n == 0 ? (@p < 1p) : (@p < 1p || @p == 0 ))
-
--ffc	// No automatic custody
 
 -e763	// Redundant declaration for symbol '...' previously declared
 -e726	// Extraneous comma ignored
@@ -15,22 +7,6 @@
 -e716	// while(1) ... 
 -e785	// Too few initializers for aggregate 
 -e786	// String concatenation within initializer
-
--emacro(740, TAILQ_PREV) // Unusual pointer cast (incompatible indirect types)
--emacro((826), TAILQ_PREV) // Suspicious pointer-to-pointer conversion (area too small)
-
-
--esym(534, printf)	// Ignoring return value of function
--esym(534, fprintf)	// Ignoring return value of function
--esym(534, memset)	// Ignoring return value of function
--esym(534, memcpy)	// Ignoring return value of function
--esym(534, memmove)	// Ignoring return value of function
--esym(534, strcpy)	// Ignoring return value of function
--esym(534, vsb_printf)	// Ignoring return value of function
--esym(534, vsb_cat)	// Ignoring return value of function
-
-// cache.h
--emacro(506, INCOMPL) // Constant value Boolean
 
 // cache_center.c
 -efunc(525, CNT_Session)	// Negative indentation from line
@@ -57,4 +33,5 @@
 -e557	// unrecog format
 -e732   // Loss of sign (arg. no. 2) (int to unsigned
 -e737	// [45]  Loss of sign in promotion from int to unsigned
+-e788	// tag not used in defaulted switch
 

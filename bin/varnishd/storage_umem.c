@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -31,21 +31,16 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #ifdef HAVE_LIBUMEM
 
 #include <sys/types.h>
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
 
 #include <umem.h>
 
 #include "config.h"
-#include "shmlog.h"
 #include "cache.h"
 #include "stevedore.h"
 
@@ -63,13 +58,13 @@ smu_alloc(struct stevedore *st, size_t size)
 	struct smu *smu;
 
 	Lck_Lock(&smu_mtx);
-	VSL_stats->sma_nreq++;
-	if (VSL_stats->sma_nbytes + size > smu_max)
+	VSC_C_main->sma_nreq++;
+	if (VSC_C_main->sma_nbytes + size > smu_max)
 		size = 0;
 	else {
-		VSL_stats->sma_nobj++;
-		VSL_stats->sma_nbytes += size;
-		VSL_stats->sma_balloc += size;
+		VSC_C_main->sma_nobj++;
+		VSC_C_main->sma_nbytes += size;
+		VSC_C_main->sma_balloc += size;
 	}
 	Lck_Unlock(&smu_mtx);
 
@@ -91,7 +86,6 @@ smu_alloc(struct stevedore *st, size_t size)
 	return (&smu->s);
 }
 
-/*lint -e{818} not const-able */
 static void
 smu_free(struct storage *s)
 {
@@ -101,9 +95,9 @@ smu_free(struct storage *s)
 	smu = s->priv;
 	assert(smu->sz == smu->s.space);
 	Lck_Lock(&smu_mtx);
-	VSL_stats->sma_nobj--;
-	VSL_stats->sma_nbytes -= smu->sz;
-	VSL_stats->sma_bfree += smu->sz;
+	VSC_C_main->sma_nobj--;
+	VSC_C_main->sma_nbytes -= smu->sz;
+	VSC_C_main->sma_bfree += smu->sz;
 	Lck_Unlock(&smu_mtx);
 	umem_free(smu->s.ptr, smu->s.space);
 	umem_free(smu, sizeof *smu);
@@ -122,8 +116,8 @@ smu_trim(const struct storage *s, size_t size)
 		memcpy(p, smu->s.ptr, size);
 		umem_free(smu->s.ptr, smu->s.space);
 		Lck_Lock(&smu_mtx);
-		VSL_stats->sma_nbytes -= (smu->sz - size);
-		VSL_stats->sma_bfree += smu->sz - size;
+		VSC_C_main->sma_nbytes -= (smu->sz - size);
+		VSC_C_main->sma_bfree += smu->sz - size;
 		smu->sz = size;
 		Lck_Unlock(&smu_mtx);
 		smu->s.ptr = p;
@@ -161,7 +155,7 @@ smu_open(const struct stevedore *st)
 	AZ(pthread_mutex_init(&smu_mtx, NULL));
 }
 
-struct stevedore smu_stevedore = {
+const struct stevedore smu_stevedore = {
 	.magic	=	STEVEDORE_MAGIC,
 	.name	=	"umem",
 	.init	=	smu_init,

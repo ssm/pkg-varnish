@@ -1,10 +1,8 @@
-# $Id$
-
 INCLUDES = -I$(top_srcdir)/include @PCRE_CFLAGS@
 
-lib_LTLIBRARIES = libvarnish.la
+pkglib_LTLIBRARIES = libvarnish.la
 
-libvarnish_la_LDFLAGS = -version-info 1:0:0
+libvarnish_la_LDFLAGS = -avoid-version
 
 libvarnish_la_SOURCES = \
 	argv.c \
@@ -16,12 +14,13 @@ libvarnish_la_SOURCES = \
 	cli_serve.c \
 	flopen.c \
 	num.c \
-	svn_version.c \
+	vcs_version.h \
 	time.c \
 	tcp.c \
 	vct.c \
 	version.c \
 	vev.c \
+	vin.c \
 	vlu.c \
 	vmb.c \
 	vpf.c \
@@ -31,23 +30,28 @@ libvarnish_la_SOURCES = \
 	vss.c \
 	vtmpfile.c
 
+libvarnish_la_CFLAGS = -DVARNISH_STATE_DIR='"${VARNISH_STATE_DIR}"'
 libvarnish_la_LIBADD = ${RT_LIBS} ${NET_LIBS} ${LIBM} @PCRE_LIBS@
 
-DISTCLEANFILES = svn_version.c
-svn_version.c: FORCE
-	V="$$(git log -n 1 --pretty=format:%h 2>/dev/null || LANG=C svnversion -n $(top_srcdir))" \
-	H="$$(head -n 1 svn_version.c 2>/dev/null || true)"; \
-	[ "$$V" = "exported" ] && [ -e svn_version.c ] && exit 0 ; \
-	if [ "/* $$V */" != "$$H" ]; then \
+BUILT_SOURCES = vcs_version.h
+MAINTAINERCLEANFILES = vcs_version.h
+vcs_version.h: FORCE
+	if [ -d "$(top_srcdir)/.git" ]; then \
+		V="$$(git show -s --pretty=format:%h)" \
+		H="$$(head -n 1 vcs_version.h 2>/dev/null || true)"; \
+		if [ "/* $$V */" != "$$H" ]; then \
 		( \
 		  echo "/* $$V */" ;\
-		  echo "#include <libvarnish.h>" ;\
-		  echo "const char* svn_version(void)" ;\
-		  echo "{" ;\
-		  echo "	const char* SVN_Version = \"$$V\";" ;\
-		  echo "	return SVN_Version;" ;\
-		  echo "}" ;\
-		) > svn_version.c ; \
+		  echo '/*' ;\
+		  echo ' * NB:  This file is machine generated, DO NOT EDIT!' ;\
+		  echo ' *' ;\
+		  echo ' * Run make to regenerate' ;\
+		  echo ' *'  ;\
+		  echo ' */' ;\
+		  echo '' ;\
+		  echo "#define VCS_Version \"$$V\"" \
+		) > vcs_version.h ; \
+		fi \
 	fi
 FORCE:
 

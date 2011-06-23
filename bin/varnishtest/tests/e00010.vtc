@@ -1,6 +1,4 @@
-# $Id$
-
-test "Ignoring non esi elements"
+varnishtest "Ignoring non esi elements"
 
 server s1 {
 	rxreq 
@@ -15,7 +13,7 @@ server s1 {
 
 varnish v1 -vcl+backend {
 	sub vcl_fetch {
-		esi;
+		set beresp.do_esi = true;
 	}
 } -start -cli "param.set esi_syntax 2"
 

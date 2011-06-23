@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2010 Redpill Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -31,9 +31,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <errno.h>
 #include <unistd.h>
 #include <stdarg.h>
@@ -41,13 +38,8 @@ SVNID("$Id$")
 #include <stdlib.h>
 #include <string.h>
 
-#include "shmlog.h"
 #include "vct.h"
 #include "cache.h"
-
-#ifndef HAVE_STRLCPY
-#include <compat/strlcpy.h>
-#endif
 
 #define HTTPH(a, b, c, d, e, f, g) char b[] = "*" a ":";
 #include "http_headers.h"
@@ -65,14 +57,14 @@ SVNID("$Id$")
 	LOGMTX2(ax, HTTP_HDR_FIRST,	Header),	\
 	}
 
-static const enum shmlogtag logmtx[][HTTP_HDR_FIRST + 1] = {
+static const enum VSL_tag_e logmtx[][HTTP_HDR_FIRST + 1] = {
 	[HTTP_Rx] = LOGMTX1(Rx),
 	[HTTP_Tx] = LOGMTX1(Tx),
 	[HTTP_Obj] = LOGMTX1(Obj)
 };
 /*lint -restore */
 
-static enum shmlogtag
+static enum VSL_tag_e
 http2shmlog(const struct http *hp, int t)
 {
 
@@ -190,44 +182,44 @@ http_CollectHdr(struct http *hp, const char *hdr)
 	char *b = NULL, *e = NULL;
 
 	for (u = HTTP_HDR_FIRST; u < hp->nhd; u++) {
-		Tcheck(hp->hd[u]);
-		if (!http_IsHdr(&hp->hd[u], hdr))
-			continue;
-		if (f == 0) {
-			/* Found first header, just record the fact */
-			f = u;
-			continue;
-		}
-		if (b == NULL) {
-			/* Found second header */
-			ml = WS_Reserve(hp->ws, 0);
-			b = hp->ws->f;
-			e = b + ml;
-			x = Tlen(hp->hd[f]);
+		while (u < hp->nhd && http_IsHdr(&hp->hd[u], hdr)) {
+			Tcheck(hp->hd[u]);
+			if (f == 0) {
+				/* Found first header, just record the fact */
+				f = u;
+				break;
+			}
+			if (b == NULL) {
+				/* Found second header, start our collection */
+				ml = WS_Reserve(hp->ws, 0);
+				b = hp->ws->f;
+				e = b + ml;
+				x = Tlen(hp->hd[f]);
+				if (b + x < e) {
+					memcpy(b, hp->hd[f].b, x);
+					b += x;
+				} else
+					b = e;
+			}
+
+			AN(b);
+			AN(e);
+
+			/* Append the Nth header we found */
+			if (b < e)
+				*b++ = ',';
+			x = Tlen(hp->hd[u]) - *hdr;
 			if (b + x < e) {
-				memcpy(b, hp->hd[f].b, x);
+				memcpy(b, hp->hd[u].b + *hdr, x);
 				b += x;
-			} else 
+			} else
 				b = e;
+
+			/* Shift remaining headers up one slot */
+			for (v = u; v < hp->nhd - 1; v++)
+				hp->hd[v] = hp->hd[v + 1];
+			hp->nhd--;
 		}
-
-		AN(b);
-		AN(e);
-
-		/* Append the Nth header we found */
-		if (b < e)
-			*b++ = ',';
-		x = Tlen(hp->hd[u]) - *hdr;
-		if (b + x < e) {
-			memcpy(b, hp->hd[u].b + *hdr, x);
-			b += x;
-		} else 
-			b = e;
-
-		/* Shift remaining headers up one slot */
-		for (v = u; v < hp->nhd + 1; v++)
-			hp->hd[v] = hp->hd[v + 1];
-		hp->nhd--;
 
 	}
 	if (b == NULL)
@@ -291,12 +283,12 @@ http_GetHdr(const struct http *hp, const char *hdr, char **ptr)
 
 
 /*--------------------------------------------------------------------
- * Find a given headerfield, and if present and wanted, the beginning
- * of its value.
+ * Find a given data element in a header according to RFC2616's #rule
+ * (section 2.1, p15)
  */
 
 int
-http_GetHdrField(const struct http *hp, const char *hdr,
+http_GetHdrData(const struct http *hp, const char *hdr,
     const char *field, char **ptr)
 {
 	char *h, *e;
@@ -310,34 +302,110 @@ http_GetHdrField(const struct http *hp, const char *hdr,
 	e = strchr(h, '\0');
 	fl = strlen(field);
 	while (h + fl <= e) {
-		/* Skip leading separators */
-		if (vct_issepctl(*h)) {
+		/* Skip leading whitespace and commas */
+		if (vct_islws(*h) || *h == ',') {
 			h++;
 			continue;
 		}
 		/* Check for substrings before memcmp() */
 		if ((h + fl == e || vct_issepctl(h[fl])) &&
 		    !memcmp(h, field, fl)) {
-			/* got it */
-			h += fl;
 			if (ptr != NULL) {
-				/* Skip whitespace, looking for '=' */
-				while (*h && vct_issp(*h))
+				h += fl;
+				while (vct_islws(*h))
 					h++;
-				if (*h == '=') {
-					h++;
-					while (*h && vct_issp(*h))
-						h++;
-					*ptr = h;
-				}
+				*ptr = h;
 			}
 			return (1);
 		}
-		/* Skip token */
-		while (*h && !vct_issepctl(*h))
+		/* Skip until end of header or comma */
+		while (*h && *h != ',')
 			h++;
 	}
 	return (0);
+}
+
+/*--------------------------------------------------------------------
+ * Find a given headerfields Q value.
+ */
+
+double
+http_GetHdrQ(const struct http *hp, const char *hdr, const char *field)
+{
+	char *h;
+	int i;
+	double a, b;
+
+	h = NULL;
+	i = http_GetHdrData(hp, hdr, field, &h);
+	if (!i)
+		return (0.);
+
+	if (h == NULL)
+		return (1.);
+	/* Skip whitespace, looking for '=' */
+	while (*h && vct_issp(*h))
+		h++;
+	if (*h++ != ';')
+		return (1.);
+	while (*h && vct_issp(*h))
+		h++;
+	if (*h++ != 'q')
+		return (1.);
+	while (*h && vct_issp(*h))
+		h++;
+	if (*h++ != '=')
+		return (1.);
+	while (*h && vct_issp(*h))
+		h++;
+	a = 0.;
+	while (vct_isdigit(*h)) {
+		a *= 10.;
+		a += *h - '0';
+		h++;
+	}
+	if (*h++ != '.')
+		return (a);
+	b = .1;
+	while (vct_isdigit(*h)) {
+		a += b * (*h - '0');
+		b *= .1;
+		h++;
+	}
+	return (a);
+}
+
+/*--------------------------------------------------------------------
+ * Find a given headerfields value.
+ */
+
+int
+http_GetHdrField(const struct http *hp, const char *hdr,
+    const char *field, char **ptr)
+{
+	char *h;
+	int i;
+
+	if (ptr != NULL)
+		*ptr = NULL;
+
+	h = NULL;
+	i = http_GetHdrData(hp, hdr, field, &h);
+	if (!i)
+		return (i);
+
+	if (ptr != NULL && h != NULL) {
+		/* Skip whitespace, looking for '=' */
+		while (*h && vct_issp(*h))
+			h++;
+		if (*h == '=') {
+			h++;
+			while (*h && vct_issp(*h))
+				h++;
+			*ptr = h;
+		}
+	}
+	return (i);
 }
 
 /*--------------------------------------------------------------------
@@ -399,7 +467,6 @@ int
 http_GetStatus(const struct http *hp)
 {
 
-	Tcheck(hp->hd[HTTP_HDR_STATUS]);
 	return (hp->status);
 }
 
@@ -417,9 +484,11 @@ http_GetReq(const struct http *hp)
  */
 
 static int
-http_dissect_hdrs(struct worker *w, struct http *hp, int fd, char *p, txt t)
+http_dissect_hdrs(struct worker *w, struct http *hp, int fd, char *p,
+    const struct http_conn *htc)
 {
 	char *q, *r;
+	txt t = htc->rxbuf;
 
 	if (*p == '\r')
 		p++;
@@ -450,6 +519,12 @@ http_dissect_hdrs(struct worker *w, struct http *hp, int fd, char *p, txt t)
 				*q++ = ' ';
 		}
 
+		if (q - p > htc->maxhdr) {
+			VSC_C_main->losthdr++;
+			WSL(w, SLT_LostHeader, fd, "%.*s", q - p, p);
+			return (400);
+		}
+
 		/* Empty header = end of headers */
 		if (p == q)
 			break;
@@ -470,7 +545,7 @@ http_dissect_hdrs(struct worker *w, struct http *hp, int fd, char *p, txt t)
 			WSLH(w, fd, hp, hp->nhd);
 			hp->nhd++;
 		} else {
-			VSL_stats->losthdr++;
+			VSC_C_main->losthdr++;
 			WSL(w, SLT_LostHeader, fd, "%.*s", q - p, p);
 			return (400);
 		}
@@ -555,7 +630,7 @@ http_splitline(struct worker *w, int fd, struct http *hp,
 		WSLH(w, fd, hp, h3);
 	}
 
-	return (http_dissect_hdrs(w, hp, fd, p, htc->rxbuf));
+	return (http_dissect_hdrs(w, hp, fd, p, htc));
 }
 
 /*--------------------------------------------------------------------*/
@@ -663,7 +738,7 @@ static void
 http_copyh(const struct http *to, const struct http *fm, unsigned n)
 {
 
-	assert(n < to->shd);
+	assert(n < HTTP_HDR_FIRST);
 	Tcheck(fm->hd[n]);
 	to->hd[n] = fm->hd[n];
 	to->hdf[n] = fm->hdf[n];
@@ -677,24 +752,24 @@ http_ForceGet(const struct http *to)
 }
 
 void
-http_CopyResp(const struct http *to, const struct http *fm)
+http_CopyResp(struct http *to, const struct http *fm)
 {
 
 	CHECK_OBJ_NOTNULL(fm, HTTP_MAGIC);
 	CHECK_OBJ_NOTNULL(to, HTTP_MAGIC);
 	http_SetH(to, HTTP_HDR_PROTO, "HTTP/1.1");
-	http_copyh(to, fm, HTTP_HDR_STATUS);
+	to->status = fm->status;
 	http_copyh(to, fm, HTTP_HDR_RESPONSE);
 }
 
 void
-http_SetResp(const struct http *to, const char *proto, const char *status,
+http_SetResp(struct http *to, const char *proto, int status,
     const char *response)
 {
 
 	CHECK_OBJ_NOTNULL(to, HTTP_MAGIC);
 	http_SetH(to, HTTP_HDR_PROTO, proto);
-	http_SetH(to, HTTP_HDR_STATUS, status);
+	to->status = status;
 	http_SetH(to, HTTP_HDR_RESPONSE, response);
 }
 
@@ -712,7 +787,7 @@ http_copyheader(struct worker *w, int fd, struct http *to,
 		to->hdf[to->nhd] = 0;
 		to->nhd++;
 	} else  {
-		VSL_stats->losthdr++;
+		VSC_C_main->losthdr++;
 		WSLR(w, SLT_LostHeader, fd, fm->hd[n]);
 	}
 }
@@ -821,7 +896,7 @@ http_CopyHome(struct worker *w, int fd, const struct http *hp)
 			hp->hd[u].e = p + l;
 		} else {
 			/* XXX This leaves a slot empty */
-			VSL_stats->losthdr++;
+			VSC_C_main->losthdr++;
 			WSLR(w, SLT_LostHeader, fd, hp->hd[u]);
 			hp->hd[u].b = NULL;
 			hp->hd[u].e = NULL;
@@ -849,7 +924,7 @@ http_SetHeader(struct worker *w, int fd, struct http *to, const char *hdr)
 
 	CHECK_OBJ_NOTNULL(to, HTTP_MAGIC);
 	if (to->nhd >= to->shd) {
-		VSL_stats->losthdr++;
+		VSC_C_main->losthdr++;
 		WSL(w, SLT_LostHeader, fd, "%s", hdr);
 		return;
 	}
@@ -890,13 +965,10 @@ http_PutProtocol(struct worker *w, int fd, const struct http *to,
 }
 
 void
-http_PutStatus(struct worker *w, int fd, struct http *to, int status)
+http_PutStatus(struct http *to, int status)
 {
-	char stat[4];
 
 	assert(status >= 0 && status <= 999);
-	sprintf(stat, "%d", status);
-	http_PutField(w, fd, to, HTTP_HDR_STATUS, stat);
 	to->status = status;
 }
 
@@ -921,7 +993,7 @@ http_PrintfHeader(struct worker *w, int fd, struct http *to,
 	n = vsnprintf(to->ws->f, l, fmt, ap);
 	va_end(ap);
 	if (n + 1 >= l || to->nhd >= to->shd) {
-		VSL_stats->losthdr++;
+		VSC_C_main->losthdr++;
 		WSL(w, SLT_LostHeader, fd, "%s", to->ws->f);
 		WS_Release(to->ws, 0);
 	} else {
@@ -975,23 +1047,31 @@ unsigned
 http_Write(struct worker *w, const struct http *hp, int resp)
 {
 	unsigned u, l;
+	int fd = *(w->wrw.wfd);
 
 	if (resp) {
-		AN(hp->hd[HTTP_HDR_STATUS].b);
 		l = WRW_WriteH(w, &hp->hd[HTTP_HDR_PROTO], " ");
-		WSLH(w, *w->wfd, hp, HTTP_HDR_PROTO);
+		WSLH(w, fd, hp, HTTP_HDR_PROTO);
+
+		hp->hd[HTTP_HDR_STATUS].b = WS_Alloc(w->ws, 4);
+		AN(hp->hd[HTTP_HDR_STATUS].b);
+
+		sprintf(hp->hd[HTTP_HDR_STATUS].b, "%3d", hp->status);
+		hp->hd[HTTP_HDR_STATUS].e = hp->hd[HTTP_HDR_STATUS].b + 3;
+
 		l += WRW_WriteH(w, &hp->hd[HTTP_HDR_STATUS], " ");
-		WSLH(w, *w->wfd, hp, HTTP_HDR_STATUS);
+		WSLH(w, fd, hp, HTTP_HDR_STATUS);
+
 		l += WRW_WriteH(w, &hp->hd[HTTP_HDR_RESPONSE], "\r\n");
-		WSLH(w, *w->wfd, hp, HTTP_HDR_RESPONSE);
+		WSLH(w, fd, hp, HTTP_HDR_RESPONSE);
 	} else {
 		AN(hp->hd[HTTP_HDR_URL].b);
 		l = WRW_WriteH(w, &hp->hd[HTTP_HDR_REQ], " ");
-		WSLH(w, *w->wfd, hp, HTTP_HDR_REQ);
+		WSLH(w, fd, hp, HTTP_HDR_REQ);
 		l += WRW_WriteH(w, &hp->hd[HTTP_HDR_URL], " ");
-		WSLH(w, *w->wfd, hp, HTTP_HDR_URL);
+		WSLH(w, fd, hp, HTTP_HDR_URL);
 		l += WRW_WriteH(w, &hp->hd[HTTP_HDR_PROTO], "\r\n");
-		WSLH(w, *w->wfd, hp, HTTP_HDR_PROTO);
+		WSLH(w, fd, hp, HTTP_HDR_PROTO);
 	}
 	for (u = HTTP_HDR_FIRST; u < hp->nhd; u++) {
 		if (hp->hd[u].b == NULL)
@@ -999,7 +1079,7 @@ http_Write(struct worker *w, const struct http *hp, int resp)
 		AN(hp->hd[u].b);
 		AN(hp->hd[u].e);
 		l += WRW_WriteH(w, &hp->hd[u], "\r\n");
-		WSLH(w, *w->wfd, hp, u);
+		WSLH(w, fd, hp, u);
 	}
 	l += WRW_Write(w, "\r\n", -1);
 	return (l);

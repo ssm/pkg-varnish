@@ -1,25 +1,28 @@
-# $Id$
-
-test "Check that max_restarts works and that we don't fall over"
+varnishtest "Check that max_restarts works and that we don't fall over"
 
 server s1 {
 	rxreq
 	txresp -body "012345\n"
+	accept
 	rxreq
 	txresp -body "012345\n"
+	accept
 	rxreq
 	txresp -body "012345\n"
+	accept
 	rxreq
 	txresp -body "012345\n"
+	accept
 	rxreq
 	txresp -body "012345\n"
+	accept
 	rxreq
 	txresp -body "012345\n"
 } -start
 
 varnish v1 -vcl+backend {
 	sub vcl_fetch {
-	       restart;
+	       return (restart);
 	}
 
 	sub vcl_error {

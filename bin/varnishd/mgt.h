@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -26,10 +26,11 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $Id$
  */
 
-#include <vqueue.h>
+#include <stdint.h>
+
+#include "vqueue.h"
 
 #include "common.h"
 #include "miniobj.h"
@@ -66,8 +67,15 @@ void MCF_ParamSync(void);
 void MCF_ParamInit(struct cli *);
 void MCF_ParamSet(struct cli *, const char *param, const char *val);
 #ifdef DIAGNOSTICS
-void MCF_DumpMdoc(void);
+void MCF_DumpRst(void);
 #endif
+
+/* mgt_sandbox.c */
+void mgt_sandbox(void);
+
+/* mgt_shmem.c */
+void mgt_SHM_Init(const char *arg);
+void mgt_SHM_Pid(void);
 
 /* mgt_vcc.c */
 void mgt_vcc_init(void);
@@ -75,7 +83,9 @@ int mgt_vcc_default(const char *bflag, const char *f_arg, char *vcl, int Cflag);
 int mgt_push_vcls_and_start(unsigned *status, char **p);
 int mgt_has_vcl(void);
 extern char *mgt_cc_cmd;
-
+extern const char *mgt_vcl_dir;
+extern const char *mgt_vmod_dir;
+extern unsigned mgt_vcc_err_unref;
 
 #define REPORT0(pri, fmt)				\
 	do {						\
@@ -88,3 +98,8 @@ extern char *mgt_cc_cmd;
 		fprintf(stderr, fmt "\n", __VA_ARGS__);	\
 		syslog(pri, fmt, __VA_ARGS__);		\
 	} while (0)
+
+#define VSM_Alloc(a, b, c, d)	VSM__Alloc(a,b,c,d)
+#define VSM_Free(a)		VSM__Free(a)
+#define VSM_Clean()		VSM__Clean()
+

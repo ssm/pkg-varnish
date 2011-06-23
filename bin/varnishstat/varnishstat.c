@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -27,20 +27,14 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * Log tailer for Varnish
+ * Statistics output program
  */
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/time.h>
 
-#include <curses.h>
 #include <errno.h>
-#include <limits.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -48,223 +42,133 @@ SVNID("$Id$")
 #include <unistd.h>
 
 #include "libvarnish.h"
-#include "shmlog.h"
+#include "vsc.h"
 #include "varnishapi.h"
+#include "varnishstat.h"
 
-#define FIELD_EXCLUSION_CHARACTER '^'
-
-
-static void
-myexp(double *acc, double val, unsigned *n, unsigned nmax)
-{
-
-	if (*n < nmax)
-		(*n)++;
-	(*acc) += (val - *acc) / (double)*n;
-}
+/*--------------------------------------------------------------------*/
 
 static int
-show_field(const char* field, const char *fields)
+do_xml_cb(void *priv, const struct VSC_point * const pt)
 {
-	char* field_start;
-	char* field_end;
-	int field_length;
-	int match_value = 1;
+	uint64_t val;
 
-	if (fields[0] == FIELD_EXCLUSION_CHARACTER) {
-		match_value = 0;
-		fields++;
-	}
+	(void)priv;
+	assert(!strcmp(pt->fmt, "uint64_t"));
+	val = *(const volatile uint64_t*)pt->ptr;
 
-	field_start = strstr(fields, field);
-	if (field_start != NULL) {
-		field_length = strlen( field );
-
-		while (field_start != NULL) {
-			field_end = field_start + field_length;
-			if ((field_start == fields ||
-			    *(field_start - 1) == ',') &&
-			    (*field_end == ',' || *field_end == '\0'))
-				return (match_value);
-			field_start = strstr( field_end, field );
-		}
-	}
-
-	return (!match_value);
+	printf("\t<stat>\n");
+	if (strcmp(pt->class, ""))
+		printf("\t\t<type>%s</type>\n", pt->class);
+	if (strcmp(pt->ident, ""))
+		printf("\t\t<ident>%s</ident>\n", pt->ident);
+	printf("\t\t<name>%s</name>\n", pt->name);
+	printf("\t\t<value>%ju</value>\n", val);
+	printf("\t\t<flag>%c</flag>\n", pt->flag);
+	printf("\t\t<description>%s</description>\n", pt->desc);
+	printf("\t</stat>\n");
+	return (0);
 }
 
 static void
-do_curses(struct varnish_stats *VSL_stats, int delay, const char *fields)
-{
-	struct varnish_stats copy;
-	struct varnish_stats seen;
-	intmax_t ju;
-	struct timeval tv;
-	double tt, lt, hit, miss, ratio, up;
-	double a1, a2, a3;
-	unsigned n1, n2, n3;
-	time_t rt;
-	int ch, line;
-
-	memset(&copy, 0, sizeof copy);
-	memset(&seen, 0, sizeof seen);
-
-	a1 = a2 = a3 = 0.0;
-	n1 = n2 = n3 = 0;
-
-	initscr();
-	raw();
-	noecho();
-	nonl();
-	intrflush(stdscr, FALSE);
-	curs_set(0);
-	erase();
-
-	lt = 0;
-	while (1) {
-		gettimeofday(&tv, NULL);
-		tt = tv.tv_usec * 1e-6 + tv.tv_sec;
-		lt = tt - lt;
-
-		rt = VSL_stats->uptime;
-		up = rt;
-
-		mvprintw(0, 0, "%*s", COLS - 1, VSL_Name());
-		mvprintw(0, 0, "%d+%02d:%02d:%02d", rt / 86400,
-		    (rt % 86400) / 3600, (rt % 3600) / 60, rt % 60);
-
-		hit = VSL_stats->cache_hit - copy.cache_hit;
-		miss = VSL_stats->cache_miss - copy.cache_miss;
-		hit /= lt;
-		miss /= lt;
-		if (hit + miss != 0) {
-			ratio = hit / (hit + miss);
-			myexp(&a1, ratio, &n1, 10);
-			myexp(&a2, ratio, &n2, 100);
-			myexp(&a3, ratio, &n3, 1000);
-		}
-		mvprintw(1, 0, "Hitrate ratio: %8u %8u %8u", n1, n2, n3);
-		mvprintw(2, 0, "Hitrate avg:   %8.4f %8.4f %8.4f", a1, a2, a3);
-
-		line = 3;
-#define MAC_STAT(n, t, l, f, d) \
-	if ((fields == NULL || show_field( #n, fields )) && line < LINES) { \
-		ju = VSL_stats->n; \
-		if (ju == 0 && !seen.n) { \
-		} else if (f == 'a') { \
-			seen.n = 1; \
-			line++; \
-			mvprintw(line, 0, "%12ju %12.2f %12.2f %s\n", \
-			    ju, (ju - (intmax_t)copy.n)/lt, ju / up, d); \
-			copy.n = ju; \
-		} else { \
-			seen.n = 1; \
-			line++; \
-			mvprintw(line, 0, "%12ju %12s %12s %s\n", \
-			    ju, ".  ", ".  ", d); \
-		} \
-	}
-#include "stat_field.h"
-#undef MAC_STAT
-		lt = tt;
-		refresh();
-		timeout(delay * 1000);
-		switch ((ch = getch())) {
-		case ERR:
-			break;
-#ifdef KEY_RESIZE
-		case KEY_RESIZE:
-			erase();
-			break;
-#endif
-		case '\014': /* Ctrl-L */
-		case '\024': /* Ctrl-T */
-			redrawwin(stdscr);
-			refresh();
-			break;
-		case '\003': /* Ctrl-C */
-			raise(SIGINT);
-			break;
-		case '\032': /* Ctrl-Z */
-			raise(SIGTSTP);
-			break;
-		case '\021': /* Ctrl-Q */
-		case 'Q':
-		case 'q':
-			endwin();
-			exit(0);
-		case '0':
-		case '1':
-		case '2':
-		case '3':
-		case '4':
-		case '5':
-		case '6':
-		case '7':
-		case '8':
-		case '9':
-			delay = 1 << (ch - '0');
-			break;
-		default:
-			beep();
-			break;
-		}
-	}
-}
-
-static void
-do_xml(struct varnish_stats *VSL_stats, const char* fields)
+do_xml(struct VSM_data *vd)
 {
 	char time_stamp[20];
 	time_t now;
 
 	printf("<?xml version=\"1.0\"?>\n");
 	now = time(NULL);
-	strftime(time_stamp, 20, "%Y-%m-%dT%H:%M:%S", localtime(&now));
+	(void)strftime(time_stamp, 20, "%Y-%m-%dT%H:%M:%S", localtime(&now));
 	printf("<varnishstat timestamp=\"%s\">\n", time_stamp);
-#define MAC_STAT(n, t, l, f, d) \
-	do { \
-		if (fields != NULL && ! show_field( #n, fields )) break; \
-		intmax_t ju = VSL_stats->n; \
-		printf("\t<stat>\n"); \
-		printf("\t\t<name>%s</name>\n", #n); \
-		printf("\t\t<value>%ju</value>\n", ju); \
-		printf("\t\t<description>%s</description>\n", d); \
-		printf("\t</stat>\n"); \
-	} while (0);
-#include "stat_field.h"
-#undef MAC_STAT
+	(void)VSC_Iter(vd, do_xml_cb, NULL);
 	printf("</varnishstat>\n");
 }
 
-static void
-do_once(struct varnish_stats *VSL_stats, const char* fields)
+/*--------------------------------------------------------------------*/
+
+struct once_priv {
+	double	up;
+	int pad;
+};
+
+static int
+do_once_cb(void *priv, const struct VSC_point * const pt)
 {
-	struct timeval tv;
-	double up;
+	struct once_priv *op;
+	uint64_t val;
+	int i;
 
-	gettimeofday(&tv, NULL);
-	up = VSL_stats->uptime;
-
-#define MAC_STAT(n, t, l, f, d) \
-	do { \
-		if (fields != NULL && ! show_field( #n, fields )) break; \
-		intmax_t ju = VSL_stats->n; \
-		if (f == 'a') \
-			printf("%-16s %12ju %12.2f %s\n", #n, ju, ju / up, d); \
-		else \
-			printf("%-16s %12ju %12s %s\n", #n, ju, ".  ", d); \
-	} while (0);
-#include "stat_field.h"
-#undef MAC_STAT
+	op = priv;
+	assert(!strcmp(pt->fmt, "uint64_t"));
+	val = *(const volatile uint64_t*)pt->ptr;
+	i = 0;
+	if (strcmp(pt->class, ""))
+		i += printf("%s.", pt->class);
+	if (strcmp(pt->ident, ""))
+		i += printf("%s.", pt->ident);
+	i += printf("%s", pt->name);
+	if (i > op->pad)
+		op->pad = i + 1;
+	printf("%*.*s", op->pad - i, op->pad - i, "");
+	if (pt->flag == 'a')
+		printf("%12ju %12.2f %s\n", val, val / op->up, pt->desc);
+	else
+		printf("%12ju %12s %s\n", val, ".  ", pt->desc);
+	return (0);
 }
+
+static void
+do_once(struct VSM_data *vd, const struct VSC_C_main *VSC_C_main)
+{
+	struct once_priv op;
+
+	memset(&op, 0, sizeof op);
+	op.up = VSC_C_main->uptime;
+	op.pad = 18;
+
+	(void)VSC_Iter(vd, do_once_cb, &op);
+}
+
+/*--------------------------------------------------------------------*/
+
+static int
+do_list_cb(void *priv, const struct VSC_point * const pt)
+{
+	int i;
+
+	(void)priv;
+	i = 0;
+	if (strcmp(pt->class, ""))
+		i += fprintf(stderr, "%s.", pt->class);
+	if (strcmp(pt->ident, ""))
+		i += fprintf(stderr, "%s.", pt->ident);
+	i += fprintf(stderr, "%s", pt->name);
+	if (i < 30)
+		fprintf(stderr, "%*s", i - 30, "");
+	fprintf(stderr, " %s\n", pt->desc);
+	return (0);
+}
+
+static void
+list_fields(struct VSM_data *vd)
+{
+	fprintf(stderr, "Varnishstat -f option fields:\n");
+	fprintf(stderr, "Field name                     Description\n");
+	fprintf(stderr, "----------                     -----------\n");
+
+	(void)VSC_Iter(vd, do_list_cb, NULL);
+}
+
+/*--------------------------------------------------------------------*/
 
 static void
 usage(void)
 {
 #define FMT "    %-28s # %s\n"
 	fprintf(stderr, "usage: varnishstat "
-	    "[-1lV] [-f field_list] [-n varnish_name] [-w delay]\n");
+	    "[-1lV] [-f field_list] "
+	    VSC_n_USAGE " "
+	    "[-w delay]\n");
 	fprintf(stderr, FMT, "-1", "Print the statistics once and exit");
 	fprintf(stderr, FMT, "-f field_list",
 	    "Comma separated list of fields to display. ");
@@ -283,91 +187,29 @@ usage(void)
 	exit(1);
 }
 
-static void
-list_fields(void)
-{
-	fprintf(stderr, "Varnishstat -f option fields:\n");
-	fprintf(stderr, "Field name           Description\n");
-	fprintf(stderr, "----------           -----------\n");
-
-#define MAC_STAT(n, t, l, f, d) \
-	do { \
-		fprintf(stderr, "%-20s %s\n", #n, d);\
-	} while (0);
-#include "stat_field.h"
-#undef MAC_STAT
-}
-
-static int
-valid_fields(const char* fields)
-{
-	int i, valid_field, field_length;
-	const char *all_fields[] = {
-#define MAC_STAT(n, t, l, f, d) \
-	#n,
-#include "stat_field.h"
-#undef MAC_STAT
-	NULL };
-	const char *field_start, *field_end;
-
-	if (fields[0] == FIELD_EXCLUSION_CHARACTER)
-		fields++;
-
-	for (field_start = fields; ; field_start = field_end + 1) {
-		field_end = strchr(field_start, ',');
-		if (field_end != NULL)
-			field_length = field_end - field_start;
-		else
-			field_length = strlen(field_start);
-
-		valid_field = 0;
-		for (i = 0; all_fields[i] != NULL; i++) {
-			if (strncmp(field_start, all_fields[i], field_length)
-			     == 0 && field_length == strlen( all_fields[i])) {
-				valid_field = 1;
-				break;
-			}
-		}
-
-		if (!valid_field) {
-			fputs("The field '", stderr);
-			fwrite(field_start, 1, field_length, stderr);
-			fputs("' is not a valid field\n", stderr);
-			return (0);
-		}
-
-		if (field_end == NULL || *field_end == '\0')
-			break;
-	}
-
-	return (1);
-}
-
 int
-main(int argc, char **argv)
+main(int argc, char * const *argv)
 {
 	int c;
-	struct varnish_stats *VSL_stats;
+	struct VSM_data *vd;
+	const struct VSC_C_main *VSC_C_main;
 	int delay = 1, once = 0, xml = 0;
-	const char *n_arg = NULL;
-	const char *fields = NULL;
 
-	while ((c = getopt(argc, argv, "1f:ln:Vw:x")) != -1) {
+	vd = VSM_New();
+	VSC_Setup(vd);
+
+	while ((c = getopt(argc, argv, VSC_ARGS "1f:lVw:x")) != -1) {
 		switch (c) {
 		case '1':
 			once = 1;
 			break;
-		case 'f':
-			fields = optarg;
-			break;
 		case 'l':
-			list_fields();
+			if (VSC_Open(vd, 1))
+				exit(1);
+			list_fields(vd);
 			exit(0);
-		case 'n':
-			n_arg = optarg;
-			break;
 		case 'V':
-			varnish_version("varnishstat");
+			VCS_Message("varnishstat");
 			exit(0);
 		case 'w':
 			delay = atoi(optarg);
@@ -376,24 +218,23 @@ main(int argc, char **argv)
 			xml = 1;
 			break;
 		default:
+			if (VSC_Arg(vd, c, optarg) > 0)
+				break;
 			usage();
 		}
 	}
 
-	if ((VSL_stats = VSL_OpenStats(n_arg)) == NULL)
+	if (VSC_Open(vd, 1))
 		exit(1);
 
-	if (fields != NULL && !valid_fields(fields)) {
-		usage();
-		exit(1);
-	}
+	VSC_C_main = VSC_Main(vd);
 
 	if (xml)
-		do_xml(VSL_stats, fields);
+		do_xml(vd);
 	else if (once)
-		do_once(VSL_stats, fields);
+		do_once(vd, VSC_C_main);
 	else
-		do_curses(VSL_stats, delay, fields);
+		do_curses(vd, VSC_C_main, delay);
 
 	exit(0);
 }

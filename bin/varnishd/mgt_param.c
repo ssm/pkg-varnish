@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2010 Redpill Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -29,9 +29,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/types.h>
 #include <sys/stat.h>
 
@@ -43,7 +40,7 @@ SVNID("$Id$")
 #include <string.h>
 #include <unistd.h>
 
-#include "cli.h"
+#include "vcli.h"
 #include "cli_priv.h"
 #include "cli_common.h"
 #include "mgt.h"
@@ -83,13 +80,13 @@ tweak_generic_timeout(struct cli *cli, volatile unsigned *dst, const char *arg)
 	if (arg != NULL) {
 		u = strtoul(arg, NULL, 0);
 		if (u == 0) {
-			cli_out(cli, "Timeout must be greater than zero\n");
-			cli_result(cli, CLIS_PARAM);
+			VCLI_Out(cli, "Timeout must be greater than zero\n");
+			VCLI_SetResult(cli, CLIS_PARAM);
 			return;
 		}
 		*dst = u;
 	} else
-		cli_out(cli, "%u", *dst);
+		VCLI_Out(cli, "%u", *dst);
 }
 
 /*--------------------------------------------------------------------*/
@@ -114,22 +111,22 @@ tweak_timeout_double(struct cli *cli, const struct parspec *par,
 	if (arg != NULL) {
 		u = strtod(arg, NULL);
 		if (u < par->min) {
-			cli_out(cli,
+			VCLI_Out(cli,
 			    "Timeout must be greater or equal to %.g\n",
 				 par->min);
-			cli_result(cli, CLIS_PARAM);
+			VCLI_SetResult(cli, CLIS_PARAM);
 			return;
 		}
 		if (u > par->max) {
-			cli_out(cli,
+			VCLI_Out(cli,
 			    "Timeout must be less than or equal to %.g\n",
 				 par->max);
-			cli_result(cli, CLIS_PARAM);
+			VCLI_SetResult(cli, CLIS_PARAM);
 			return;
 		}
 		*dest = u;
 	} else
-		cli_out(cli, "%.6f", *dest);
+		VCLI_Out(cli, "%.6f", *dest);
 }
 
 /*--------------------------------------------------------------------*/
@@ -145,22 +142,22 @@ tweak_generic_double(struct cli *cli, const struct parspec *par,
 	if (arg != NULL) {
 		u = strtod(arg, NULL);
 		if (u < par->min) {
-			cli_out(cli,
+			VCLI_Out(cli,
 			    "Must be greater or equal to %.g\n",
 				 par->min);
-			cli_result(cli, CLIS_PARAM);
+			VCLI_SetResult(cli, CLIS_PARAM);
 			return;
 		}
 		if (u > par->max) {
-			cli_out(cli,
+			VCLI_Out(cli,
 			    "Must be less than or equal to %.g\n",
 				 par->max);
-			cli_result(cli, CLIS_PARAM);
+			VCLI_SetResult(cli, CLIS_PARAM);
 			return;
 		}
 		*dest = u;
 	} else
-		cli_out(cli, "%f", *dest);
+		VCLI_Out(cli, "%f", *dest);
 }
 
 /*--------------------------------------------------------------------*/
@@ -186,12 +183,12 @@ tweak_generic_bool(struct cli *cli, volatile unsigned *dest, const char *arg)
 		else if (!strcasecmp(arg, "true"))
 			*dest = 1;
 		else {
-			cli_out(cli, "use \"on\" or \"off\"\n");
-			cli_result(cli, CLIS_PARAM);
+			VCLI_Out(cli, "use \"on\" or \"off\"\n");
+			VCLI_SetResult(cli, CLIS_PARAM);
 			return;
 		}
 	} else
-		cli_out(cli, *dest ? "on" : "off");
+		VCLI_Out(cli, *dest ? "on" : "off");
 }
 
 /*--------------------------------------------------------------------*/
@@ -219,20 +216,20 @@ tweak_generic_uint(struct cli *cli, volatile unsigned *dest, const char *arg,
 		else
 			u = strtoul(arg, NULL, 0);
 		if (u < min) {
-			cli_out(cli, "Must be at least %u\n", min);
-			cli_result(cli, CLIS_PARAM);
+			VCLI_Out(cli, "Must be at least %u\n", min);
+			VCLI_SetResult(cli, CLIS_PARAM);
 			return;
 		}
 		if (u > max) {
-			cli_out(cli, "Must be no more than %u\n", max);
-			cli_result(cli, CLIS_PARAM);
+			VCLI_Out(cli, "Must be no more than %u\n", max);
+			VCLI_SetResult(cli, CLIS_PARAM);
 			return;
 		}
 		*dest = u;
 	} else if (*dest == UINT_MAX) {
-		cli_out(cli, "unlimited", *dest);
+		VCLI_Out(cli, "unlimited", *dest);
 	} else {
-		cli_out(cli, "%u", *dest);
+		VCLI_Out(cli, "%u", *dest);
 	}
 }
 
@@ -272,8 +269,8 @@ tweak_user(struct cli *cli, const struct parspec *par, const char *arg)
 		} else
 			pw = getpwnam(arg);
 		if (pw == NULL) {
-			cli_out(cli, "Unknown user");
-			cli_result(cli, CLIS_PARAM);
+			VCLI_Out(cli, "Unknown user");
+			VCLI_SetResult(cli, CLIS_PARAM);
 			return;
 		}
 		REPLACE(master.user, pw->pw_name);
@@ -286,9 +283,9 @@ tweak_user(struct cli *cli, const struct parspec *par, const char *arg)
 		    gr->gr_gid == pw->pw_gid)
 			REPLACE(master.group, gr->gr_name);
 	} else if (master.user) {
-		cli_out(cli, "%s (%d)", master.user, (int)master.uid);
+		VCLI_Out(cli, "%s (%d)", master.user, (int)master.uid);
 	} else {
-		cli_out(cli, "%d", (int)master.uid);
+		VCLI_Out(cli, "%d", (int)master.uid);
 	}
 }
 
@@ -314,16 +311,16 @@ tweak_group(struct cli *cli, const struct parspec *par, const char *arg)
 		} else
 			gr = getgrnam(arg);
 		if (gr == NULL) {
-			cli_out(cli, "Unknown group");
-			cli_result(cli, CLIS_PARAM);
+			VCLI_Out(cli, "Unknown group");
+			VCLI_SetResult(cli, CLIS_PARAM);
 			return;
 		}
 		REPLACE(master.group, gr->gr_name);
 		master.gid = gr->gr_gid;
 	} else if (master.group) {
-		cli_out(cli, "%s (%d)", master.group, (int)master.gid);
+		VCLI_Out(cli, "%s (%d)", master.group, (int)master.gid);
 	} else {
-		cli_out(cli, "%d", (int)master.gid);
+		VCLI_Out(cli, "%d", (int)master.gid);
 	}
 }
 
@@ -353,26 +350,26 @@ tweak_listen_address(struct cli *cli, const struct parspec *par,
 
 	(void)par;
 	if (arg == NULL) {
-		cli_quote(cli, master.listen_address);
+		VCLI_Quote(cli, master.listen_address);
 		return;
 	}
 
-	av = ParseArgv(arg, ARGV_COMMA);
+	av = VAV_Parse(arg, NULL, ARGV_COMMA);
 	if (av == NULL) {
-		cli_out(cli, "Parse error: out of memory");
-		cli_result(cli, CLIS_PARAM);
+		VCLI_Out(cli, "Parse error: out of memory");
+		VCLI_SetResult(cli, CLIS_PARAM);
 		return;
 	}
 	if (av[0] != NULL) {
-		cli_out(cli, "Parse error: %s", av[0]);
-		cli_result(cli, CLIS_PARAM);
-		FreeArgv(av);
+		VCLI_Out(cli, "Parse error: %s", av[0]);
+		VCLI_SetResult(cli, CLIS_PARAM);
+		VAV_Free(av);
 		return;
 	}
 	if (av[1] == NULL) {
-		cli_out(cli, "Empty listen address");
-		cli_result(cli, CLIS_PARAM);
-		FreeArgv(av);
+		VCLI_Out(cli, "Empty listen address");
+		VCLI_SetResult(cli, CLIS_PARAM);
+		VAV_Free(av);
 		return;
 	}
 	VTAILQ_INIT(&lsh);
@@ -382,9 +379,9 @@ tweak_listen_address(struct cli *cli, const struct parspec *par,
 
 		n = VSS_resolve(av[i], "http", &ta);
 		if (n == 0) {
-			cli_out(cli, "Invalid listen address ");
-			cli_quote(cli, av[i]);
-			cli_result(cli, CLIS_PARAM);
+			VCLI_Out(cli, "Invalid listen address ");
+			VCLI_Quote(cli, av[i]);
+			VCLI_SetResult(cli, CLIS_PARAM);
 			break;
 		}
 		for (j = 0; j < n; ++j) {
@@ -398,7 +395,7 @@ tweak_listen_address(struct cli *cli, const struct parspec *par,
 		}
 		free(ta);
 	}
-	FreeArgv(av);
+	VAV_Free(av);
 	if (cli != NULL && cli->result != CLIS_OK) {
 		clean_listen_sock_head(&lsh);
 		return;
@@ -420,17 +417,16 @@ tweak_listen_address(struct cli *cli, const struct parspec *par,
 /*--------------------------------------------------------------------*/
 
 static void
-tweak_cc_command(struct cli *cli, const struct parspec *par, const char *arg)
+tweak_string(struct cli *cli, const struct parspec *par, const char *arg)
 {
+	char **p = TRUST_ME(par->priv);
 
+	AN(p);
 	/* XXX should have tweak_generic_string */
-	(void)par;
 	if (arg == NULL) {
-		cli_quote(cli, mgt_cc_cmd);
+		VCLI_Quote(cli, *p);
 	} else {
-		free(mgt_cc_cmd);
-		mgt_cc_cmd = strdup(arg);
-		XXXAN(mgt_cc_cmd);
+		REPLACE(*p, arg);
 	}
 }
 
@@ -457,7 +453,7 @@ tweak_diag_bitmap(struct cli *cli, const struct parspec *par, const char *arg)
 		u = strtoul(arg, NULL, 0);
 		master.diag_bitmap = u;
 	} else {
-		cli_out(cli, "0x%x", master.diag_bitmap);
+		VCLI_Out(cli, "0x%x", master.diag_bitmap);
 	}
 }
 
@@ -484,6 +480,10 @@ tweak_diag_bitmap(struct cli *cli, const struct parspec *par, const char *arg)
 	"this parameter, or if the default value is even sensible.  " \
 	"Caution is advised, and feedback is most welcome."
 
+#define WIZARD_TEXT \
+	"\nNB: Do not change this parameter, unless a developer tell " \
+	"you to do so."
+
 /*
  * Remember to update varnishd.1 whenever you add / remove a parameter or
  * change its default value.
@@ -499,13 +499,14 @@ static const struct parspec input_parspec[] = {
 		"The unprivileged group to run as.",
 		MUST_RESTART,
 		MAGIC_INIT_STRING },
-	{ "default_ttl", tweak_uint, &master.default_ttl, 0, UINT_MAX,
+	{ "default_ttl", tweak_timeout_double, &master.default_ttl,
+		0, UINT_MAX,
 		"The TTL assigned to objects if neither the backend nor "
 		"the VCL code assigns one.\n"
 		"Objects already cached will not be affected by changes "
 		"made until they are fetched from the backend again.\n"
 		"To force an immediate effect at the expense of a total "
-		"flush of the cache use \"purge.url .\"",
+		"flush of the cache use \"ban.url .\"",
 		0,
 		"120", "seconds" },
 	{ "sess_workspace", tweak_uint, &master.sess_workspace, 1024, UINT_MAX,
@@ -516,10 +517,44 @@ static const struct parspec input_parspec[] = {
 		DELAYED_EFFECT,
 		"65536",
 		"bytes" },
-	{ "http_headers", tweak_uint, &master.http_headers, 32, UINT_MAX,
-		"Maximum number of HTTP headers we will deal with.\n"
-		"This space is preallocated in sessions and workthreads only "
-		"objects allocate only space for the headers they store.\n",
+	{ "http_req_hdr_len", tweak_uint, &master.http_req_hdr_len,
+		40, UINT_MAX,
+		"Maximum length of any HTTP client request header we will "
+		"allow.  The limit is inclusive its continuation lines.\n",
+		0,
+		"2048", "bytes" },
+	{ "http_req_size", tweak_uint, &master.http_req_size,
+		256, UINT_MAX,
+		"Maximum number of bytes of HTTP client request we will deal "
+		"with.  This is a limit on all bytes up to the double blank "
+		"line which ends the HTTP request.\n"
+		"The memory for the request is allocated from the session "
+		"workspace (param: sess_workspace) and this parameter limits "
+		"how much of that the request is allowed to take up.",
+		0,
+		"32768", "bytes" },
+	{ "http_resp_hdr_len", tweak_uint, &master.http_resp_hdr_len,
+		40, UINT_MAX,
+		"Maximum length of any HTTP backend response header we will "
+		"allow.  The limit is inclusive its continuation lines.\n",
+		0,
+		"2048", "bytes" },
+	{ "http_resp_size", tweak_uint, &master.http_resp_size,
+		256, UINT_MAX,
+		"Maximum number of bytes of HTTP backend resonse we will deal "
+		"with.  This is a limit on all bytes up to the double blank "
+		"line which ends the HTTP request.\n"
+		"The memory for the request is allocated from the worker "
+		"workspace (param: sess_workspace) and this parameter limits "
+		"how much of that the request is allowed to take up.",
+		0,
+		"32768", "bytes" },
+	{ "http_max_hdr", tweak_uint, &master.http_max_hdr, 32, UINT_MAX,
+		"Maximum number of HTTP headers we will deal with in "
+		"client request or backend reponses.  "
+		"Note that the first line occupies five header fields.\n"
+		"This paramter does not influence storage consumption, "
+		"objects allocate exact space for the headers they store.\n",
 		0,
 		"64", "header lines" },
 	{ "shm_workspace", tweak_uint, &master.shm_workspace, 4096, UINT_MAX,
@@ -536,7 +571,8 @@ static const struct parspec input_parspec[] = {
 		"Maximum is 65535 bytes.",
 		0,
 		"255", "bytes" },
-	{ "default_grace", tweak_uint, &master.default_grace, 0, UINT_MAX,
+	{ "default_grace", tweak_timeout_double, &master.default_grace,
+		0, UINT_MAX,
 		"Default grace period.  We will deliver an object "
 		"this long after it has expired, provided another thread "
 		"is attempting to get a new copy.\n"
@@ -544,6 +580,15 @@ static const struct parspec input_parspec[] = {
 		"made until they are fetched from the backend again.\n",
 		DELAYED_EFFECT,
 		"10", "seconds" },
+	{ "default_keep", tweak_timeout_double, &master.default_keep,
+		0, UINT_MAX,
+		"Default keep period.  We will keep a useless object "
+		"around this long, making it available for conditional "
+		"backend fetches.  "
+		"That means that the object will be removed from the "
+		"cache at the end of ttl+grace+keep.",
+		DELAYED_EFFECT,
+		"0", "seconds" },
 	{ "sess_timeout", tweak_timeout, &master.sess_timeout, 0, 0,
 		"Idle timeout for persistent sessions. "
 		"If a HTTP request has not been received in this many "
@@ -552,7 +597,7 @@ static const struct parspec input_parspec[] = {
 		"5", "seconds" },
 	{ "expiry_sleep", tweak_timeout_double, &master.expiry_sleep, 0, 60,
 		"How long the expiry thread sleeps when there is nothing "
-		"for it to do.  Reduce if your expiry thread gets behind.\n",
+		"for it to do.\n",
 		0,
 		"1", "seconds" },
 	{ "pipe_timeout", tweak_timeout, &master.pipe_timeout, 0, 0,
@@ -563,11 +608,11 @@ static const struct parspec input_parspec[] = {
 		"60", "seconds" },
 	{ "send_timeout", tweak_timeout, &master.send_timeout, 0, 0,
 		"Send timeout for client connections. "
-		"If no data has been sent to the client in this many seconds, "
-		"the session is closed.\n"
+		"If the HTTP response hasn't been transmitted in this many\n"
+                "seconds the session is closed. \n"
 		"See setsockopt(2) under SO_SNDTIMEO for more information.",
 		DELAYED_EFFECT,
-		"600", "seconds" },
+		"60", "seconds" },
 	{ "auto_restart", tweak_bool, &master.auto_restart, 0, 0,
 		"Restart child process automatically if it dies.\n",
 		0,
@@ -581,6 +626,13 @@ static const struct parspec input_parspec[] = {
 		"above 128kb a dubious idea.",
 		EXPERIMENTAL,
 		"128", "kilobytes" },
+	{ "fetch_maxchunksize",
+		tweak_uint, &master.fetch_maxchunksize, 64, UINT_MAX / 1024.,
+		"The maximum chunksize we attempt to allocate from storage. "
+		"Making this too large may cause delays and storage "
+		"fragmentation.\n",
+		EXPERIMENTAL,
+		"262144", "kilobytes" },
 #ifdef SENDFILE_WORKS
 	{ "sendfile_threshold",
 		tweak_uint, &master.sendfile_threshold, 0, UINT_MAX,
@@ -625,14 +677,13 @@ static const struct parspec input_parspec[] = {
 		"operations necessary for LRU list access.",
 		EXPERIMENTAL,
 		"2", "seconds" },
-	{ "cc_command", tweak_cc_command, NULL, 0, 0,
+	{ "cc_command", tweak_string, &mgt_cc_cmd, 0, 0,
 		"Command used for compiling the C source code to a "
 		"dlopen(3) loadable object.  Any occurrence of %s in "
 		"the string will be replaced with the source file name, "
 		"and %o will be replaced with the output file name.",
 		MUST_RELOAD,
-		VCC_CC
-		, NULL },
+		VCC_CC , NULL },
 	{ "max_restarts", tweak_uint, &master.max_restarts, 0, UINT_MAX,
 		"Upper limit on how many times a request can restart."
 		"\nBe aware that restarts are likely to cause a hit against "
@@ -645,18 +696,15 @@ static const struct parspec input_parspec[] = {
 		"  0x00000001 - Don't check if it looks like XML\n"
 		"  0x00000002 - Ignore non-esi elements\n"
 		"  0x00000004 - Emit parsing debug records\n"
+		"  0x00000008 - Force-split parser input (debugging)\n"
 		"Use 0x notation and do the bitor in your head :-)\n",
 		0,
 		"0", "bitmap" },
-	{ "max_esi_includes",
-		tweak_uint, &master.max_esi_includes, 0, UINT_MAX,
+	{ "max_esi_depth",
+		tweak_uint, &master.max_esi_depth, 0, UINT_MAX,
 		"Maximum depth of esi:include processing.\n",
 		0,
-		"5", "includes" },
-	{ "cache_vbe_conns", tweak_bool,  &master.cache_vbe_conns, 0, 0,
-		"Cache vbe_conn's or rely on malloc, that's the question.",
-		EXPERIMENTAL,
-		"off", "bool" },
+		"5", "levels" },
 	{ "connect_timeout", tweak_timeout_double,
 		&master.connect_timeout,0, UINT_MAX,
 		"Default connection timeout for backend connections. "
@@ -665,7 +713,7 @@ static const struct parspec input_parspec[] = {
 		"VCL can override this default value for each backend and "
 		"backend request.",
 		0,
-		"0.4", "s" },
+		"0.7", "s" },
 	{ "first_byte_timeout", tweak_timeout_double,
 		&master.first_byte_timeout,0, UINT_MAX,
 		"Default timeout for receiving first byte from backend. "
@@ -749,9 +797,9 @@ static const struct parspec input_parspec[] = {
 		0,
 		"8192", "bytes" },
 	{ "log_hashstring", tweak_bool, &master.log_hash, 0, 0,
-		"Log the hash string to shared memory log.\n",
+		"Log the hash string components to shared memory log.\n",
 		0,
-		"off", "bool" },
+		"on", "bool" },
 	{ "log_local_address", tweak_bool, &master.log_local_addr, 0, 0,
 		"Log the local address on the TCP connection in the "
 		"SessionOpen shared memory record.\n",
@@ -778,16 +826,13 @@ static const struct parspec input_parspec[] = {
 #endif
 		"  0x00010000 - synchronize shmlog.\n"
 		"  0x00020000 - synchronous start of persistence.\n"
+		"  0x00040000 - release VCL early.\n"
 		"  0x80000000 - do edge-detection on digest.\n"
 		"Use 0x notation and do the bitor in your head :-)\n",
 		0,
 		"0", "bitmap" },
-	{ "err_ttl", tweak_uint, &master.err_ttl, 0, UINT_MAX,
-		"The TTL assigned to the synthesized error pages\n",
-		0,
-		"0", "seconds" },
-	{ "purge_dups", tweak_bool, &master.purge_dups, 0, 0,
-		"Detect and eliminate duplicate purges.\n",
+	{ "ban_dups", tweak_bool, &master.ban_dups, 0, 0,
+		"Detect and eliminate duplicate bans.\n",
 		0,
 		"on", "bool" },
 	{ "syslog_cli_traffic", tweak_bool, &master.syslog_cli_traffic, 0, 0,
@@ -797,11 +842,11 @@ static const struct parspec input_parspec[] = {
 	{ "ban_lurker_sleep", tweak_timeout_double,
 		&master.ban_lurker_sleep, 0, UINT_MAX,
 		"How long time does the ban lurker thread sleeps between "
-		"successfull attempts to push the last item up the purge "
+		"successful attempts to push the last item up the ban "
 		" list.  It always sleeps a second when nothing can be done.\n"
 		"A value of zero disables the ban lurker.",
 		0,
-		"0.0", "s" },
+		"0.01", "s" },
 	{ "saintmode_threshold", tweak_uint,
 		&master.saintmode_threshold, 0, UINT_MAX,
 		"The maximum number of objects held off by saint mode before "
@@ -812,14 +857,81 @@ static const struct parspec input_parspec[] = {
 	{ "http_range_support", tweak_bool, &master.http_range_support, 0, 0,
 		"Enable support for HTTP Range headers.\n",
 		EXPERIMENTAL,
-		"off", "bool" },
+		"on", "bool" },
+	{ "http_gzip_support", tweak_bool, &master.http_gzip_support, 0, 0,
+		"Enable gzip support. When enabled Varnish will compress "
+		"uncompressed objects before they are stored in the cache. "
+		"If a client does not support gzip encoding Varnish will "
+		"uncompress compressed objects on demand. Varnish will also "
+		"rewrite the Accept-Encoding header of clients indicating "
+		"support for gzip to:\n"
+		"Accept-Encoding: gzip\n\n"
+		"Clients that do not support gzip will have their "
+		"Accept-Encoding header removed. For more information on how "
+		"gzip is implemented please see the chapter on gzip in the "
+		"Varnish reference.",
+		EXPERIMENTAL,
+		"on", "bool" },
+	{ "gzip_tmp_space", tweak_uint, &master.gzip_tmp_space, 0, 2,
+		"Where temporary space for gzip/gunzip is allocated:\n"
+		"  0 - malloc\n"
+		"  1 - session workspace\n"
+		"  2 - thread workspace\n"
+		"If you have much gzip/gunzip activity, it may be an"
+		" advantage to use workspace for these allocations to reduce"
+		" malloc activity.  Be aware that gzip needs 256+KB and gunzip"
+		" needs 32+KB of workspace (64+KB if ESI processing).",
+		EXPERIMENTAL,
+		"0", "" },
+	{ "gzip_level", tweak_uint, &master.gzip_level, 0, 9,
+		"Gzip compression level: 0=debug, 1=fast, 9=best",
+		0,
+		"6", ""},
+	{ "gzip_stack_buffer", tweak_uint, &master.gzip_stack_buffer,
+	        2048, UINT_MAX,
+		"Size of stack buffer used for gzip processing.\n"
+		"The stack buffers are used for in-transit data,"
+		" for instance gunzip'ed data being sent to a client."
+		"Making this space to small results in more overhead,"
+		" writes to sockets etc, making it too big is probably"
+		" just a waste of memory.",
+		EXPERIMENTAL,
+		"32768", "Bytes" },
+	{ "shortlived", tweak_timeout_double,
+		&master.shortlived, 0, UINT_MAX,
+		"Objects created with TTL shorter than this are always "
+		"put in transient storage.\n",
+		0,
+		"10.0", "s" },
 	{ "critbit_cooloff", tweak_timeout_double,
 		&master.critbit_cooloff, 60, 254,
 		"How long time the critbit hasher keeps deleted objheads "
-		"on the cooloff list.\n"
-		"A value of zero disables the ban lurker.",
-		EXPERIMENTAL,
+		"on the cooloff list.\n",
+		WIZARD,
 		"180.0", "s" },
+	{ "vcl_dir", tweak_string, &mgt_vcl_dir, 0, 0,
+		"Directory from which relative VCL filenames (vcl.load and "
+		"include) are opened.",
+		0,
+#ifdef VARNISH_VCL_DIR
+		VARNISH_VCL_DIR,
+#else
+		".",
+#endif
+		NULL },
+	{ "vmod_dir", tweak_string, &mgt_vmod_dir, 0, 0,
+		"Directory where VCL modules are to be found.",
+		0,
+#ifdef VARNISH_VMOD_DIR
+		VARNISH_VMOD_DIR,
+#else
+		".",
+#endif
+		NULL },
+	{ "vcc_err_unref", tweak_bool, &mgt_vcc_err_unref, 0, 0,
+		"Unreferenced VCL objects result in error.\n",
+		0,
+		"on", "bool" },
 	{ NULL, NULL, NULL }
 };
 
@@ -843,7 +955,7 @@ mcf_wrap(struct cli *cli, const char *text)
 				q--;
 			AN(q);
 		}
-		cli_out(cli, "%*s %.*s\n", margin, "", (int)(q - p), p);
+		VCLI_Out(cli, "%*s %.*s\n", margin, "", (int)(q - p), p);
 		p = q;
 		if (*p == ' ' || *p == '\n')
 			p++;
@@ -866,9 +978,9 @@ mcf_param_show(struct cli *cli, const char * const *av, void *priv)
 		pp = parspec[i];
 		if (av[2] != NULL && !lfmt && strcmp(pp->name, av[2]))
 			continue;
-		cli_out(cli, "%-*s ", margin, pp->name);
+		VCLI_Out(cli, "%-*s ", margin, pp->name);
 		if (pp->func == NULL) {
-			cli_out(cli, "Not implemented.\n");
+			VCLI_Out(cli, "Not implemented.\n");
 			if (av[2] != NULL && !lfmt)
 				return;
 			else
@@ -876,11 +988,11 @@ mcf_param_show(struct cli *cli, const char * const *av, void *priv)
 		}
 		pp->func(cli, pp, NULL);
 		if (pp->units != NULL)
-			cli_out(cli, " [%s]\n", pp->units);
+			VCLI_Out(cli, " [%s]\n", pp->units);
 		else
-			cli_out(cli, "\n");
+			VCLI_Out(cli, "\n");
 		if (av[2] != NULL) {
-			cli_out(cli, "%-*s Default is %s\n",
+			VCLI_Out(cli, "%-*s Default is %s\n",
 			    margin, "", pp->def);
 			mcf_wrap(cli, pp->descr);
 			if (pp->flags & DELAYED_EFFECT)
@@ -891,15 +1003,17 @@ mcf_param_show(struct cli *cli, const char * const *av, void *priv)
 				mcf_wrap(cli, MUST_RELOAD_TEXT);
 			if (pp->flags & MUST_RESTART)
 				mcf_wrap(cli, MUST_RESTART_TEXT);
+			if (pp->flags & WIZARD)
+				mcf_wrap(cli, WIZARD_TEXT);
 			if (!lfmt)
 				return;
 			else
-				cli_out(cli, "\n");
+				VCLI_Out(cli, "\n");
 		}
 	}
 	if (av[2] != NULL && !lfmt) {
-		cli_result(cli, CLIS_PARAM);
-		cli_out(cli, "Unknown parameter \"%s\".", av[2]);
+		VCLI_SetResult(cli, CLIS_PARAM);
+		VCLI_Out(cli, "Unknown parameter \"%s\".", av[2]);
 	}
 }
 
@@ -923,18 +1037,20 @@ MCF_ParamSet(struct cli *cli, const char *param, const char *val)
 	if (pp != NULL) {
 		pp->func(cli, pp, val);
 		if (cli->result != CLIS_OK) {
+			VCLI_Out(cli, "(attempting to set param %s to %s)\n",
+			    pp->name, val);
 		} else if (child_pid >= 0 && pp->flags & MUST_RESTART) {
-			cli_out(cli, "Change will take effect"
+			VCLI_Out(cli, "Change will take effect"
 			    " when child is restarted");
 		} else if (pp->flags & MUST_RELOAD) {
-			cli_out(cli, "Change will take effect"
+			VCLI_Out(cli, "Change will take effect"
 			    " when VCL script is reloaded");
 		}
 		MCF_ParamSync();
 		return;
 	}
-	cli_result(cli, CLIS_PARAM);
-	cli_out(cli, "Unknown parameter \"%s\".", param);
+	VCLI_SetResult(cli, CLIS_PARAM);
+	VCLI_Out(cli, "Unknown parameter \"%s\".", param);
 }
 
 
@@ -995,7 +1111,7 @@ MCF_SetDefaults(struct cli *cli)
 	for (i = 0; i < nparspec; i++) {
 		pp = parspec[i];
 		if (cli != NULL)
-			cli_out(cli,
+			VCLI_Out(cli,
 			    "Set Default for %s = %s\n", pp->name, pp->def);
 		pp->func(cli, pp, pp->def);
 		if (cli != NULL && cli->result != CLIS_OK)
@@ -1024,26 +1140,25 @@ MCF_ParamInit(struct cli *cli)
 #ifdef DIAGNOSTICS
 
 void
-MCF_DumpMdoc(void)
+MCF_DumpRst(void)
 {
 	const struct parspec *pp;
 	const char *p, *q;
 	int i;
 
-	printf(".Bl -tag -width 4n\n");
 	for (i = 0; i < nparspec; i++) {
 		pp = parspec[i];
-		printf(".It Va %s\n", pp->name);
+		printf("%s\n", pp->name);
 		if (pp->units != NULL && *pp->units != '\0')
-			printf("Units:\n.Dv %s\n.br\n", pp->units);
-		printf("Default:\n.Dv %s\n.br\n", pp->def);
+			printf("\t- Units: %s\n", pp->units);
+		printf("\t- Default: %s\n", strcmp(pp->def,MAGIC_INIT_STRING) == 0 ? "magic" : pp->def);
 		/*
 		 * XXX: we should mark the params with one/two flags
 		 * XXX: that say if ->min/->max are valid, so we
 		 * XXX: can emit those also in help texts.
 		 */
 		if (pp->flags) {
-			printf("Flags:\n.Dv \"");
+			printf("\t- Flags: ");
 			q = "";
 			if (pp->flags & DELAYED_EFFECT) {
 				printf("%sdelayed", q);
@@ -1061,23 +1176,26 @@ MCF_DumpMdoc(void)
 				printf("%sexperimental", q);
 				q = ", ";
 			}
-			printf("\"\n.br\n");
+			printf("\n");
 		}
-		printf(".Pp\n");
+		printf("\n\t");
 		for (p = pp->descr; *p; p++) {
 			if (*p == '\n' && p[1] =='\0')
 				break;
 			if (*p == '\n' && p[1] =='\n') {
-				printf("\n.Pp\n");
+				printf("\n\n\t");
 				p++;
 			} else if (*p == '\n') {
-				printf("\n.br\n");
+				printf("\n\t");
+			} else if (*p == ':' && p[1] == '\n') {
+				/* Start of definition list, use RSTs code mode for this */
+				printf("::\n");
 			} else {
 				printf("%c", *p);
 			}
 		}
-		printf("\n.Pp\n");
+		printf("\n\n");
 	}
-	printf(".El\n");
+	printf("\n");
 }
 #endif /* DIAGNOSTICS */

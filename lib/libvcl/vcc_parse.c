@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -29,12 +29,8 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <stdio.h>
 #include <string.h>
-#include <math.h>
 
 #include "vsb.h"
 
@@ -44,8 +40,7 @@ SVNID("$Id$")
 
 /*--------------------------------------------------------------------*/
 
-static void vcc_Compound(struct tokenlist *tl);
-static void vcc_Cond_0(struct tokenlist *tl);
+static void vcc_Compound(struct vcc *tl);
 
 /*--------------------------------------------------------------------*/
 
@@ -61,363 +56,41 @@ static void vcc_Cond_0(struct tokenlist *tl);
 } while (0)
 
 /*--------------------------------------------------------------------
- * Recognize and convert units of time, return seconds.
+ * SYNTAX:
+ *    Conditional:
+ *	'(' Cond_0 ')'
  */
 
-static double
-vcc_TimeUnit(struct tokenlist *tl)
-{
-	double sc = 1.0;
-
-	assert(tl->t->tok == ID);
-	if (vcc_IdIs(tl->t, "ms"))
-		sc = 1e-3;
-	else if (vcc_IdIs(tl->t, "s"))
-		sc = 1.0;
-	else if (vcc_IdIs(tl->t, "m"))
-		sc = 60.0;
-	else if (vcc_IdIs(tl->t, "h"))
-		sc = 60.0 * 60.0;
-	else if (vcc_IdIs(tl->t, "d"))
-		sc = 60.0 * 60.0 * 24.0;
-	else if (vcc_IdIs(tl->t, "w"))
-		sc = 60.0 * 60.0 * 24.0 * 7.0;
-	else {
-		vsb_printf(tl->sb, "Unknown time unit ");
-		vcc_ErrToken(tl, tl->t);
-		vsb_printf(tl->sb, ".  Legal are 's', 'm', 'h' and 'd'\n");
-		vcc_ErrWhere(tl, tl->t);
-		return (1.0);
-	}
-	vcc_NextToken(tl);
-	return (sc);
-}
-
-/*--------------------------------------------------------------------
- * Recognize and convert units of size, return bytes.
- */
-
-static double
-vcc_SizeUnit(struct tokenlist *tl)
-{
-	double sc = 1.0;
-
-	assert(tl->t->tok == ID);
-	if (vcc_IdIs(tl->t, "b"))
-		sc = 1.0;
-	else if (vcc_IdIs(tl->t, "kb"))
-		sc = 1024.0;
-	else if (vcc_IdIs(tl->t, "mb") || vcc_IdIs(tl->t, "Mb"))
-		sc = 1024.0 * 1024.0;
-	else if (vcc_IdIs(tl->t, "gb") || vcc_IdIs(tl->t, "Gb"))
-		sc = 1024.0 * 1024.0 * 1024.0;
-	else {
-		vsb_printf(tl->sb, "Unknown size unit ");
-		vcc_ErrToken(tl, tl->t);
-		vsb_printf(tl->sb, ".  Legal are 'kb', 'mb' and 'gb'\n");
-		vcc_ErrWhere(tl, tl->t);
-		return (1.0);
-	}
-	vcc_NextToken(tl);
-	return (sc);
-}
-
-/*--------------------------------------------------------------------
- * Recognize and convert { CNUM } to unsigned value
- * The tokenizer made sure we only get digits.
- */
-
-unsigned
-vcc_UintVal(struct tokenlist *tl)
-{
-	unsigned d = 0;
-	const char *p;
-
-	Expect(tl, CNUM);
-	for (p = tl->t->b; p < tl->t->e; p++) {
-		d *= 10;
-		d += *p - '0';
-	}
-	vcc_NextToken(tl);
-	return (d);
-}
-
-/*--------------------------------------------------------------------
- * Recognize and convert { CNUM [ '.' [ CNUM ] ] } to double value
- * The tokenizer made sure we only get digits and a '.'
- */
-
-double
-vcc_DoubleVal(struct tokenlist *tl)
-{
-	double d = 0.0, e = 0.1;
-	const char *p;
-
-	Expect(tl, CNUM);
-	if (tl->err)
-		return (NAN);
-	for (p = tl->t->b; p < tl->t->e; p++) {
-		d *= 10;
-		d += *p - '0';
-	}
-	vcc_NextToken(tl);
-	if (tl->t->tok != '.')
-		return (d);
-	vcc_NextToken(tl);
-	if (tl->t->tok != CNUM)
-		return (d);
-	for (p = tl->t->b; p < tl->t->e; p++) {
-		d += (*p - '0') * e;
-		e *= 0.1;
-	}
-	vcc_NextToken(tl);
-	return (d);
-}
-
-/*--------------------------------------------------------------------*/
-
-void
-vcc_RTimeVal(struct tokenlist *tl, double *d)
-{
-	double v, sc;
-	int sign = 1;
-
-	if (tl->t->tok == '-') {
-		sign *= -1;
-		vcc_NextToken(tl);
-	}
-	v = vcc_DoubleVal(tl);
-	ERRCHK(tl);
-	ExpectErr(tl, ID);
-	sc = vcc_TimeUnit(tl);
-	*d = sign * v * sc;
-}
-
-/*--------------------------------------------------------------------*/
-
-void
-vcc_TimeVal(struct tokenlist *tl, double *d)
-{
-	double v, sc;
-
-	v = vcc_DoubleVal(tl);
-	ERRCHK(tl);
-	ExpectErr(tl, ID);
-	sc = vcc_TimeUnit(tl);
-	*d = v * sc;
-}
-
-/*--------------------------------------------------------------------*/
-
-void
-vcc_SizeVal(struct tokenlist *tl, double *d)
-{
-	double v, sc;
-
-	v = vcc_DoubleVal(tl);
-	ERRCHK(tl);
-	ExpectErr(tl, ID);
-	sc = vcc_SizeUnit(tl);
-	*d = v * sc;
-}
-
-/*--------------------------------------------------------------------*/
-
 static void
-vcc_Cond_String(const struct var *vp, struct tokenlist *tl)
-{
-	char *p;
-
-	switch (tl->t->tok) {
-	case '~':
-	case T_NOMATCH:
-		Fb(tl, 1, "%sVRT_re_match(",
-		     tl->t->tok == '~' ? "" : "!");
-		vcc_NextToken(tl);
-		ExpectErr(tl, CSTR);
-		p = vcc_regexp(tl);
-		ERRCHK(tl);
-		vcc_NextToken(tl);
-		Fb(tl, 1, "%s, %s)\n", vp->rname, p);
-		break;
-	case T_EQ:
-	case T_NEQ:
-		Fb(tl, 1, "%sVRT_strcmp(%s, ",
-		    tl->t->tok == T_EQ ? "!" : "", vp->rname);
-		vcc_NextToken(tl);
-		if (!vcc_StringVal(tl)) {
-			vcc_ExpectedStringval(tl);
-			break;
-		}
-		Fb(tl, 0, ")\n");
-		break;
-	default:
-		Fb(tl, 1, "%s != (void*)0\n", vp->rname);
-		break;
-	}
-}
-
-static void
-vcc_Cond_Int(const struct var *vp, struct tokenlist *tl)
-{
-
-	Fb(tl, 1, "%s ", vp->rname);
-	switch (tl->t->tok) {
-	case T_EQ:
-	case T_NEQ:
-	case T_LEQ:
-	case T_GEQ:
-	case '>':
-	case '<':
-		Fb(tl, 0, "%.*s ", PF(tl->t));
-		vcc_NextToken(tl);
-		vcc_VarVal(tl, vp, NULL);
-		ERRCHK(tl);
-		Fb(tl, 0, "\n");
-		break;
-	default:
-		vsb_printf(tl->sb, "Invalid condition ");
-		vcc_ErrToken(tl, tl->t);
-		vsb_printf(tl->sb, " on numeric variable\n");
-		vsb_printf(tl->sb,
-		    "  only '==', '!=', '<', '>', '<=' and '>=' are legal\n");
-		vcc_ErrWhere(tl, tl->t);
-		break;
-	}
-}
-
-static void
-vcc_Cond_Bool(const struct var *vp, const struct tokenlist *tl)
-{
-
-	Fb(tl, 1, "%s\n", vp->rname);
-}
-
-static void
-vcc_Cond_Backend(const struct var *vp, struct tokenlist *tl)
-{
-
-	Fb(tl, 1, "%s\n", vp->rname);
-	if (tl->t->tok == T_EQ) {
-		Fb(tl, 1, "  ==\n");
-	} else if (tl->t->tok == T_NEQ) {
-		Fb(tl, 1, "  !=\n");
-	} else {
-		vsb_printf(tl->sb, "Invalid condition ");
-		vcc_ErrToken(tl, tl->t);
-		vsb_printf(tl->sb, " on backend variable\n");
-		vsb_printf(tl->sb,
-		    "  only '==' and '!=' are legal\n");
-		vcc_ErrWhere(tl, tl->t);
-		return;
-	}
-	vcc_NextToken(tl);
-	vcc_ExpectCid(tl);
-	ERRCHK(tl);
-	vcc_AddRef(tl, tl->t, R_BACKEND);
-	Fb(tl, 1, "VGCDIR(_%.*s)\n", PF(tl->t));
-	vcc_NextToken(tl);
-}
-
-static void
-vcc_Cond_2(struct tokenlist *tl)
-{
-	struct var *vp;
-
-	C(tl, ",");
-	if (tl->t->tok == '!') {
-		Fb(tl, 1, "!(\n");
-		vcc_NextToken(tl);
-	} else {
-		Fb(tl, 1, "(\n");
-	}
-	if (tl->t->tok == '(') {
-		vcc_NextToken(tl);
-		vcc_Cond_0(tl);
-		SkipToken(tl, ')');
-	} else if (tl->t->tok == VAR) {
-		vp = vcc_FindVar(tl, tl->t, vcc_vars);
-		ERRCHK(tl);
-		assert(vp != NULL);
-		vcc_NextToken(tl);
-		switch (vp->fmt) {
-		case INT:	L(tl, vcc_Cond_Int(vp, tl)); break;
-		case SIZE:	L(tl, vcc_Cond_Int(vp, tl)); break;
-		case BOOL:	L(tl, vcc_Cond_Bool(vp, tl)); break;
-		case IP:	L(tl, vcc_Cond_Ip(vp, tl)); break;
-		case STRING:	L(tl, vcc_Cond_String(vp, tl)); break;
-		case TIME:	L(tl, vcc_Cond_Int(vp, tl)); break;
-		case RTIME:	L(tl, vcc_Cond_Int(vp, tl)); break;
-		case BACKEND:	L(tl, vcc_Cond_Backend(vp, tl)); break;
-		default:
-			vsb_printf(tl->sb,
-			    "Variable '%s'"
-			    " has no conditions that can be checked\n",
-			    vp->name);
-			vcc_ErrWhere(tl, tl->t);
-			return;
-		}
-	} else {
-		vsb_printf(tl->sb,
-		    "Syntax error in condition, expected '(', '!' or"
-		    " variable name, found ");
-		vcc_ErrToken(tl, tl->t);
-		vsb_printf(tl->sb, "\n");
-		vcc_ErrWhere(tl, tl->t);
-		return;
-	}
-	Fb(tl, 1, ")\n");
-}
-
-static void
-vcc_Cond_1(struct tokenlist *tl)
-{
-
-	Fb(tl, 1, "(\n");
-	L(tl, vcc_Cond_2(tl));
-	while (tl->t->tok == T_CAND) {
-		vcc_NextToken(tl);
-		Fb(tl, 1, ") && (\n");
-		L(tl, vcc_Cond_2(tl));
-	}
-	Fb(tl, 1, ")\n");
-}
-
-static void
-vcc_Cond_0(struct tokenlist *tl)
-{
-
-	Fb(tl, 1, "(\n");
-	L(tl, vcc_Cond_1(tl));
-	while (tl->t->tok == T_COR) {
-		vcc_NextToken(tl);
-		Fb(tl, 1, ") || (\n");
-		L(tl, vcc_Cond_1(tl));
-	}
-	Fb(tl, 1, ")\n");
-}
-
-static void
-vcc_Conditional(struct tokenlist *tl)
+vcc_Conditional(struct vcc *tl)
 {
 
 	SkipToken(tl, '(');
-	Fb(tl, 1, "(\n");
-	L(tl, vcc_Cond_0(tl));
+	Fb(tl, 0, "(\n");
+	L(tl, vcc_Expr(tl, BOOL));
 	ERRCHK(tl);
 	Fb(tl, 1, ")\n");
 	SkipToken(tl, ')');
 }
 
-/*--------------------------------------------------------------------*/
+/*--------------------------------------------------------------------
+ * SYNTAX:
+ *    IfStmt:
+ *	'if' Conditional  Compound Branch1* Branch2
+ *    Branch1:
+ *      'elseif' Conditional Compound
+ *    Branch2:
+ *      'else' Compound
+ *	null
+ */
 
 static void
-vcc_IfStmt(struct tokenlist *tl)
+vcc_IfStmt(struct vcc *tl)
 {
 
 	SkipToken(tl, T_IF);
-	Fb(tl, 1, "if \n");
-	L(tl, vcc_Conditional(tl));
+	Fb(tl, 1, "if ");
+	vcc_Conditional(tl);
 	ERRCHK(tl);
 	L(tl, vcc_Compound(tl));
 	ERRCHK(tl);
@@ -426,7 +99,7 @@ vcc_IfStmt(struct tokenlist *tl)
 		case T_ELSE:
 			vcc_NextToken(tl);
 			if (tl->t->tok != T_IF) {
-				Fb(tl, 1, "else \n");
+				Fb(tl, 1, "else\n");
 				L(tl, vcc_Compound(tl));
 				ERRCHK(tl);
 				return;
@@ -434,9 +107,9 @@ vcc_IfStmt(struct tokenlist *tl)
 			/* FALLTHROUGH */
 		case T_ELSEIF:
 		case T_ELSIF:
-			Fb(tl, 1, "else if \n");
+			Fb(tl, 1, "else if ");
 			vcc_NextToken(tl);
-			L(tl, vcc_Conditional(tl));
+			vcc_Conditional(tl);
 			ERRCHK(tl);
 			L(tl, vcc_Compound(tl));
 			ERRCHK(tl);
@@ -448,10 +121,20 @@ vcc_IfStmt(struct tokenlist *tl)
 	}
 }
 
-/*--------------------------------------------------------------------*/
+/*--------------------------------------------------------------------
+ * SYNTAX:
+ *    Compound:
+ *	'{' Stmt* '}'
+ *
+ *    Stmt:
+ *	Compound
+ *	IfStmt
+ *	CSRC
+ *	Id(Action) (XXX)
+ */
 
 static void
-vcc_Compound(struct tokenlist *tl)
+vcc_Compound(struct vcc *tl)
 {
 	int i;
 
@@ -480,7 +163,7 @@ vcc_Compound(struct tokenlist *tl)
 			vcc_NextToken(tl);
 			break;
 		case EOI:
-			vsb_printf(tl->sb,
+			VSB_printf(tl->sb,
 			    "End of input while in compound statement\n");
 			tl->err = 1;
 			return;
@@ -494,7 +177,7 @@ vcc_Compound(struct tokenlist *tl)
 			/* FALLTHROUGH */
 		default:
 			/* We deliberately do not mention inline C */
-			vsb_printf(tl->sb,
+			VSB_printf(tl->sb,
 			    "Expected an action, 'if', '{' or '}'\n");
 			vcc_ErrWhere(tl, tl->t);
 			return;
@@ -502,12 +185,16 @@ vcc_Compound(struct tokenlist *tl)
 	}
 }
 
-/*--------------------------------------------------------------------*/
+/*--------------------------------------------------------------------
+ * SYNTAX:
+ *    Function:
+ *	'sub' ID(name) Compound
+ */
 
 static void
-vcc_Function(struct tokenlist *tl)
+vcc_Function(struct vcc *tl)
 {
-	int m;
+	int m, i;
 
 	vcc_NextToken(tl);
 	ExpectErr(tl, ID);
@@ -517,9 +204,9 @@ vcc_Function(struct tokenlist *tl)
 		assert(m < VCL_MET_MAX);
 		tl->fb = tl->fm[m];
 		if (tl->mprocs[m] == NULL) {
+			(void)vcc_AddDef(tl, tl->t, SYM_SUB);
+			vcc_AddRef(tl, tl->t, SYM_SUB);
 			tl->mprocs[m] = vcc_AddProc(tl, tl->t);
-			vcc_AddDef(tl, tl->t, R_FUNC);
-			vcc_AddRef(tl, tl->t, R_FUNC);
 		}
 		tl->curproc = tl->mprocs[m];
 		Fb(tl, 1, "  /* ... from ");
@@ -527,8 +214,14 @@ vcc_Function(struct tokenlist *tl)
 		Fb(tl, 0, " */\n");
 	} else {
 		tl->fb = tl->fc;
+		i = vcc_AddDef(tl, tl->t, SYM_SUB);
+		if (i > 1) {
+			VSB_printf(tl->sb,
+			    "Function %.*s redefined\n", PF(tl->t));
+			vcc_ErrWhere(tl, tl->t);
+			return;
+		}
 		tl->curproc = vcc_AddProc(tl, tl->t);
-		vcc_AddDef(tl, tl->t, R_FUNC);
 		Fh(tl, 0, "static int VGC_function_%.*s (struct sess *sp);\n",
 		    PF(tl->t));
 		Fc(tl, 1, "\nstatic int\n");
@@ -560,7 +253,7 @@ vcc_Function(struct tokenlist *tl)
  *	End of input
  */
 
-typedef void parse_f(struct tokenlist *tl);
+typedef void parse_f(struct vcc *tl);
 
 static struct toplev {
 	const char	*name;
@@ -570,11 +263,13 @@ static struct toplev {
 	{ "sub",		vcc_Function },
 	{ "backend",		vcc_ParseDirector },
 	{ "director",		vcc_ParseDirector },
+	{ "probe",		vcc_ParseProbe },
+	{ "import",		vcc_ParseImport },
 	{ NULL, NULL }
 };
 
 void
-vcc_Parse(struct tokenlist *tl)
+vcc_Parse(struct vcc *tl)
 {
 	struct toplev *tp;
 
@@ -600,17 +295,17 @@ vcc_Parse(struct tokenlist *tl)
 			/* FALLTHROUGH */
 		default:
 			/* We deliberately do not mention inline-C */
-			vsb_printf(tl->sb, "Expected one of\n\t");
+			VSB_printf(tl->sb, "Expected one of\n\t");
 			for (tp = toplev; tp->name != NULL; tp++) {
 				if (tp[1].name == NULL)
-					vsb_printf(tl->sb, " or ");
-				vsb_printf(tl->sb, "'%s'", tp->name);
+					VSB_printf(tl->sb, " or ");
+				VSB_printf(tl->sb, "'%s'", tp->name);
 				if (tp[1].name != NULL)
-					vsb_printf(tl->sb, ", ");
+					VSB_printf(tl->sb, ", ");
 			}
-			vsb_printf(tl->sb, "\nFound: ");
+			VSB_printf(tl->sb, "\nFound: ");
 			vcc_ErrToken(tl, tl->t);
-			vsb_printf(tl->sb, " at\n");
+			VSB_printf(tl->sb, " at\n");
 			vcc_ErrWhere(tl, tl->t);
 			return;
 		}

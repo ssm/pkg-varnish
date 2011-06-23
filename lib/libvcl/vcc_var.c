@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -29,9 +29,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <stdio.h>
 #include <string.h>
 
@@ -43,69 +40,84 @@ SVNID("$Id$")
 
 /*--------------------------------------------------------------------*/
 
-static struct var *
-HeaderVar(struct tokenlist *tl, const struct token *t, const struct var *vh)
+struct symbol *
+vcc_Var_Wildcard(struct vcc *tl, const struct token *t, const struct symbol *wc)
 {
-	char *p;
+	struct symbol *sym;
 	struct var *v;
-	int i, l;
+	const struct var *vh;
+	int l;
 	char buf[258];
 
-	(void)tl;
+	vh = wc->var;
 
 	v = TlAlloc(tl, sizeof *v);
-	assert(v != NULL);
-	i = t->e - t->b;
-	p = TlAlloc(tl, i + 1);
-	assert(p != NULL);
-	memcpy(p, t->b, i);
-	p[i] = '\0';
-	v->name = p;
-	v->access = V_RW;
+	AN(v);
+
+	v->name = TlDupTok(tl, t);
+	v->r_methods = vh->r_methods;
+	v->w_methods = vh->w_methods;
 	v->fmt = STRING;
-	v->hdr = vh->hdr;
-	v->methods = vh->methods;
+	v->http = vh->http;
 	l = strlen(v->name + vh->len) + 1;
 
-	bprintf(buf, "VRT_GetHdr(sp, %s, \"\\%03o%s:\")",
-	    v->hdr, (unsigned)l, v->name + vh->len);
-	i = strlen(buf);
-	p = TlAlloc(tl, i + 1);
-	memcpy(p, buf, i + 1);
-	v->rname = p;
+	bprintf(buf, "\\%03o%s:", (unsigned)l, v->name + vh->len);
+	v->hdr = TlDup(tl, buf);
+	bprintf(buf, "VRT_GetHdr(sp, %s, \"%s\")", v->http, v->hdr);
+	v->rname = TlDup(tl, buf);
 
-	bprintf(buf, "VRT_SetHdr(sp, %s, \"\\%03o%s:\", ",
-	    v->hdr, (unsigned)l, v->name + vh->len);
-	i = strlen(buf);
-	p =  TlAlloc(tl, i + 1);
-	memcpy(p, buf, i + 1);
-	v->lname = p;
+	bprintf(buf, "VRT_SetHdr(sp, %s, \"%s\", ", v->http, v->hdr);
+	v->lname = TlDup(tl, buf);
 
-	return (v);
+	sym = VCC_AddSymbolTok(tl, t, SYM_VAR);
+	AN(sym);
+	sym->var = v;
+	sym->fmt = v->fmt;
+	sym->eval = vcc_Eval_Var;
+	sym->r_methods = v->r_methods;
+	return (sym);
 }
 
 /*--------------------------------------------------------------------*/
 
-struct var *
-vcc_FindVar(struct tokenlist *tl, const struct token *t, struct var *vl)
+const struct var *
+vcc_FindVar(struct vcc *tl, const struct token *t, int wr_access,
+    const char *use)
 {
-	struct var *v;
+	const struct var *v;
+	const struct symbol *sym;
 
-	for (v = vl; v->name != NULL; v++) {
-		if (v->fmt == HEADER  && (t->e - t->b) <= v->len)
-			continue;
-		if (v->fmt != HEADER  && t->e - t->b != v->len)
-			continue;
-		if (memcmp(t->b, v->name, v->len))
-			continue;
-		vcc_AddUses(tl, v);
-		if (v->fmt != HEADER)
-			return (v);
-		return (HeaderVar(tl, t, v));
+	AN(tl->vars);
+	sym = VCC_FindSymbol(tl, t, SYM_VAR);
+	if (sym != NULL) {
+		v = sym->var;
+		AN(v);
+
+		if (wr_access && v->w_methods == 0) {
+			VSB_printf(tl->sb, "Variable ");
+			vcc_ErrToken(tl, t);
+			VSB_printf(tl->sb, " is read only.");
+			VSB_cat(tl->sb, "\nAt: ");
+			vcc_ErrWhere(tl, t);
+			return (NULL);
+		} else if (wr_access) {
+			vcc_AddUses(tl, t, v->w_methods, use);
+		} else if (v->r_methods == 0) {
+			VSB_printf(tl->sb, "Variable ");
+			vcc_ErrToken(tl, t);
+			VSB_printf(tl->sb, " is write only.");
+			VSB_cat(tl->sb, "\nAt: ");
+			vcc_ErrWhere(tl, t);
+			return (NULL);
+		} else {
+			vcc_AddUses(tl, t, v->r_methods, use);
+		}
+		assert(v->fmt != HEADER);
+		return (v);
 	}
-	vsb_printf(tl->sb, "Unknown variable ");
+	VSB_printf(tl->sb, "Unknown variable ");
 	vcc_ErrToken(tl, t);
-	vsb_cat(tl->sb, "\nAt: ");
+	VSB_cat(tl->sb, "\nAt: ");
 	vcc_ErrWhere(tl, t);
 	return (NULL);
 }
@@ -113,7 +125,7 @@ vcc_FindVar(struct tokenlist *tl, const struct token *t, struct var *vl)
 /*--------------------------------------------------------------------*/
 
 void
-vcc_VarVal(struct tokenlist *tl, const struct var *vp, const struct token *vt)
+vcc_VarVal(struct vcc *tl, const struct var *vp, const struct token *vt)
 {
 	double d;
 
@@ -121,21 +133,15 @@ vcc_VarVal(struct tokenlist *tl, const struct var *vp, const struct token *vt)
 		vcc_TimeVal(tl, &d);
 		ERRCHK(tl);
 		Fb(tl, 0, "%g", d);
-	} else if (vp->fmt == RTIME) {
+	} else if (vp->fmt == DURATION) {
 		vcc_RTimeVal(tl, &d);
 		ERRCHK(tl);
 		Fb(tl, 0, "%g", d);
-	} else if (vp->fmt == SIZE) {
-		vcc_SizeVal(tl, &d);
-		ERRCHK(tl);
-		Fb(tl, 0, "%g", d);
-	} else if (vp->fmt == FLOAT) {
-		Fb(tl, 0, "%g", vcc_DoubleVal(tl));
 	} else if (vp->fmt == INT) {
 		Fb(tl, 0, "%u", vcc_UintVal(tl));
 	} else {
 		AN(vt);
-		vsb_printf(tl->sb,
+		VSB_printf(tl->sb,
 		    "Variable has incompatible type.\n");
 		vcc_ErrWhere(tl, vt);
 		return;

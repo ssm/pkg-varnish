@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -26,8 +26,6 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $Id$
- *
  * Argument list:
  * ---------------------------------------
  * a	Http header name
@@ -41,6 +39,8 @@
  * see [RFC2616 13.5.1 End-to-end and Hop-by-hop Headers]
  *
  */
+
+/*lint -save -e525 -e539 */
 
 #ifndef HTTPH_R_PASS
 #define HTTPH_R_PASS	(1 << 0)	/* Request (c->b) in pass mode */
@@ -56,11 +56,11 @@ HTTPH("Accept",			H_Accept,		1, 0, 0,										0, 0)	/* RFC2616 14.1 */
 HTTPH("Accept-Charset",		H_Accept_Charset,	1, 0, 0,										0, 0)	/* RFC2616 14.2 */
 HTTPH("Accept-Encoding",	H_Accept_Encoding,	1, 0, 0,										0, 0)	/* RFC2616 14.3 */
 HTTPH("Accept-Language",	H_Accept_Language,	1, 0, 0,										0, 0)	/* RFC2616 14.4 */
-HTTPH("Accept-Ranges",		H_Accept_Ranges,	2, 3, 				    HTTPH_R_FETCH | HTTPH_A_INS,			0, 0)	/* RFC2616 14.5 */
+HTTPH("Accept-Ranges",		H_Accept_Ranges,	2, 3,				    HTTPH_R_FETCH | HTTPH_A_INS,			0, 0)	/* RFC2616 14.5 */
 HTTPH("Age",			H_Age,			2, 0,						    HTTPH_A_INS,			0, 0)	/* RFC2616 14.6 */
 HTTPH("Allow",			H_Allow,		2, 0, 0,										0, 0)	/* RFC2616 14.7 */
 HTTPH("Authorization",		H_Authorization,	1, 0, 0,										0, 0)	/* RFC2616 14.8 */
-HTTPH("Cache-Control",		H_Cache_Control,	3, 3,               		    HTTPH_R_FETCH,					0, 0)	/* RFC2616 14.9 */
+HTTPH("Cache-Control",		H_Cache_Control,	3, 3,				    HTTPH_R_FETCH,					0, 0)	/* RFC2616 14.9 */
 HTTPH("Connection",		H_Connection,		3, 3, HTTPH_R_PASS | HTTPH_A_PASS | HTTPH_R_FETCH | HTTPH_A_INS,			0, 0)	/* RFC2616 14.10 */
 HTTPH("Content-Encoding",	H_Content_Encoding,	2, 0, 0,										0, 0)	/* RFC2616 14.11 */
 HTTPH("Content-Langugae",	H_Content_Language,	2, 0, 0,										0, 0)	/* RFC2616 14.12 */
@@ -99,3 +99,5 @@ HTTPH("Vary",			H_Vary,			2, 0, 0,										0, 0)	/* RFC2616 14.44 */
 HTTPH("Via",			H_Via,			2, 0, 0,										0, 0)	/* RFC2616 14.45 */
 HTTPH("Warning",		H_Warning,		2, 0, 0,										0, 0)	/* RFC2616 14.46 */
 HTTPH("WWW-Authenticate",	H_WWW_Authenticate,	2, 0, 0,										0, 0)	/* RFC2616 14.47 */
+
+/*lint -restore */

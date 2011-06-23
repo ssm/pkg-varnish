@@ -1,6 +1,4 @@
-# $Id$
-
-test "Make sure that PASS'ed ESI requests use GET for includes"
+varnishtest "Make sure that PASS'ed ESI requests use GET for includes"
 
 server s1 {
 	rxreq 
@@ -19,8 +17,8 @@ server s1 {
 
 varnish v1 -vcl+backend {
 	sub vcl_fetch {
-		esi;
-		return(pass);
+		set beresp.do_esi = true;
+		return(hit_for_pass);
 	}
 } -start 
 

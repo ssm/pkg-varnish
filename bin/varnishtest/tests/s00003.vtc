@@ -1,6 +1,4 @@
-# $Id$
-
-test "Check saint mode with sick pages"
+varnishtest "Check saint mode with sick pages"
 
 server s1 {
 	timeout 10
@@ -11,6 +9,7 @@ server s1 {
 	rxreq
 	expect req.url == "/"
 	txresp -status 200 -hdr "foo: 2"
+	accept
 	rxreq
 	expect req.url == "/"
 	txresp -status 200 -hdr "foo: 3"
@@ -20,11 +19,10 @@ varnish v1 -vcl+backend {
 	sub vcl_fetch {
 		set beresp.ttl = 1s;
 		set beresp.grace = 10m;
-		set beresp.cacheable = true;
 		if (beresp.http.foo == "2")
 		{
 			set beresp.saintmode = 2s;
-			restart;
+			return (restart);
 		}
 		return(deliver);
 	}

@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -26,12 +26,9 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $Id$
- *
  * Runtime support for compiled VCL programs.
  *
- * XXX: When this file is changed, lib/libvcl/vcc_gen_fixed_token.tcl
- * XXX: *MUST* be rerun.
+ * XXX: When this file is changed, lib/libvcl/generate.py *MUST* be rerun.
  */
 
 struct sess;
@@ -39,7 +36,7 @@ struct vsb;
 struct cli;
 struct director;
 struct VCL_conf;
-struct sockaddr;
+struct sockaddr_storage;
 
 /*
  * A backend probe specification
@@ -63,22 +60,21 @@ struct vrt_backend_probe {
  */
 struct vrt_backend {
 	const char			*vcl_name;
-	const char			*ident;
-
-	const char			*hosthdr;
-
-	const unsigned char		*ipv4_sockaddr;
 	const char			*ipv4_addr;
-	const unsigned char		*ipv6_sockaddr;
 	const char			*ipv6_addr;
 	const char			*port;
+
+	const unsigned char		*ipv4_sockaddr;
+	const unsigned char		*ipv6_sockaddr;
+
+	const char			*hosthdr;
 
 	double				connect_timeout;
 	double				first_byte_timeout;
 	double				between_bytes_timeout;
 	unsigned			max_connections;
 	unsigned			saintmode_threshold;
-	struct vrt_backend_probe	probe;
+	const struct vrt_backend_probe	*probe;
 };
 
 /*
@@ -153,11 +149,10 @@ int VRT_re_match(const char *, void *re);
 const char *VRT_regsub(const struct sess *sp, int all, const char *,
     void *, const char *);
 
-void VRT_panic(struct sess *sp, const char *, ...);
+void VRT_panic(const struct sess *sp, const char *, ...);
 void VRT_ban(struct sess *sp, char *, ...);
-void VRT_ban_string(struct sess *sp, const char *, ...);
-void VRT_purge(struct sess *sp, double ttl, double grace);
-void VRT_log(struct sess *, const char *msg, ...);
+void VRT_ban_string(struct sess *sp, const char *);
+void VRT_purge(const struct sess *sp, double ttl, double grace);
 
 void VRT_count(const struct sess *, unsigned);
 int VRT_rewrite(const char *, const char *);
@@ -170,29 +165,61 @@ void VRT_SetHdr(const struct sess *, enum gethdr_e where, const char *,
     const char *, ...);
 void VRT_handling(struct sess *sp, unsigned hand);
 
+void VRT_hashdata(const struct sess *sp, const char *str, ...);
+
 /* Simple stuff */
 int VRT_strcmp(const char *s1, const char *s2);
 void VRT_memmove(void *dst, const void *src, unsigned len);
 
-void VRT_ESI(struct sess *sp);
+void VRT_ESI(const struct sess *sp);
 void VRT_Rollback(struct sess *sp);
 
 /* Synthetic pages */
-void VRT_synth_page(struct sess *sp, unsigned flags, const char *, ...);
+void VRT_synth_page(const struct sess *sp, unsigned flags, const char *, ...);
 
 /* Backend related */
 void VRT_init_dir(struct cli *, struct director **, const char *name,
     int idx, const void *priv);
 void VRT_fini_dir(struct cli *, struct director *);
 
-char *VRT_IP_string(const struct sess *sp, const struct sockaddr *sa);
+/* VMOD/Modules related */
+void VRT_Vmod_Init(void **hdl, void *ptr, int len, const char *nm,
+    const char *path);
+void VRT_Vmod_Fini(void **hdl);
+
+struct vmod_priv;
+typedef void vmod_priv_free_f(void *);
+struct vmod_priv {
+	void			*priv;
+	vmod_priv_free_f	*free;
+};
+
+typedef int vmod_init_f(struct vmod_priv *,  const struct VCL_conf *);
+
+static inline void
+vmod_priv_fini(const struct vmod_priv *p)
+{
+
+	if (p->priv != (void*)0 && p->free != (void*)0)
+		p->free(p->priv);
+}
+
+/* Stevedore related functions */
+int VRT_Stv(const char *nm);
+
+/* Convert things to string */
+
+char *VRT_IP_string(const struct sess *sp, const struct sockaddr_storage *sa);
 char *VRT_int_string(const struct sess *sp, int);
 char *VRT_double_string(const struct sess *sp, double);
 char *VRT_time_string(const struct sess *sp, double);
-const char *VRT_backend_string(struct sess *sp);
+const char *VRT_bool_string(const struct sess *sp, unsigned);
+const char *VRT_backend_string(const struct sess *sp, const struct director *d);
 
 #define VRT_done(sp, hand)			\
 	do {					\
 		VRT_handling(sp, hand);		\
 		return (1);			\
 	} while (0)
+
+const char *VRT_WrkString(const struct sess *sp, const char *p, ...);

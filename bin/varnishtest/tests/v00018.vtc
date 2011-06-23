@@ -1,16 +1,9 @@
-# $Id$
-
-test "VCL compiler coverage test: vcc_action.c"
+varnishtest "VCL compiler coverage test: vcc_action.c"
 
 varnish v1 -vcl {
 	backend b { .host = "127.0.0.1"; }
-	sub vcl_hit { restart ; }
-	sub vcl_miss { restart rollback; }
-}
-
-varnish v1 -badvcl {
-	backend b { .host = "127.0.0.1"; }
-	sub vcl_hit { restart 2 ; }
+	sub vcl_hit { return (restart) ; }
+	sub vcl_miss { rollback; return (restart); }
 }
 
 varnish v1 -vcl {
@@ -20,8 +13,8 @@ varnish v1 -vcl {
 
 varnish v1 -vcl {
 	backend b { .host = "127.0.0.1"; }
-	sub vcl_miss { error req.url ; }
-	sub vcl_pass { error "the butter please" ; }
+	sub vcl_miss { error 100 req.url ; }
+	sub vcl_pass { error 100 "the butter please" ; }
 	sub vcl_fetch { error beresp.status req.url; }
 }
 
@@ -58,52 +51,52 @@ varnish v1 -badvcl {
 
 varnish v1 -badvcl {
 	backend b { .host = "127.0.0.1"; }
-	sub vcl_hash { set req.hash += 1; }
+	sub vcl_hash { hash_data(req.hash); }
 }
 
-varnish v1 -badvcl {
+varnish v1 -vcl {
 	backend b { .host = "127.0.0.1"; }
 	sub vcl_recv { set req.url = 1; }
 }
 
 varnish v1 -badvcl {
 	backend b { .host = "127.0.0.1"; }
-	sub vcl_fetch { set obj.cacheable += 1; }
+	sub vcl_fetch { set beresp.do_gzip += 1; }
 }
 
 varnish v1 -vcl {
 	backend b { .host = "127.0.0.1"; }
-	sub vcl_fetch { set beresp.cacheable = true; }
+	sub vcl_fetch { set beresp.do_gzip = true; }
 }
 
 varnish v1 -vcl {
 	backend b { .host = "127.0.0.1"; }
-	sub vcl_fetch { set beresp.cacheable = false; }
+	sub vcl_fetch { set beresp.do_gzip = false; }
 }
 
 varnish v1 -badvcl {
 	backend b { .host = "127.0.0.1"; }
-	sub vcl_fetch { set beresp.cacheable = mu; }
+	sub vcl_fetch { set beresp.do_gzip = mu; }
 }
 
 varnish v1 -badvcl {
 	backend b { .host = "127.0.0.1"; }
-	sub vcl_fetch { unset beresp.cacheable; }
+	sub vcl_fetch { unset beresp.do_gzip; }
 }
 
 varnish v1 -badvcl {
 	backend b { .host = "127.0.0.1"; }
-	sub vcl_recv { purge_url (if); }
+	sub vcl_recv { ban_url (if); }
 }
 
 varnish v1 -badvcl {
 	backend b { .host = "127.0.0.1"; }
-	sub vcl_recv { purge_hash (if); }
+	sub vcl_recv { ban_hash (if); }
 }
 
 varnish v1 -vcl {
 	backend b { .host = "127.0.0.1"; }
-	sub vcl_recv { purge_url ("foo"); }
+	sub vcl_recv { ban_url ("foo"); }
 }
 
 varnish v1 -badvcl {
@@ -120,9 +113,4 @@ varnish v1 -badvcl {
 varnish v1 -badvcl {
 	backend b { .host = "127.0.0.1"; }
 	sub vcl_error { synthetic if "foo"; }
-}
-
-varnish v1 -vcl {
-	backend b { .host = "127.0.0.1"; }
-	sub vcl_recv { log "FOO"; }
 }

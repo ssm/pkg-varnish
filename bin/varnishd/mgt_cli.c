@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2010 Redpill Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -31,9 +31,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/types.h>
 
 #include <stdarg.h>
@@ -50,12 +47,12 @@ SVNID("$Id$")
 #endif
 
 #include "cli_priv.h"
-#include "cli.h"
+#include "vcli.h"
 #include "vsb.h"
 #include "cli_common.h"
 #include "cli_serve.h"
 #include "vev.h"
-#include "shmlog.h"
+#include "vsc.h"
 #include "vlu.h"
 #include "vss.h"
 
@@ -65,28 +62,11 @@ SVNID("$Id$")
 #include "mgt_cli.h"
 
 static int		cli_i = -1, cli_o = -1;
-static struct cls	*cls;
+static struct VCLS	*cls;
 static const char	*secret_file;
 
 #define	MCF_NOAUTH	0	/* NB: zero disables here-documents */
 #define MCF_AUTH	16
-
-/*--------------------------------------------------------------------*/
-
-static void
-mcf_stats(struct cli *cli, const char * const *av, void *priv)
-{
-
-	(void)av;
-	(void)priv;
-
-	AN(VSL_stats);
-#define MAC_STAT(n, t, l, f, d) \
-	if (VSL_stats->n != 0) \
-	    cli_out(cli, "%12ju  %s\n", (VSL_stats->n), d);
-#include "stat_field.h"
-#undef MAC_STAT
-}
 
 /*--------------------------------------------------------------------*/
 
@@ -96,16 +76,16 @@ mcf_banner(struct cli *cli, const char *const *av, void *priv)
 
 	(void)av;
 	(void)priv;
-	cli_out(cli, "-----------------------------\n");
-	cli_out(cli, "Varnish Cache CLI 1.0\n");
-	cli_out(cli, "-----------------------------\n");
-	cli_out(cli, "%s\n", vsb_data(vident) + 1);
-	cli_out(cli, "\n");
-	cli_out(cli, "Type 'help' for command list.\n");
-	cli_out(cli, "Type 'quit' to close CLI session.\n");
+	VCLI_Out(cli, "-----------------------------\n");
+	VCLI_Out(cli, "Varnish Cache CLI 1.0\n");
+	VCLI_Out(cli, "-----------------------------\n");
+	VCLI_Out(cli, "%s\n", VSB_data(vident) + 1);
+	VCLI_Out(cli, "\n");
+	VCLI_Out(cli, "Type 'help' for command list.\n");
+	VCLI_Out(cli, "Type 'quit' to close CLI session.\n");
 	if (child_pid < 0)
-		cli_out(cli, "Type 'start' to launch worker process.\n");
-	cli_result(cli, CLIS_OK);
+		VCLI_Out(cli, "Type 'start' to launch worker process.\n");
+	VCLI_SetResult(cli, CLIS_OK);
 }
 
 /*--------------------------------------------------------------------*/
@@ -116,7 +96,6 @@ static struct cli_proto cli_proto[] = {
 	{ CLI_SERVER_STATUS,	"", mcf_server_status, NULL },
 	{ CLI_SERVER_START,	"", mcf_server_startstop, NULL },
 	{ CLI_SERVER_STOP,	"", mcf_server_startstop, cli_proto },
-	{ CLI_STATS,		"", mcf_stats, NULL },
 	{ CLI_VCL_LOAD,		"", mcf_config_load, NULL },
 	{ CLI_VCL_INLINE,	"", mcf_config_inline, NULL },
 	{ CLI_VCL_USE,		"", mcf_config_use, NULL },
@@ -125,6 +104,8 @@ static struct cli_proto cli_proto[] = {
 	{ CLI_VCL_SHOW,		"", mcf_config_show, NULL },
 	{ CLI_PARAM_SHOW,	"", mcf_param_show, NULL },
 	{ CLI_PARAM_SET,	"", mcf_param_set, NULL },
+	{ CLI_PANIC_SHOW,	"", mcf_panic_show, NULL },
+	{ CLI_PANIC_CLEAR,	"", mcf_panic_clear, NULL },
 	{ NULL }
 };
 
@@ -155,6 +136,7 @@ mcf_askchild(struct cli *cli, const char * const *av, void *priv)
 	int i;
 	char *q;
 	unsigned u;
+	struct vsb *vsb;
 
 	(void)priv;
 	/*
@@ -163,34 +145,35 @@ mcf_askchild(struct cli *cli, const char * const *av, void *priv)
 	 */
 	if (cli_o <= 0) {
 		if (!strcmp(av[1], "help")) {
-			cli_out(cli, "No help from child, (not running).\n");
+			VCLI_Out(cli, "No help from child, (not running).\n");
 			return;
 		}
-		cli_result(cli, CLIS_UNKNOWN);
-		cli_out(cli,
+		VCLI_SetResult(cli, CLIS_UNKNOWN);
+		VCLI_Out(cli,
 		    "Unknown request in manager process "
 		    "(child not running).\n"
 		    "Type 'help' for more info.");
 		return;
 	}
-	AN(cli->cmd);
-	i = write(cli_o, cli->cmd, strlen(cli->cmd));
-	if (i != strlen(cli->cmd)) {
-		cli_result(cli, CLIS_COMMS);
-		cli_out(cli, "CLI communication error");
+	vsb = VSB_new_auto();
+	for (i = 1; av[i] != NULL; i++) {
+		VSB_quote(vsb, av[i], strlen(av[i]), 0);
+		VSB_putc(vsb, ' ');
+	}
+	VSB_putc(vsb, '\n');
+	AZ(VSB_finish(vsb));
+	i = write(cli_o, VSB_data(vsb), VSB_len(vsb));
+	if (i != VSB_len(vsb)) {
+		VSB_delete(vsb);
+		VCLI_SetResult(cli, CLIS_COMMS);
+		VCLI_Out(cli, "CLI communication error");
 		MGT_Child_Cli_Fail();
 		return;
 	}
-	i = write(cli_o, "\n", 1);
-	if (i != 1) {
-		cli_result(cli, CLIS_COMMS);
-		cli_out(cli, "CLI communication error");
-		MGT_Child_Cli_Fail();
-		return;
-	}
-	(void)cli_readres(cli_i, &u, &q, params->cli_timeout);
-	cli_result(cli, u);
-	cli_out(cli, "%s", q);
+	VSB_delete(vsb);
+	(void)VCLI_ReadResult(cli_i, &u, &q, params->cli_timeout);
+	VCLI_SetResult(cli, u);
+	VCLI_Out(cli, "%s", q);
 	free(q);
 }
 
@@ -237,7 +220,7 @@ mgt_cli_askchild(unsigned *status, char **resp, const char *fmt, ...) {
 		return (CLIS_COMMS);
 	}
 
-	(void)cli_readres(cli_i, &u, resp, params->cli_timeout);
+	(void)VCLI_ReadResult(cli_i, &u, resp, params->cli_timeout);
 	if (status != NULL)
 		*status = u;
 	if (u == CLIS_COMMS)
@@ -279,9 +262,9 @@ mgt_cli_challenge(struct cli *cli)
 		cli->challenge[i] = (random() % 26) + 'a';
 	cli->challenge[i++] = '\n';
 	cli->challenge[i] = '\0';
-	cli_out(cli, "%s", cli->challenge);
-	cli_out(cli, "\nAuthentication required.\n");
-	cli_result(cli, CLIS_AUTH);
+	VCLI_Out(cli, "%s", cli->challenge);
+	VCLI_Out(cli, "\nAuthentication required.\n");
+	VCLI_SetResult(cli, CLIS_AUTH);
 }
 
 /*--------------------------------------------------------------------
@@ -292,24 +275,24 @@ static void
 mcf_auth(struct cli *cli, const char *const *av, void *priv)
 {
 	int fd;
-	char buf[CLI_AUTH_RESPONSE_LEN];
+	char buf[CLI_AUTH_RESPONSE_LEN + 1];
 
 	AN(av[2]);
 	(void)priv;
 	if (secret_file == NULL) {
-		cli_out(cli, "Secret file not configured\n");
-		cli_result(cli, CLIS_CANT);
+		VCLI_Out(cli, "Secret file not configured\n");
+		VCLI_SetResult(cli, CLIS_CANT);
 		return;
 	}
 	fd = open(secret_file, O_RDONLY);
 	if (fd < 0) {
-		cli_out(cli, "Cannot open secret file (%s)\n",
+		VCLI_Out(cli, "Cannot open secret file (%s)\n",
 		    strerror(errno));
-		cli_result(cli, CLIS_CANT);
+		VCLI_SetResult(cli, CLIS_CANT);
 		return;
 	}
 	mgt_got_fd(fd);
-	CLI_response(fd, cli->challenge, buf);
+	VCLI_AuthResponse(fd, cli->challenge, buf);
 	AZ(close(fd));
 	if (strcasecmp(buf, av[2])) {
 		mgt_cli_challenge(cli);
@@ -317,15 +300,15 @@ mcf_auth(struct cli *cli, const char *const *av, void *priv)
 	}
 	cli->auth = MCF_AUTH;
 	memset(cli->challenge, 0, sizeof cli->challenge);
-	cli_result(cli, CLIS_OK);
+	VCLI_SetResult(cli, CLIS_OK);
 	mcf_banner(cli, av, priv);
 }
 
 static struct cli_proto cli_auth[] = {
-	{ CLI_HELP,		"", CLS_func_help, NULL },
-	{ CLI_PING,		"", CLS_func_ping },
+	{ CLI_HELP,		"", VCLS_func_help, NULL },
+	{ CLI_PING,		"", VCLS_func_ping },
 	{ CLI_AUTH,		"", mcf_auth, NULL },
-	{ CLI_QUIT,		"", CLS_func_close, NULL},
+	{ CLI_QUIT,		"", VCLS_func_close, NULL},
 	{ NULL }
 };
 
@@ -344,7 +327,7 @@ mgt_cli_cb_after(const struct cli *cli)
 
 	if (params->syslog_cli_traffic)
 		syslog(LOG_NOTICE, "CLI %s Wr %03u %s",
-		    cli->ident, cli->result, vsb_data(cli->sb));
+		    cli->ident, cli->result, VSB_data(cli->sb));
 }
 
 /*--------------------------------------------------------------------*/
@@ -353,12 +336,13 @@ static void
 mgt_cli_init_cls(void)
 {
 
-	cls = CLS_New(mgt_cli_cb_before, mgt_cli_cb_after, params->cli_buffer);
+	cls = VCLS_New(mgt_cli_cb_before, mgt_cli_cb_after, params->cli_buffer);
 	AN(cls);
-	AZ(CLS_AddFunc(cls, MCF_NOAUTH, cli_auth));
-	AZ(CLS_AddFunc(cls, MCF_AUTH, cli_proto));
-	AZ(CLS_AddFunc(cls, MCF_AUTH, cli_debug));
-	AZ(CLS_AddFunc(cls, MCF_AUTH, cli_askchild));
+	AZ(VCLS_AddFunc(cls, MCF_NOAUTH, cli_auth));
+	AZ(VCLS_AddFunc(cls, MCF_AUTH, cli_proto));
+	AZ(VCLS_AddFunc(cls, MCF_AUTH, cli_debug));
+	AZ(VCLS_AddFunc(cls, MCF_AUTH, cli_stv));
+	AZ(VCLS_AddFunc(cls, MCF_AUTH, cli_askchild));
 }
 
 /*--------------------------------------------------------------------
@@ -369,7 +353,7 @@ void
 mgt_cli_close_all(void)
 {
 
-	CLS_Destroy(&cls);
+	VCLS_Destroy(&cls);
 }
 
 /*--------------------------------------------------------------------
@@ -383,7 +367,7 @@ mgt_cli_callback2(const struct vev *e, int what)
 
 	(void)e;
 	(void)what;
-	i = CLS_PollFd(cls, e->fd, 0);
+	i = VCLS_PollFd(cls, e->fd, 0);
 	return (i);
 }
 
@@ -400,7 +384,7 @@ mgt_cli_setup(int fdi, int fdo, int verbose, const char *ident, mgt_cli_close_f 
 	if (cls == NULL)
 		mgt_cli_init_cls();
 
-	cli = CLS_AddFd(cls, fdi, fdo, closefunc, priv);
+	cli = VCLS_AddFd(cls, fdi, fdo, closefunc, priv);
 
 	cli->ident = strdup(ident);
 
@@ -415,8 +399,8 @@ mgt_cli_setup(int fdi, int fdo, int verbose, const char *ident, mgt_cli_close_f 
 		cli->auth = MCF_AUTH;
 		mcf_banner(cli, NULL, NULL);
 	}
-	vsb_finish(cli->sb);
-	(void)cli_writeres(fdo, cli);
+	AZ(VSB_finish(cli->sb));
+	(void)VCLI_WriteResult(fdo, cli->result, VSB_data(cli->sb));
 
 
 	ev = vev_new();
@@ -436,16 +420,15 @@ sock_id(const char *pfx, int fd)
 {
 	struct vsb *vsb;
 
-	char abuf1[TCP_ADDRBUFSIZE], abuf2[TCP_ADDRBUFSIZE];
-	char pbuf1[TCP_PORTBUFSIZE], pbuf2[TCP_PORTBUFSIZE];
+	char abuf1[VTCP_ADDRBUFSIZE], abuf2[VTCP_ADDRBUFSIZE];
+	char pbuf1[VTCP_PORTBUFSIZE], pbuf2[VTCP_PORTBUFSIZE];
 
-	vsb = vsb_newauto();
+	vsb = VSB_new_auto();
 	AN(vsb);
-	TCP_myname(fd, abuf1, sizeof abuf1, pbuf1, sizeof pbuf1);
-	TCP_hisname(fd, abuf2, sizeof abuf2, pbuf2, sizeof pbuf2);
-	vsb_printf(vsb, "%s %s %s %s %s", pfx, abuf2, pbuf2, abuf1, pbuf1);
-	vsb_finish(vsb);
-	AZ(vsb_overflowed(vsb));
+	VTCP_myname(fd, abuf1, sizeof abuf1, pbuf1, sizeof pbuf1);
+	VTCP_hisname(fd, abuf2, sizeof abuf2, pbuf2, sizeof pbuf2);
+	VSB_printf(vsb, "%s %s %s %s %s", pfx, abuf2, pbuf2, abuf1, pbuf1);
+	AZ(VSB_finish(vsb));
 	return (vsb);
 }
 
@@ -499,8 +482,8 @@ telnet_accept(const struct vev *ev, int what)
 	mgt_got_fd(i);
 	tn = telnet_new(i);
 	vsb = sock_id("telnet", i);
-	mgt_cli_setup(i, i, 0, vsb_data(vsb), telnet_close, tn);
-	vsb_delete(vsb);
+	mgt_cli_setup(i, i, 0, VSB_data(vsb), telnet_close, tn);
+	VSB_delete(vsb);
 	return (0);
 }
 
@@ -509,7 +492,13 @@ mgt_cli_secret(const char *S_arg)
 {
 	int i, fd;
 	char buf[BUFSIZ];
+	char *p;
 
+	/* Save in shmem */
+	i = strlen(S_arg);
+	p = VSM_Alloc(i + 1, "Arg", "-S", "");
+	AN(p);
+	strcpy(p, S_arg);
 
 	srandomdev();
 	fd = open(S_arg, O_RDONLY);
@@ -537,17 +526,25 @@ mgt_cli_telnet(const char *T_arg)
 	struct vss_addr **ta;
 	int i, n, sock, good;
 	struct telnet *tn;
+	char *p;
+	struct vsb *vsb;
+	char abuf[VTCP_ADDRBUFSIZE];
+	char pbuf[VTCP_PORTBUFSIZE];
 
 	n = VSS_resolve(T_arg, NULL, &ta);
 	if (n == 0) {
-		fprintf(stderr, "Could not open management port\n");
+		REPORT(LOG_ERR, "-T %s Could not be resolved\n", T_arg);
 		exit(2);
 	}
 	good = 0;
+	vsb = VSB_new_auto();
+	XXXAN(vsb);
 	for (i = 0; i < n; ++i) {
 		sock = VSS_listen(ta[i], 10);
 		if (sock < 0)
 			continue;
+		VTCP_myname(sock, abuf, sizeof abuf, pbuf, sizeof pbuf);
+		VSB_printf(vsb, "%s %s\n", abuf, pbuf);
 		good++;
 		tn = telnet_new(sock);
 		tn->ev = vev_new();
@@ -564,6 +561,12 @@ mgt_cli_telnet(const char *T_arg)
 		REPORT(LOG_ERR, "-T %s could not be listened on.", T_arg);
 		exit(2);
 	}
+	AZ(VSB_finish(vsb));
+	/* Save in shmem */
+	p = VSM_Alloc(VSB_len(vsb) + 1, "Arg", "-T", "");
+	AN(p);
+	strcpy(p, VSB_data(vsb));
+	VSB_delete(vsb);
 }
 
 /* Reverse CLI ("Master") connections --------------------------------*/
@@ -610,8 +613,8 @@ Marg_poker(const struct vev *e, int what)
 			return (1);
 		}
 		vsb = sock_id("master", M_fd);
-		mgt_cli_setup(M_fd, M_fd, 0, vsb_data(vsb), Marg_closer, NULL);
-		vsb_delete(vsb);
+		mgt_cli_setup(M_fd, M_fd, 0, VSB_data(vsb), Marg_closer, NULL);
+		VSB_delete(vsb);
 		M_poll = 1;
 		return (1);
 	}

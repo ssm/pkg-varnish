@@ -1,6 +1,4 @@
-# $Id$
-
-test "ESI parsing errors"
+varnishtest "ESI parsing errors"
 
 server s1 {
 	rxreq 
@@ -59,11 +57,11 @@ server s1 {
 
 varnish v1 -vcl+backend {
 	sub vcl_fetch {
-		esi;
+		set beresp.do_esi = true;
 	}
 } -start 
 
-varnish v1 -cliok "param.set esi_syntax 6" 
+varnish v1 -cliok "param.set esi_syntax 0x3e" 
 
 varnish v1 -cliok "param.set diag_bitmap 0x10000"
 
@@ -75,4 +73,4 @@ client c1 {
 }
 
 client c1 -run
-varnish v1 -expect esi_errors == 14
+varnish v1 -expect esi_errors == 15

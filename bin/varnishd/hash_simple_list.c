@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2009 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -31,14 +31,10 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "shmlog.h"
 #include "cache.h"
 #include "hash_slinger.h"
 
@@ -56,7 +52,7 @@ static void
 hsl_start(void)
 {
 
-	Lck_New(&hsl_mtx);
+	Lck_New(&hsl_mtx, lck_hsl);
 }
 
 /*--------------------------------------------------------------------
@@ -116,7 +112,7 @@ hsl_deref(struct objhead *oh)
 
 /*--------------------------------------------------------------------*/
 
-struct hash_slinger hsl_slinger = {
+const struct hash_slinger hsl_slinger = {
 	.magic	=	SLINGER_MAGIC,
 	.name	=	"simple",
 	.start	=	hsl_start,

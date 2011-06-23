@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2009 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -26,10 +26,15 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $Id$
  */
 
-char *VCC_Compile(struct vsb *sb, const char *b, const char *e);
-void VCC_InitCompile(const char *default_vcl);
-const char *VCC_Return_Name(unsigned action);
+struct vcc;
 
+struct vcc *VCC_New(void);
+void VCC_Default_VCL(struct vcc *, const char *str);
+void VCC_VCL_dir(struct vcc *, const char *str);
+void VCC_VMOD_dir(struct vcc *, const char *str);
+void VCC_Err_Unref(struct vcc *tl, unsigned u);
+
+char *VCC_Compile(const struct vcc *, struct vsb *sb, const char *b);
+const char *VCC_Return_Name(unsigned action);

@@ -20,8 +20,8 @@ DESCRIPTION
 ===========
 
 The VCL language is a small domain-specific language designed to be
-used to define request handling and document caching policies for the
-Varnish HTTP accelerator.
+used to define request handling and document caching policies for
+Varnish Cache.
 
 When a new configuration is loaded, the varnishd management process
 translates the VCL code to C and compiles it to a shared object which
@@ -35,17 +35,15 @@ Blocks are delimited by curly braces, statements end with semicolons,
 and comments may be written as in C, C++ or Perl according to your own
 preferences.
 
-In addition to the C-like assignment (=), comparison (==) and boolean
-(!, && and \|\|) operators, VCL supports regular expression and ACL
-matching using the ~ operator.
+In addition to the C-like assignment (=), comparison (==, !=) and
+boolean (!, && and \|\|) operators, VCL supports both regular
+expression and ACL matching using the ~ and the !~ operators.
 
 Unlike C and Perl, the backslash (\) character has no special meaning
-in strings in VCL, which use the (%xx) escape mechanism just like
-URLs, so it can be freely used in regular expressions without
-doubling.
+in strings in VCL, so it can be freely used in regular expressions
+without doubling.
 
-Strings are concatenated by just putting them one after each other
-without any operator in between.
+Strings are concatenated using the '+' operator. 
 
 Assignments are introduced with the *set* keyword.  There are no
 user-defined variables; values can only be assigned to variables
@@ -57,7 +55,7 @@ You can use the *set* keyword to arbitrary HTTP headers. You can
 remove headers with the *remove* or *unset* keywords, which are
 synonym.
 
-The return(action) keyword terminates the subroutine. *action* can be,
+The ``return(action)`` keyword terminates the subroutine. *action* can be,
 depending on context one of
 
 * deliver
@@ -93,7 +91,7 @@ A backend declaration creates and initializes a named backend object:::
 
 The backend object can later be used to select a backend at request time:::
 
-  if (req.http.host ~ "^(www.)?example.com$") {
+  if (req.http.host ~ "(?i)^(www.)?example.com$") {
     set req.backend = www;
   }
 
@@ -167,6 +165,7 @@ The round-robin director
 
 The round-robin director does not take any options.
 
+
 The client director
 ~~~~~~~~~~~~~~~~~~~
 
@@ -174,8 +173,9 @@ The client director picks a backend based on the clients
 *identity*. You can set the VCL variable *client.identity* to identify
 the client by picking up the value of a session cookie or similar.
 
-Note: in 2.1 *client.identity* isn't available and the director will
-use client.ip to distribute clients across backends.
+Note: from 2.1.0 to 2.1.3 *client.identity* isn't available and the
+director will use automatically set the idenity based on client.ip In
+2.1.4 and onwards you can set client.identity to any string available.
 
 The client director takes one option - *retries* which set the number
 of retries the director should take in order to find a healthy
@@ -288,6 +288,22 @@ To match an IP address against an ACL, simply use the match operator:::
     return (pipe);
   }
 
+Regular Expressions
+-------------------
+
+In Varnish 2.1.0 Varnish switched to using PCRE - Perl-compatible
+regular expressions. For a complete description of PCRE please see the
+PCRE(3) man page.
+
+To send flags to the PCRE engine, such as to turn on *case
+insensitivity* add the flag within parens following a question mark,
+like this:::
+
+  if (req.http.host ~ "(?i)example.com$") {
+          ...
+  }
+
+
 Functions
 ---------
 
@@ -307,8 +323,10 @@ regsub(str, regex, sub)
 regsuball(str, regex, sub)
   As regsuball() but this replaces all occurrences.
 
-purge_url(regex)
-  Purge all objects in cache whose URLs match regex.
+ban(ban expression)
+
+ban_url(regex)
+  Bans all objects in cache whose URLs match regex.
 
 Subroutines
 ~~~~~~~~~~~
@@ -453,9 +471,6 @@ vcl_fetch
   error code [reason]
     Return the specified error code to the client and abandon the request.
 
-  esi
-     ESI-process the document which has just been fetched.
-
   pass
     Switch to pass mode.  Control will eventually pass to vcl_pass.
 
@@ -510,22 +525,22 @@ Example:::
 
 	# in file "main.vcl"
 	include "backends.vcl";
-	include "purge.vcl";
+	include "ban.vcl";
 
 	# in file "backends.vcl"
 	sub vcl_recv {
-	  if (req.http.host ~ "example.com") {
+	  if (req.http.host ~ "(?i)example.com") {
 	    set req.backend = foo;
-	  } elsif (req.http.host ~ "example.org") {
+	  } elsif (req.http.host ~ "(?i)example.org") {
 	    set req.backend = bar;
 	  }
 	}
 
-	# in file "purge.vcl"
+	# in file "ban.vcl"
 	sub vcl_recv {
 	  if (client.ip ~ admin_network) {
 	    if (req.http.Cache-Control ~ "no-cache") {
-	      purge_url(req.url);
+	      ban_url(req.url);
 	    }
 	  }
 	}
@@ -599,6 +614,9 @@ req.hash_ignore_busy
   this if you have two server looking up content from each other to 
   avoid potential deadlocks.
 
+req.can_gzip
+  Does the client accept the gzip transfer encoding.
+
 The following variables are available while preparing a backend
 request (either for a cache miss or for pass or pipe mode):
 
@@ -629,8 +647,19 @@ The following variables are available after the requested object has
 been retrieved from the backend, before it is entered into the cache. In
 other words, they are available in vcl_fetch:
 
+beresp.do_esi
+  Boolean. ESI-process the object after fetching it. Defaults to false. Set it
+  to true to parse the object for ESI directives.
+
+beresp.do_gzip
+  Boolean. Gzip the object before storing it. Defaults to false.
+
+beresp.do_gunzip
+  Boolean. Unzip the object before storing it in the cache.  Defaults
+  to false.
+
 beresp.proto
-  The HTTP protocol version used when the object was retrieved.
+  The HTTP protocol version used the backend replied with.
 
 beresp.status
   The HTTP status code returned by the server.
@@ -703,7 +732,7 @@ Values may be assigned to variables using the set keyword:::
 
   sub vcl_recv {
     # Normalize the Host: header
-    if (req.http.host ~ "^(www.)?example.com$") {
+    if (req.http.host ~ "(?i)^(www.)?example.com$") {
       set req.http.host = "www.example.com";
     }
   }
@@ -775,10 +804,10 @@ based on the request URL:::
   }
   
   sub vcl_recv {
-    if (req.http.host ~ "^(www.)?example.com$") {
+    if (req.http.host ~ "(?i)^(www.)?example.com$") {
       set req.http.host = "www.example.com";
       set req.backend = www;
-    } elsif (req.http.host ~ "^images.example.com$") {
+    } elsif (req.http.host ~ "(?i)^images.example.com$") {
       set req.backend = images;
     } else {
       error 404 "Unknown virtual host";
@@ -831,14 +860,15 @@ for object invalidation:::
 
   sub vcl_hit {
     if (req.request == "PURGE") {
-      set obj.ttl = 0s;
+      purge;
       error 200 "Purged.";
     }
   }
 
   sub vcl_miss {
     if (req.request == "PURGE") {
-    error 404 "Not in cache.";
+      purge;
+      error 200 "Purged.";
     }
   }
 
@@ -851,7 +881,7 @@ HISTORY
 =======
 
 The VCL language was developed by Poul-Henning Kamp in cooperation
-with Verdens Gang AS, Linpro AS and Varnish Software.  This manual
+with Verdens Gang AS, Varnish Software AS and Varnish Software.  This manual
 page was written by Dag-Erling Smørgrav and later edited by
 Poul-Henning Kamp and Per Buer.
 
@@ -862,6 +892,4 @@ This document is licensed under the same licence as Varnish
 itself. See LICENCE for details.
 
 * Copyright (c) 2006 Verdens Gang AS
-* Copyright (c) 2006-2008 Linpro AS
-* Copyright (c) 2008-2010 Redpill Linpro AS
-* Copyright (c) 2010 Varnish Software AS
+* Copyright (c) 2006-2011 Varnish Software AS

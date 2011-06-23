@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -42,8 +42,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
 #include <stdio.h>
 #include <string.h>
 #include <limits.h>
@@ -82,7 +80,7 @@ tweak_stack_size(struct cli *cli, const struct parspec *par,
 
 	low = sysconf(_SC_THREAD_STACK_MIN);
 
-	if (arg != NULL && !strcmp(arg, "32")) {
+	if (arg != NULL && !strcmp(arg, "32bit")) {
 		u = 65536;
 		if (u < low)
 			u = low;
@@ -123,7 +121,7 @@ const struct parspec WRK_parspec[] = {
 		EXPERIMENTAL | DELAYED_EFFECT,
 		"2", "pools" },
 	{ "thread_pool_max", tweak_thread_pool_max, NULL, 1, 0,
-		"The maximum number of worker threads in all pools combined.\n"
+		"The maximum number of worker threads in each pool.\n"
 		"\n"
 		"Do not set this higher than you have to, since excess "
 		"worker threads soak up RAM and CPU and generally just get "
@@ -131,7 +129,7 @@ const struct parspec WRK_parspec[] = {
 		EXPERIMENTAL | DELAYED_EFFECT,
 		"500", "threads" },
 	{ "thread_pool_min", tweak_thread_pool_min, NULL, 2, 0,
-		"The minimum number of threads in each worker pool.\n"
+		"The minimum number of worker threads in each pool.\n"
 		"\n"
 		"Increasing this may help ramp up faster from low load "
 		"situations where threads have expired.\n"
@@ -175,8 +173,8 @@ const struct parspec WRK_parspec[] = {
 		"\n"
 		"Setting this too short increases the risk of worker "
 		"thread pile-up.\n",
-		EXPERIMENTAL,
-		"20", "milliseconds" },
+		0,
+		"2", "milliseconds" },
 	{ "thread_pool_fail_delay",
 		tweak_timeout, &master.wthread_fail_delay, 100, UINT_MAX,
 		"Wait at least this long after a failed thread creation "
@@ -205,8 +203,8 @@ const struct parspec WRK_parspec[] = {
 		"its accumulated stats into the global counters.\n",
 		EXPERIMENTAL,
 		"10", "requests" },
-	{ "overflow_max", tweak_uint, &master.overflow_max, 0, UINT_MAX,
-		"Percentage permitted overflow queue length.\n"
+	{ "queue_max", tweak_uint, &master.queue_max, 0, UINT_MAX,
+		"Percentage permitted queue length.\n"
 		"\n"
 		"This sets the ratio of queued requests to worker threads, "
 		"above which sessions will be dropped instead of queued.\n",
@@ -217,7 +215,7 @@ const struct parspec WRK_parspec[] = {
 		"request on the object.\n"
 		"NB: Even with the implict delay of delivery, "
 		"this parameter controls an exponential increase in "
-		"number of worker threads.  ",
+		"number of worker threads.",
 		EXPERIMENTAL,
 		"3", "requests per request" },
 	{ "thread_pool_stack",
@@ -227,5 +225,16 @@ const struct parspec WRK_parspec[] = {
 		"many threads into the limited address space.\n",
 		EXPERIMENTAL,
 		"-1", "bytes" },
+	{ "thread_pool_workspace", tweak_uint, &master.wthread_workspace,
+		1024, UINT_MAX,
+		"Bytes of HTTP protocol workspace allocated for worker "
+		"threads. "
+		"This space must be big enough for the backend request "
+		"and responses, and response to the client plus any other "
+		"memory needs in the VCL code."
+		"Minimum is 1024 bytes.",
+		DELAYED_EFFECT,
+		"65536",
+		"bytes" },
 	{ NULL, NULL, NULL }
 };

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2010 Redpill Linpro AS
+ * Copyright (c) 2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -24,8 +24,6 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * $Id$
  *
  * Memory barriers
  *
@@ -58,9 +56,9 @@
 
 #elif defined(__arm__)
 
-#define VMB()	
-#define VWMB()	
-#define VRMB()	
+#define VMB()
+#define VWMB()
+#define VRMB()
 
 #elif defined(__i386__) && defined(__GNUC__)
 

@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -50,9 +50,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -77,7 +74,7 @@ struct host {
 };
 
 static int
-emit_sockaddr(struct tokenlist *tl, void *sa, unsigned sal)
+emit_sockaddr(struct vcc *tl, void *sa, unsigned sal)
 {
 	unsigned len;
 	uint8_t *u;
@@ -111,9 +108,7 @@ emit_sockaddr(struct tokenlist *tl, void *sa, unsigned sal)
 #include <stdio.h>
 
 void
-Emit_Sockaddr(struct tokenlist *tl, const struct token *t_host,
-    const char *port)
-
+Emit_Sockaddr(struct vcc *tl, const struct token *t_host, const char *port)
 {
 	struct addrinfo *res, *res0, *res1, hint;
 	int n4, n6, error, retval, x;
@@ -128,23 +123,23 @@ Emit_Sockaddr(struct tokenlist *tl, const struct token *t_host,
 	hint.ai_socktype = SOCK_STREAM;
 
 	if (VSS_parse(t_host->dec, &hop, &pop)) {
-		vsb_printf(tl->sb,
+		VSB_printf(tl->sb,
 		    "Backend host '%.*s': wrong syntax (unbalanced [...] ?)\n",
 		    PF(t_host) );
 		vcc_ErrWhere(tl, t_host);
 		return;
 	}
-	if (pop != NULL)
-		error = getaddrinfo(hop, pop, &hint, &res0);
-	else
-		error = getaddrinfo(t_host->dec, port, &hint, &res0);
+	error = getaddrinfo(
+	    hop != NULL ? hop : t_host->dec,
+	    pop != NULL ? pop : port,
+	    &hint, &res0);
 	free(hop);
 	free(pop);
 	if (error) {
-		vsb_printf(tl->sb,
+		VSB_printf(tl->sb,
 		    "Backend host '%.*s'"
 		    " could not be resolved to an IP address:\n", PF(t_host));
-		vsb_printf(tl->sb,
+		VSB_printf(tl->sb,
 		    "\t%s\n"
 		    "(Sorry if that error message is gibberish.)\n",
 		    gai_strerror(error));
@@ -171,7 +166,7 @@ Emit_Sockaddr(struct tokenlist *tl, const struct token *t_host,
 			continue;
 
 		if (multiple != NULL) {
-			vsb_printf(tl->sb,
+			VSB_printf(tl->sb,
 			    "Backend host %.*s: resolves to "
 			    "multiple %s addresses.\n"
 			    "Only one address is allowed.\n"
@@ -183,7 +178,7 @@ Emit_Sockaddr(struct tokenlist *tl, const struct token *t_host,
 				    res1->ai_addrlen, hbuf, sizeof hbuf,
 				    NULL, 0, NI_NUMERICHOST);
 				AZ(error);
-				vsb_printf(tl->sb, "\t%s\n", hbuf);
+				VSB_printf(tl->sb, "\t%s\n", hbuf);
 			}
 			vcc_ErrWhere(tl, t_host);
 			return;
@@ -207,7 +202,7 @@ Emit_Sockaddr(struct tokenlist *tl, const struct token *t_host,
 	}
 	freeaddrinfo(res0);
 	if (retval == 0) {
-		vsb_printf(tl->sb,
+		VSB_printf(tl->sb,
 		    "Backend host '%.*s': resolves to "
 		    "neither IPv4 nor IPv6 addresses.\n",
 		    PF(t_host) );
@@ -226,31 +221,31 @@ Emit_Sockaddr(struct tokenlist *tl, const struct token *t_host,
  */
 
 void
-vcc_EmitBeIdent(const struct tokenlist *tl, struct vsb *v,
+vcc_EmitBeIdent(const struct vcc *tl, struct vsb *v,
     int serial, const struct token *first, const struct token *last)
 {
 
 	assert(first != last);
-	vsb_printf(v, "\t.ident =");
+	VSB_printf(v, "\t.ident =");
 	if (serial >= 0) {
-		vsb_printf(v, "\n\t    \"%.*s %.*s [%d] \"",
+		VSB_printf(v, "\n\t    \"%.*s %.*s [%d] \"",
 		    PF(tl->t_policy), PF(tl->t_dir), serial);
 	} else {
-		vsb_printf(v, "\n\t    \"%.*s %.*s \"",
+		VSB_printf(v, "\n\t    \"%.*s %.*s \"",
 		    PF(tl->t_policy), PF(tl->t_dir));
 	}
 	while (1) {
 		if (first->dec != NULL)
-			vsb_printf(v, "\n\t    \"\\\"\" %.*s \"\\\" \"",
+			VSB_printf(v, "\n\t    \"\\\"\" %.*s \"\\\" \"",
 			    PF(first));
 		else
-			vsb_printf(v, "\n\t    \"%.*s \"", PF(first));
+			VSB_printf(v, "\n\t    \"%.*s \"", PF(first));
 		if (first == last)
 			break;
 		first = VTAILQ_NEXT(first, list);
 		AN(first);
 	}
-	vsb_printf(v, ",\n");
+	VSB_printf(v, ",\n");
 }
 
 /*--------------------------------------------------------------------
@@ -258,17 +253,15 @@ vcc_EmitBeIdent(const struct tokenlist *tl, struct vsb *v,
  */
 
 static void
-vcc_ProbeRedef(struct tokenlist *tl, struct token **t_did,
+vcc_ProbeRedef(struct vcc *tl, struct token **t_did,
     struct token *t_field)
 {
 	/* .url and .request are mutually exclusive */
 
 	if (*t_did != NULL) {
-		vsb_printf(tl->sb,
-		    "Probe request redefinition at:\n");
+		VSB_printf(tl->sb, "Probe request redefinition at:\n");
 		vcc_ErrWhere(tl, t_field);
-		vsb_printf(tl->sb,
-		    "Previous definition:\n");
+		VSB_printf(tl->sb, "Previous definition:\n");
 		vcc_ErrWhere(tl, *t_did);
 		return;
 	}
@@ -276,7 +269,7 @@ vcc_ProbeRedef(struct tokenlist *tl, struct token **t_did,
 }
 
 static void
-vcc_ParseProbe(struct tokenlist *tl)
+vcc_ParseProbeSpec(struct vcc *tl)
 {
 	struct fld_spec *fs;
 	struct token *t_field;
@@ -302,7 +295,8 @@ vcc_ParseProbe(struct tokenlist *tl)
 	threshold = 0;
 	initial = 0;
 	status = 0;
-	Fb(tl, 0, "\t.probe = {\n");
+	Fh(tl, 0, "static const struct vrt_backend_probe vgc_probe__%d = {\n",
+	    tl->nprobe++);
 	while (tl->t->tok != '}') {
 
 		vcc_IsField(tl, &t_field, fs);
@@ -311,32 +305,32 @@ vcc_ParseProbe(struct tokenlist *tl)
 			vcc_ProbeRedef(tl, &t_did, t_field);
 			ERRCHK(tl);
 			ExpectErr(tl, CSTR);
-			Fb(tl, 0, "\t\t.url = ");
-			EncToken(tl->fb, tl->t);
-			Fb(tl, 0, ",\n");
+			Fh(tl, 0, "\t.url = ");
+			EncToken(tl->fh, tl->t);
+			Fh(tl, 0, ",\n");
 			vcc_NextToken(tl);
 		} else if (vcc_IdIs(t_field, "request")) {
 			vcc_ProbeRedef(tl, &t_did, t_field);
 			ERRCHK(tl);
 			ExpectErr(tl, CSTR);
-			Fb(tl, 0, "\t\t.request =\n");
+			Fh(tl, 0, "\t.request =\n");
 			while (tl->t->tok == CSTR) {
-				Fb(tl, 0, "\t\t\t");
-				EncToken(tl->fb, tl->t);
-				Fb(tl, 0, " \"\\r\\n\"\n");
+				Fh(tl, 0, "\t\t");
+				EncToken(tl->fh, tl->t);
+				Fh(tl, 0, " \"\\r\\n\"\n");
 				vcc_NextToken(tl);
 			}
-			Fb(tl, 0, "\t\t\t\"\\r\\n\",\n");
+			Fh(tl, 0, "\t\t\"\\r\\n\",\n");
 		} else if (vcc_IdIs(t_field, "timeout")) {
-			Fb(tl, 0, "\t\t.timeout = ");
+			Fh(tl, 0, "\t.timeout = ");
 			vcc_TimeVal(tl, &t);
 			ERRCHK(tl);
-			Fb(tl, 0, "%g,\n", t);
+			Fh(tl, 0, "%g,\n", t);
 		} else if (vcc_IdIs(t_field, "interval")) {
-			Fb(tl, 0, "\t\t.interval = ");
+			Fh(tl, 0, "\t.interval = ");
 			vcc_TimeVal(tl, &t);
 			ERRCHK(tl);
-			Fb(tl, 0, "%g,\n", t);
+			Fh(tl, 0, "%g,\n", t);
 		} else if (vcc_IdIs(t_field, "window")) {
 			t_window = tl->t;
 			window = vcc_UintVal(tl);
@@ -348,7 +342,7 @@ vcc_ParseProbe(struct tokenlist *tl)
 		} else if (vcc_IdIs(t_field, "expected_response")) {
 			status = vcc_UintVal(tl);
 			if (status < 100 || status > 999) {
-				vsb_printf(tl->sb,
+				VSB_printf(tl->sb,
 				    "Must specify .status with exactly three "
 				    " digits (100 <= x <= 999)\n");
 				vcc_ErrWhere(tl, tl->t);
@@ -371,13 +365,13 @@ vcc_ParseProbe(struct tokenlist *tl)
 
 	if (t_threshold != NULL || t_window != NULL) {
 		if (t_threshold == NULL && t_window != NULL) {
-			vsb_printf(tl->sb,
+			VSB_printf(tl->sb,
 			    "Must specify .threshold with .window\n");
 			vcc_ErrWhere(tl, t_window);
 			return;
 		} else if (t_threshold != NULL && t_window == NULL) {
 			if (threshold > 64) {
-				vsb_printf(tl->sb,
+				VSB_printf(tl->sb,
 				    "Threshold must be 64 or less.\n");
 				vcc_ErrWhere(tl, t_threshold);
 				return;
@@ -385,29 +379,56 @@ vcc_ParseProbe(struct tokenlist *tl)
 			window = threshold + 1;
 		} else if (window > 64) {
 			AN(t_window);
-			vsb_printf(tl->sb, "Window must be 64 or less.\n");
+			VSB_printf(tl->sb, "Window must be 64 or less.\n");
 			vcc_ErrWhere(tl, t_window);
 			return;
 		}
 		if (threshold > window ) {
-			vsb_printf(tl->sb,
+			VSB_printf(tl->sb,
 			    "Threshold can not be greater than window.\n");
 			AN(t_threshold);
 			vcc_ErrWhere(tl, t_threshold);
 			AN(t_window);
 			vcc_ErrWhere(tl, t_window);
 		}
-		Fb(tl, 0, "\t\t.window = %u,\n", window);
-		Fb(tl, 0, "\t\t.threshold = %u,\n", threshold);
+		Fh(tl, 0, "\t.window = %u,\n", window);
+		Fh(tl, 0, "\t.threshold = %u,\n", threshold);
 	}
 	if (t_initial != NULL)
-		Fb(tl, 0, "\t\t.initial = %u,\n", initial);
+		Fh(tl, 0, "\t.initial = %u,\n", initial);
 	else
-		Fb(tl, 0, "\t\t.initial = ~0U,\n", initial);
+		Fh(tl, 0, "\t.initial = ~0U,\n", initial);
 	if (status > 0)
-		Fb(tl, 0, "\t\t.exp_status = %u,\n", status);
-	Fb(tl, 0, "\t},\n");
+		Fh(tl, 0, "\t.exp_status = %u,\n", status);
+	Fh(tl, 0, "};\n");
 	SkipToken(tl, '}');
+}
+
+/*--------------------------------------------------------------------
+ * Parse and emit a probe definition
+ */
+
+void
+vcc_ParseProbe(struct vcc *tl)
+{
+	struct token *t_probe;
+	int i;
+
+	vcc_NextToken(tl);		/* ID: probe */
+
+	vcc_ExpectCid(tl);		/* ID: name */
+	ERRCHK(tl);
+	t_probe = tl->t;
+	vcc_NextToken(tl);
+	i = vcc_AddDef(tl, t_probe, SYM_PROBE);
+	if (i > 1) {
+		VSB_printf(tl->sb, "Probe %.*s redefined\n", PF(t_probe));
+		vcc_ErrWhere(tl, t_probe);
+	}
+
+	Fh(tl, 0, "\n#define vgc_probe_%.*s\tvgc_probe__%d\n",
+	    PF(t_probe), tl->nprobe);
+	vcc_ParseProbeSpec(tl);
 }
 
 /*--------------------------------------------------------------------
@@ -417,10 +438,9 @@ vcc_ParseProbe(struct tokenlist *tl)
  */
 
 static void
-vcc_ParseHostDef(struct tokenlist *tl, int serial, const char *vgcname)
+vcc_ParseHostDef(struct vcc *tl, int serial, const char *vgcname)
 {
 	struct token *t_field;
-	struct token *t_first;
 	struct token *t_host = NULL;
 	struct token *t_port = NULL;
 	struct token *t_hosthdr = NULL;
@@ -443,11 +463,10 @@ vcc_ParseHostDef(struct tokenlist *tl, int serial, const char *vgcname)
 	    "?max_connections",
 	    "?saintmode_threshold",
 	    NULL);
-	t_first = tl->t;
 
 	SkipToken(tl, '{');
 
-	vsb = vsb_newauto();
+	vsb = VSB_new_auto();
 	AN(vsb);
 	tl->fb = vsb;
 
@@ -461,12 +480,12 @@ vcc_ParseHostDef(struct tokenlist *tl, int serial, const char *vgcname)
 
 	/* Check for old syntax */
 	if (tl->t->tok == ID && vcc_IdIs(tl->t, "set")) {
-		vsb_printf(tl->sb,
+		VSB_printf(tl->sb,
 		    "NB: Backend Syntax has changed:\n"
 		    "Remove \"set\" and \"backend\" in front"
 		    " of backend fields.\n" );
 		vcc_ErrToken(tl, tl->t);
-		vsb_printf(tl->sb, " at ");
+		VSB_printf(tl->sb, " at ");
 		vcc_ErrWhere(tl, tl->t);
 		return;
 	}
@@ -522,18 +541,31 @@ vcc_ParseHostDef(struct tokenlist *tl, int serial, const char *vgcname)
 			 * not allowed here.
 			 */
 			if (u == UINT_MAX) {
-				vsb_printf(tl->sb,
+				VSB_printf(tl->sb,
 				    "Value outside allowed range: ");
 				vcc_ErrToken(tl, tl->t);
-				vsb_printf(tl->sb, " at\n");
+				VSB_printf(tl->sb, " at\n");
 				vcc_ErrWhere(tl, tl->t);
 			}
 			ERRCHK(tl);
 			saint = u;
 			SkipToken(tl, ';');
-		} else if (vcc_IdIs(t_field, "probe")) {
-			vcc_ParseProbe(tl);
+		} else if (vcc_IdIs(t_field, "probe") && tl->t->tok == '{') {
+			Fb(tl, 0, "\t.probe = &vgc_probe__%d,\n", tl->nprobe);
+			vcc_ParseProbeSpec(tl);
 			ERRCHK(tl);
+		} else if (vcc_IdIs(t_field, "probe") && tl->t->tok == ID) {
+			Fb(tl, 0, "\t.probe = &vgc_probe_%.*s,\n", PF(tl->t));
+			vcc_AddRef(tl, tl->t, SYM_PROBE);
+			vcc_NextToken(tl);
+			SkipToken(tl, ';');
+		} else if (vcc_IdIs(t_field, "probe")) {
+			VSB_printf(tl->sb,
+			    "Expected '{' or name of probe.");
+			vcc_ErrToken(tl, tl->t);
+			VSB_printf(tl->sb, " at\n");
+			vcc_ErrWhere(tl, tl->t);
+			return;
 		} else {
 			ErrInternal(tl);
 			return;
@@ -546,7 +578,7 @@ vcc_ParseHostDef(struct tokenlist *tl, int serial, const char *vgcname)
 
 	/* Check that the hostname makes sense */
 	assert(t_host != NULL);
-	if (t_port != NULL) 
+	if (t_port != NULL)
 		Emit_Sockaddr(tl, t_host, t_port->dec);
 	else
 		Emit_Sockaddr(tl, t_host, "80");
@@ -555,7 +587,6 @@ vcc_ParseHostDef(struct tokenlist *tl, int serial, const char *vgcname)
 	ExpectErr(tl, '}');
 
 	/* We have parsed it all, emit the ident string */
-	vcc_EmitBeIdent(tl, tl->fb, serial, t_first, tl->t);
 
 	/* Emit the hosthdr field, fall back to .host if not specified */
 	Fb(tl, 0, "\t.hosthdr = ");
@@ -573,10 +604,9 @@ vcc_ParseHostDef(struct tokenlist *tl, int serial, const char *vgcname)
 	vcc_NextToken(tl);
 
 	tl->fb = NULL;
-	vsb_finish(vsb);
-	AZ(vsb_overflowed(vsb));
-	Fh(tl, 0, "%s", vsb_data(vsb));
-	vsb_delete(vsb);
+	AZ(VSB_finish(vsb));
+	Fh(tl, 0, "%s", VSB_data(vsb));
+	VSB_delete(vsb);
 
 	Fi(tl, 0, "\tVRT_init_dir(cli, VCL_conf.director, \"simple\",\n"
 	    "\t    VGC_backend_%s, &vgc_dir_priv_%s);\n", vgcname, vgcname);
@@ -597,7 +627,7 @@ vcc_ParseHostDef(struct tokenlist *tl, int serial, const char *vgcname)
  */
 
 void
-vcc_ParseBackendHost(struct tokenlist *tl, int serial, char **nm)
+vcc_ParseBackendHost(struct vcc *tl, int serial, char **nm)
 {
 	struct host *h;
 	struct token *t;
@@ -611,13 +641,13 @@ vcc_ParseBackendHost(struct tokenlist *tl, int serial, char **nm)
 				break;
 		}
 		if (h == NULL) {
-			vsb_printf(tl->sb, "Reference to unknown backend ");
+			VSB_printf(tl->sb, "Reference to unknown backend ");
 			vcc_ErrToken(tl, tl->t);
-			vsb_printf(tl->sb, " at\n");
+			VSB_printf(tl->sb, " at\n");
 			vcc_ErrWhere(tl, tl->t);
 			return;
 		}
-		vcc_AddRef(tl, h->name, R_BACKEND);
+		vcc_AddRef(tl, h->name, SYM_BACKEND);
 		vcc_NextToken(tl);
 		SkipToken(tl, ';');
 		*nm = h->vgcname;
@@ -628,7 +658,7 @@ vcc_ParseBackendHost(struct tokenlist *tl, int serial, char **nm)
 
 		vcc_ParseHostDef(tl, serial, vgcname);
 		if (tl->err) {
-			vsb_printf(tl->sb,
+			VSB_printf(tl->sb,
 			    "\nIn backend host specification starting at:\n");
 			vcc_ErrWhere(tl, t);
 		}
@@ -636,14 +666,35 @@ vcc_ParseBackendHost(struct tokenlist *tl, int serial, char **nm)
 
 		return;
 	} else {
-		vsb_printf(tl->sb,
+		VSB_printf(tl->sb,
 		    "Expected a backend host specification here, "
 		    "either by name or by {...}\n");
 		vcc_ErrToken(tl, tl->t);
-		vsb_printf(tl->sb, " at\n");
+		VSB_printf(tl->sb, " at\n");
 		vcc_ErrWhere(tl, tl->t);
 		return;
 	}
+}
+
+/*--------------------------------------------------------------------
+ * Tell rest of compiler about a backend
+ */
+
+static void
+vcc_DefBackend(struct vcc *tl, const struct token *nm)
+{
+	struct symbol *sym;
+
+	sym = VCC_GetSymbolTok(tl, nm, SYM_BACKEND);
+	AN(sym);
+	if (sym->ndef > 0) {
+		VSB_printf(tl->sb, "Backend %.*s redefined\n", PF(tl->t));
+		vcc_ErrWhere(tl, nm);
+		return;
+	} 
+	sym->fmt = BACKEND;
+	sym->eval = vcc_Eval_Backend;
+	sym->ndef++;
 }
 
 /*--------------------------------------------------------------------
@@ -651,14 +702,15 @@ vcc_ParseBackendHost(struct tokenlist *tl, int serial, char **nm)
  */
 
 static void
-vcc_ParseSimpleDirector(struct tokenlist *tl)
+vcc_ParseSimpleDirector(struct vcc *tl)
 {
 	struct host *h;
 	char vgcname[BUFSIZ];
 
 	h = TlAlloc(tl, sizeof *h);
 	h->name = tl->t_dir;
-	vcc_AddDef(tl, tl->t_dir, R_BACKEND);
+	vcc_DefBackend(tl, tl->t_dir);
+	ERRCHK(tl);
 	sprintf(vgcname, "_%.*s", PF(h->name));
 	h->vgcname = TlAlloc(tl, strlen(vgcname) + 1);
 	strcpy(h->vgcname, vgcname);
@@ -686,7 +738,7 @@ static const struct dirlist {
 };
 
 void
-vcc_ParseDirector(struct tokenlist *tl)
+vcc_ParseDirector(struct vcc *tl)
 {
 	struct token *t_first;
 	struct dirlist const *dl;
@@ -706,7 +758,8 @@ vcc_ParseDirector(struct tokenlist *tl)
 		tl->t_policy = t_first;
 		vcc_ParseSimpleDirector(tl);
 	} else {
-		vcc_AddDef(tl, tl->t_dir, R_BACKEND);
+		vcc_DefBackend(tl, tl->t_dir);
+		ERRCHK(tl);
 		ExpectErr(tl, ID);		/* ID: policy */
 		tl->t_policy = tl->t;
 		vcc_NextToken(tl);
@@ -715,9 +768,9 @@ vcc_ParseDirector(struct tokenlist *tl)
 			if (vcc_IdIs(tl->t_policy, dl->name))
 				break;
 		if (dl->name == NULL) {
-			vsb_printf(tl->sb, "Unknown director policy: ");
+			VSB_printf(tl->sb, "Unknown director policy: ");
 			vcc_ErrToken(tl, tl->t_policy);
-			vsb_printf(tl->sb, " at\n");
+			VSB_printf(tl->sb, " at\n");
 			vcc_ErrWhere(tl, tl->t_policy);
 			return;
 		}
@@ -739,21 +792,15 @@ vcc_ParseDirector(struct tokenlist *tl)
 
 	}
 	if (tl->err) {
-		vsb_printf(tl->sb,
+		VSB_printf(tl->sb,
 		    "\nIn %.*s specification starting at:\n", PF(t_first));
 		vcc_ErrWhere(tl, t_first);
 		return;
 	}
 
-	if (isfirst == 1) {
-		/*
-		 * If this is the first backend|director explicitly
-		 * defined, use it as default backend.
-		 */
-		Fi(tl, 0,
-		    "\tVCL_conf.director[0] = VCL_conf.director[%d];\n",
-		    tl->ndirector - 1);
-		vcc_AddRef(tl, tl->t_dir, R_BACKEND);
+	if (isfirst == 1 || vcc_IdIs(tl->t_dir, "default")) {
+		tl->defaultdir = tl->ndirector - 1;
+		tl->t_defaultdir = tl->t_dir;
 	}
 
 	tl->t_policy = NULL;

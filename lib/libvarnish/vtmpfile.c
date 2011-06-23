@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Dag-Erling Smørgrav <des@des.no>
@@ -29,11 +29,9 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -41,6 +39,22 @@ SVNID("$Id$")
 #include <sys/stat.h>
 
 #include "libvarnish.h"
+
+int
+seed_random(void)
+{
+	int fd;
+	unsigned seed;
+
+	fd = open("/dev/urandom", O_RDONLY);
+	if (fd == -1)
+		return (1);
+	if (read(fd, &seed, sizeof seed) != sizeof seed)
+		return (1);
+	(void)close(fd);
+	srandom(seed);
+	return (0);
+}
 
 int
 vtmpfile(char *template)
@@ -79,8 +93,8 @@ vtmpfile(char *template)
 	/* not reached */
 }
 
-static char *
-vreadfd(int fd)
+char *
+vreadfd(int fd, ssize_t *sz)
 {
 	struct stat st;
 	char *f;
@@ -94,19 +108,28 @@ vreadfd(int fd)
 	i = read(fd, f, st.st_size);
 	assert(i == st.st_size);
 	f[i] = '\0';
+	if (sz != NULL)
+		*sz = st.st_size;
 	return (f);
 }
 
 char *
-vreadfile(const char *fn)
+vreadfile(const char *pfx, const char *fn, ssize_t *sz)
 {
 	int fd, err;
 	char *r;
+	char fnb[PATH_MAX + 1];
 
-	fd = open(fn, O_RDONLY);
+	if (fn[0] == '/')
+		fd = open(fn, O_RDONLY);
+	else if (pfx != NULL) {
+		bprintf(fnb, "/%s/%s", pfx, fn); /* XXX: graceful length check */
+		fd = open(fnb, O_RDONLY);
+	} else
+		fd = open(fn, O_RDONLY);
 	if (fd < 0)
 		return (NULL);
-	r = vreadfd(fd);
+	r = vreadfd(fd, sz);
 	err = errno;
 	AZ(close(fd));
 	errno = err;

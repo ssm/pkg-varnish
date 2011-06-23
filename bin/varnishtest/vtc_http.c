@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2008-2010 Redpill Linpro AS
+/*-
+ * Copyright (c) 2008-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -28,13 +28,9 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <poll.h>
 #include <stdio.h>
 #include <poll.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -49,6 +45,8 @@ SVNID("$Id$")
 #include "vsb.h"
 
 #include "vtc.h"
+
+#include "vgz.h"
 
 #define MAX_HDR		50
 
@@ -66,10 +64,15 @@ struct http {
 	char			*rxbuf;
 	int			prxbuf;
 	char			*body;
+	unsigned		bodyl;
 	char			bodylen[20];
+	char			chunklen[20];
 
 	char			*req[MAX_HDR];
 	char			*resp[MAX_HDR];
+
+	int			gziplevel;
+	int			gzipresidual;
 };
 
 #define ONLY_CLIENT(hp, av)						\
@@ -95,7 +98,7 @@ static const char * const nl = "\r\n";
  */
 
 static char *
-synth_body(const char *len)
+synth_body(const char *len, int rnd)
 {
 	int i, j, k, l;
 	char *b;
@@ -114,8 +117,10 @@ synth_body(const char *len)
 			if (k == '~')
 				k = '!';
 			l = k;
+		} else if (rnd) {
+			b[j] = (random() % 95) + ' ';
 		} else {
-		  b[j] = (char)l;
+			b[j] = (char)l;
 			if (++l == '~')
 				l = '!';
 		}
@@ -134,11 +139,10 @@ http_write(const struct http *hp, int lvl, const char *pfx)
 {
 	int l;
 
-	vsb_finish(hp->vsb);
-	AZ(vsb_overflowed(hp->vsb));
-	vtc_dump(hp->vl, lvl, pfx, vsb_data(hp->vsb));
-	l = write(hp->fd, vsb_data(hp->vsb), vsb_len(hp->vsb));
-	if (l != vsb_len(hp->vsb))
+	AZ(VSB_finish(hp->vsb));
+	vtc_dump(hp->vl, lvl, pfx, VSB_data(hp->vsb), VSB_len(hp->vsb));
+	l = write(hp->fd, VSB_data(hp->vsb), VSB_len(hp->vsb));
+	if (l != VSB_len(hp->vsb))
 		vtc_log(hp->vl, 0, "Write failed: %s", strerror(errno));
 }
 
@@ -185,6 +189,8 @@ cmd_var_resolve(struct http *hp, char *spec)
 		return(hp->resp[1]);
 	if (!strcmp(spec, "resp.msg"))
 		return(hp->resp[2]);
+	if (!strcmp(spec, "resp.chunklen"))
+		return(hp->chunklen);
 	if (!strcmp(spec, "resp.bodylen"))
 		return(hp->bodylen);
 	if (!memcmp(spec, "req.http.", 9)) {
@@ -237,7 +243,8 @@ cmd_http_expect(CMD_ARGS)
 			vtc_log(hp->vl, 4, "EXPECT %s (%s) %s %s (%s) match",
 			    av[0], lhs, av[1], av[2], rhs);
 	} else {
-		vtc_log(hp->vl, 0, "EXPECT %s (%s) %s %s (%s) not implemented",
+		vtc_log(hp->vl, 0,
+		    "EXPECT %s (%s) %s %s (%s) test not implemented",
 		    av[0], lhs, av[1], av[2], rhs);
 	}
 }
@@ -316,7 +323,7 @@ http_splitheader(struct http *hp, int req)
 
 	for (n = 0; n < 3 || hh[n] != NULL; n++) {
 		sprintf(buf, "http[%2d] ", n);
-		vtc_dump(hp->vl, 4, buf, hh[n]);
+		vtc_dump(hp->vl, 4, buf, hh[n], -1);
 	}
 }
 
@@ -365,6 +372,47 @@ http_rxchar(struct http *hp, int n)
 	assert(i > 0);
 }
 
+static int
+http_rxchunk(struct http *hp)
+{
+	char *q;
+	int l, i;
+
+	l = hp->prxbuf;
+	do
+		http_rxchar(hp, 1);
+	while (hp->rxbuf[hp->prxbuf - 1] != '\n');
+	vtc_dump(hp->vl, 4, "len", hp->rxbuf + l, -1);
+	i = strtoul(hp->rxbuf + l, &q, 16);
+	bprintf(hp->chunklen, "%d", i);
+	if ((q == hp->rxbuf + l) ||
+		(*q != '\0' && !vct_islws(*q))) {
+		vtc_log(hp->vl, 0, "chunked fail %02x @ %d",
+		    *q, q - (hp->rxbuf + l));
+	}
+	assert(q != hp->rxbuf + l);
+	assert(*q == '\0' || vct_islws(*q));
+	hp->prxbuf = l;
+	if (i > 0) {
+		http_rxchar(hp, i);
+		vtc_dump(hp->vl, 4, "chunk",
+		    hp->rxbuf + l, i);
+	}
+	l = hp->prxbuf;
+	http_rxchar(hp, 2);
+	if(!vct_iscrlf(hp->rxbuf[l]))
+		vtc_log(hp->vl, 0,
+		    "Wrong chunk tail[0] = %02x",
+		    hp->rxbuf[l] & 0xff);
+	if(!vct_iscrlf(hp->rxbuf[l + 1]))
+		vtc_log(hp->vl, 0,
+		    "Wrong chunk tail[1] = %02x",
+		    hp->rxbuf[l + 1] & 0xff);
+	hp->prxbuf = l;
+	hp->rxbuf[l] = '\0';
+	return (i);
+}
+
 /**********************************************************************
  * Swallow a HTTP message body
  */
@@ -372,48 +420,26 @@ http_rxchar(struct http *hp, int n)
 static void
 http_swallow_body(struct http *hp, char * const *hh, int body)
 {
-	char *p, *q;
+	char *p;
 	int i, l, ll;
-
 
 	ll = 0;
 	p = http_find_header(hh, "content-length");
 	if (p != NULL) {
 		l = strtoul(p, NULL, 0);
-		hp->body = hp->rxbuf + hp->prxbuf;
 		http_rxchar(hp, l);
-		vtc_dump(hp->vl, 4, "body", hp->body);
+		vtc_dump(hp->vl, 4, "body", hp->body, l);
+		hp->bodyl = l;
 		sprintf(hp->bodylen, "%d", l);
 		return;
 	}
 	p = http_find_header(hh, "transfer-encoding");
 	if (p != NULL && !strcmp(p, "chunked")) {
-		hp->body = hp->rxbuf + hp->prxbuf;
-		while (1) {
-			l = hp->prxbuf;
-			do
-				http_rxchar(hp, 1);
-			while (hp->rxbuf[hp->prxbuf - 1] != '\n');
-			vtc_dump(hp->vl, 4, "len", hp->rxbuf + l);
-			i = strtoul(hp->rxbuf + l, &q, 16);
-			assert(q != hp->rxbuf + l);
-			assert(*q == '\0' || vct_islws(*q));
-			hp->prxbuf = l;
-			if (i > 0) {
-				ll += i;
-				http_rxchar(hp, i);
-				vtc_dump(hp->vl, 4, "chunk", hp->rxbuf + l);
-			}
-			l = hp->prxbuf;
-			http_rxchar(hp, 2);
-			assert(vct_iscrlf(hp->rxbuf[l]));
-			assert(vct_iscrlf(hp->rxbuf[l + 1]));
-			hp->prxbuf = l;
-			hp->rxbuf[l] = '\0';
-			if (i == 0)
-				break;
-		}
-		vtc_dump(hp->vl, 4, "body", hp->body);
+		while (http_rxchunk(hp) != 0)
+			continue;
+		vtc_dump(hp->vl, 4, "body", hp->body, ll);
+		ll = hp->rxbuf + hp->prxbuf - hp->body;
+		hp->bodyl = ll;
 		sprintf(hp->bodylen, "%d", ll);
 		return;
 	}
@@ -423,8 +449,9 @@ http_swallow_body(struct http *hp, char * const *hh, int body)
 			i = http_rxchar_eof(hp, 1);
 			ll += i;
 		} while (i > 0);
-		vtc_dump(hp->vl, 4, "rxeof", hp->body);
+		vtc_dump(hp->vl, 4, "rxeof", hp->body, ll);
 	}
+	hp->bodyl = ll;
 	sprintf(hp->bodylen, "%d", ll);
 }
 
@@ -455,7 +482,7 @@ http_rxhdr(struct http *hp)
 		if (i == 2)
 			break;
 	}
-	vtc_dump(hp->vl, 4, "rxhdr", hp->rxbuf);
+	vtc_dump(hp->vl, 4, "rxhdr", hp->rxbuf, -1);
 }
 
 
@@ -482,16 +509,118 @@ cmd_http_rxresp(CMD_ARGS)
 		else
 			vtc_log(hp->vl, 0,
 			    "Unknown http rxresp spec: %s\n", *av);
-	vtc_log(hp->vl, 3, "rxresp");
 	http_rxhdr(hp);
 	http_splitheader(hp, 0);
+	hp->body = hp->rxbuf + hp->prxbuf;
 	if (!has_obj)
-		;
+		return;
 	else if (!strcmp(hp->resp[1], "200"))
 		http_swallow_body(hp, hp->resp, 1);
 	else
 		http_swallow_body(hp, hp->resp, 0);
 	vtc_log(hp->vl, 4, "bodylen = %s", hp->bodylen);
+}
+
+/**********************************************************************
+ * Ungzip rx'ed body
+ */
+
+#define TRUST_ME(ptr)   ((void*)(uintptr_t)(ptr))
+
+#define OVERHEAD 64
+
+
+static void
+cmd_http_gunzip_body(CMD_ARGS)
+{
+	int i;
+	z_stream vz;
+	struct http *hp;
+	char *p;
+	unsigned l;
+
+	(void)cmd;
+	(void)vl;
+	CAST_OBJ_NOTNULL(hp, priv, HTTP_MAGIC);
+	ONLY_CLIENT(hp, av);
+
+	memset(&vz, 0, sizeof vz);
+
+	if (hp->body[0] != (char)0x1f || hp->body[1] != (char)0x8b)
+		vtc_log(hp->vl, 0, "Gunzip error: Body lacks gzip magics");
+	vz.next_in = TRUST_ME(hp->body);
+	vz.avail_in = hp->bodyl;
+
+	l = hp->bodyl * 10;
+	p = calloc(l, 1);
+	AN(p);
+
+	vz.next_out = TRUST_ME(p);
+	vz.avail_out = l;
+
+	assert(Z_OK == inflateInit2(&vz, 31));
+	i = inflate(&vz, Z_FINISH);
+	hp->bodyl = vz.total_out;
+	memcpy(hp->body, p, hp->bodyl);
+	free(p);
+	vtc_log(hp->vl, 3, "new bodylen %u", hp->bodyl);
+	vtc_dump(hp->vl, 4, "body", hp->body, hp->bodyl);
+	bprintf(hp->bodylen, "%u", hp->bodyl);
+	vtc_log(hp->vl, 4, "startbit = %ju %ju/%ju",
+	    (uintmax_t)vz.start_bit,
+	    (uintmax_t)vz.start_bit >> 3, (uintmax_t)vz.start_bit & 7);
+	vtc_log(hp->vl, 4, "lastbit = %ju %ju/%ju",
+	    (uintmax_t)vz.last_bit,
+	    (uintmax_t)vz.last_bit >> 3, (uintmax_t)vz.last_bit & 7);
+	vtc_log(hp->vl, 4, "stopbit = %ju %ju/%ju",
+	    (uintmax_t)vz.stop_bit,
+	    (uintmax_t)vz.stop_bit >> 3, (uintmax_t)vz.stop_bit & 7);
+	if (i != Z_STREAM_END)
+		vtc_log(hp->vl, 0, "Gunzip error = %d (%s) in:%jd out:%jd",
+		    i, vz.msg, (intmax_t)vz.total_in, (intmax_t)vz.total_out);
+	assert(Z_OK == inflateEnd(&vz));
+}
+
+/**********************************************************************
+ * Create a gzip'ed body
+ */
+
+static void
+gzip_body(struct http *hp, const char *txt, char **body, int *bodylen)
+{
+	int l, i;
+	z_stream vz;
+
+	memset(&vz, 0, sizeof vz);
+
+	l = strlen(txt);
+	*body = calloc(l + OVERHEAD, 1);
+	AN(*body);
+
+	vz.next_in = TRUST_ME(txt);
+	vz.avail_in = l;
+
+	vz.next_out = TRUST_ME(*body);
+	vz.avail_out = l + OVERHEAD;
+
+	assert(Z_OK == deflateInit2(&vz,
+	    hp->gziplevel, Z_DEFLATED, 31, 9, Z_DEFAULT_STRATEGY));
+	assert(Z_STREAM_END == deflate(&vz, Z_FINISH));
+	i = vz.stop_bit & 7;
+	if (hp->gzipresidual >= 0 && hp->gzipresidual != i)
+		vtc_log(hp->vl, 0, "Wrong gzip residual got %d wanted %d",
+		    i, hp->gzipresidual);
+	*bodylen = vz.total_out;
+	vtc_log(hp->vl, 4, "startbit = %ju %ju/%ju",
+	    (uintmax_t)vz.start_bit,
+	    (uintmax_t)vz.start_bit >> 3, (uintmax_t)vz.start_bit & 7);
+	vtc_log(hp->vl, 4, "lastbit = %ju %ju/%ju",
+	    (uintmax_t)vz.last_bit,
+	    (uintmax_t)vz.last_bit >> 3, (uintmax_t)vz.last_bit & 7);
+	vtc_log(hp->vl, 4, "stopbit = %ju %ju/%ju",
+	    (uintmax_t)vz.stop_bit,
+	    (uintmax_t)vz.stop_bit >> 3, (uintmax_t)vz.stop_bit & 7);
+	assert(Z_OK == deflateEnd(&vz));
 }
 
 /**********************************************************************
@@ -518,7 +647,7 @@ cmd_http_txresp(CMD_ARGS)
 	assert(!strcmp(av[0], "txresp"));
 	av++;
 
-	vsb_clear(hp->vsb);
+	VSB_clear(hp->vsb);
 
 	/* send a "Content-Length: 0" header unless something else happens */
 	REPLACE(body, "");
@@ -539,13 +668,13 @@ cmd_http_txresp(CMD_ARGS)
 			break;
 	}
 
-	vsb_printf(hp->vsb, "%s %s %s%s", proto, status, msg, nl);
+	VSB_printf(hp->vsb, "%s %s %s%s", proto, status, msg, nl);
 
 	for(; *av != NULL; av++) {
 		if (!strcmp(*av, "-nolen")) {
 			nolen = 1;
 		} else if (!strcmp(*av, "-hdr")) {
-			vsb_printf(hp->vsb, "%s%s", av[1], nl);
+			VSB_printf(hp->vsb, "%s%s", av[1], nl);
 			av++;
 		} else
 			break;
@@ -570,8 +699,27 @@ cmd_http_txresp(CMD_ARGS)
 			}
 		} else if (!strcmp(*av, "-bodylen")) {
 			assert(body == nullbody);
-			body = synth_body(av[1]);
+			body = synth_body(av[1], 0);
 			bodylen = strlen(body);
+			av++;
+		} else if (!strcmp(*av, "-gzipresidual")) {
+			hp->gzipresidual = strtoul(av[1], NULL, 0);
+			av++;
+		} else if (!strcmp(*av, "-gziplevel")) {
+			hp->gziplevel = strtoul(av[1], NULL, 0);
+			av++;
+		} else if (!strcmp(*av, "-gziplen")) {
+			assert(body == nullbody);
+			b = synth_body(av[1], 1);
+			gzip_body(hp, b, &body, &bodylen);
+			VSB_printf(hp->vsb, "Content-Encoding: gzip%s", nl);
+			// vtc_hexdump(hp->vl, 4, "gzip", (void*)body, bodylen);
+			av++;
+		} else if (!strcmp(*av, "-gzipbody")) {
+			assert(body == nullbody);
+			gzip_body(hp, av[1], &body, &bodylen);
+			VSB_printf(hp->vsb, "Content-Encoding: gzip%s", nl);
+			// vtc_hexdump(hp->vl, 4, "gzip", (void*)body, bodylen);
 			av++;
 		} else
 			break;
@@ -579,10 +727,10 @@ cmd_http_txresp(CMD_ARGS)
 	if (*av != NULL)
 		vtc_log(hp->vl, 0, "Unknown http txresp spec: %s\n", *av);
 	if (body != NULL && !nolen)
-		vsb_printf(hp->vsb, "Content-Length: %d%s", bodylen, nl);
-	vsb_cat(hp->vsb, nl);
+		VSB_printf(hp->vsb, "Content-Length: %d%s", bodylen, nl);
+	VSB_cat(hp->vsb, nl);
 	if (body != NULL)
-		vsb_bcat(hp->vsb, body, bodylen);
+		VSB_bcat(hp->vsb, body, bodylen);
 	http_write(hp, 4, "txresp");
 }
 
@@ -604,7 +752,6 @@ cmd_http_rxreq(CMD_ARGS)
 
 	for(; *av != NULL; av++)
 		vtc_log(hp->vl, 0, "Unknown http rxreq spec: %s\n", *av);
-	vtc_log(hp->vl, 3, "rxreq");
 	http_rxhdr(hp);
 	http_splitheader(hp, 1);
 	http_swallow_body(hp, hp->req, 0);
@@ -625,7 +772,6 @@ cmd_http_rxhdrs(CMD_ARGS)
 
 	for(; *av != NULL; av++)
 		vtc_log(hp->vl, 0, "Unknown http rxreq spec: %s\n", *av);
-	vtc_log(hp->vl, 3, "rxhdrs");
 	http_rxhdr(hp);
 	http_splitheader(hp, 1);
 }
@@ -644,9 +790,28 @@ cmd_http_rxbody(CMD_ARGS)
 
 	for(; *av != NULL; av++)
 		vtc_log(hp->vl, 0, "Unknown http rxreq spec: %s\n", *av);
-	vtc_log(hp->vl, 3, "rxbody");
 	http_swallow_body(hp, hp->req, 0);
 	vtc_log(hp->vl, 4, "bodylen = %s", hp->bodylen);
+}
+
+static void
+cmd_http_rxchunk(CMD_ARGS)
+{
+	struct http *hp;
+	int ll, i;
+
+	(void)cmd;
+	(void)vl;
+	CAST_OBJ_NOTNULL(hp, priv, HTTP_MAGIC);
+	ONLY_CLIENT(hp, av);
+
+	i = http_rxchunk(hp);
+	if (i == 0) {
+		ll = hp->rxbuf + hp->prxbuf - hp->body;
+		hp->bodyl = ll;
+		sprintf(hp->bodylen, "%d", ll);
+		vtc_log(hp->vl, 4, "bodylen = %s", hp->bodylen);
+	}
 }
 
 /**********************************************************************
@@ -669,7 +834,7 @@ cmd_http_txreq(CMD_ARGS)
 	assert(!strcmp(av[0], "txreq"));
 	av++;
 
-	vsb_clear(hp->vsb);
+	VSB_clear(hp->vsb);
 
 	for(; *av != NULL; av++) {
 		if (!strcmp(*av, "-url")) {
@@ -684,10 +849,10 @@ cmd_http_txreq(CMD_ARGS)
 		} else
 			break;
 	}
-	vsb_printf(hp->vsb, "%s %s %s%s", req, url, proto, nl);
+	VSB_printf(hp->vsb, "%s %s %s%s", req, url, proto, nl);
 	for(; *av != NULL; av++) {
 		if (!strcmp(*av, "-hdr")) {
-			vsb_printf(hp->vsb, "%s%s", av[1], nl);
+			VSB_printf(hp->vsb, "%s%s", av[1], nl);
 			av++;
 		} else
 			break;
@@ -699,7 +864,7 @@ cmd_http_txreq(CMD_ARGS)
 			av++;
 		} else if (!strcmp(*av, "-bodylen")) {
 			AZ(body);
-			body = synth_body(av[1]);
+			body = synth_body(av[1], 0);
 			av++;
 		} else
 			break;
@@ -707,11 +872,12 @@ cmd_http_txreq(CMD_ARGS)
 	if (*av != NULL)
 		vtc_log(hp->vl, 0, "Unknown http txreq spec: %s\n", *av);
 	if (body != NULL)
-		vsb_printf(hp->vsb, "Content-Length: %d%s", strlen(body), nl);
-	vsb_cat(hp->vsb, nl);
+		VSB_printf(hp->vsb, "Content-Length: %ju%s",
+		    (uintmax_t)strlen(body), nl);
+	VSB_cat(hp->vsb, nl);
 	if (body != NULL) {
-		vsb_cat(hp->vsb, body);
-		vsb_cat(hp->vsb, nl);
+		VSB_cat(hp->vsb, body);
+		VSB_cat(hp->vsb, nl);
 	}
 	http_write(hp, 4, "txreq");
 }
@@ -731,7 +897,7 @@ cmd_http_send(CMD_ARGS)
 	CAST_OBJ_NOTNULL(hp, priv, HTTP_MAGIC);
 	AN(av[1]);
 	AZ(av[2]);
-	vtc_dump(hp->vl, 4, "send", av[1]);
+	vtc_dump(hp->vl, 4, "send", av[1], -1);
 	i = write(hp->fd, av[1], strlen(av[1]));
 	assert(i == strlen(av[1]));
 
@@ -751,8 +917,9 @@ cmd_http_chunked(CMD_ARGS)
 	CAST_OBJ_NOTNULL(hp, priv, HTTP_MAGIC);
 	AN(av[1]);
 	AZ(av[2]);
-	vsb_clear(hp->vsb);
-	vsb_printf(hp->vsb, "%x%s%s%s", strlen(av[1]), nl, av[1], nl);
+	VSB_clear(hp->vsb);
+	VSB_printf(hp->vsb, "%jx%s%s%s",
+	    (uintmax_t)strlen(av[1]), nl, av[1], nl);
 	http_write(hp, 4, "chunked");
 }
 
@@ -769,21 +936,25 @@ cmd_http_chunkedlen(CMD_ARGS)
 	CAST_OBJ_NOTNULL(hp, priv, HTTP_MAGIC);
 	AN(av[1]);
 	AZ(av[2]);
-	vsb_clear(hp->vsb);
+	VSB_clear(hp->vsb);
 
 	len = atoi(av[1]);
 
-	for (u = 0; u < sizeof buf; u++)
-		buf[u] = (u & 7) + '0';
+	if (len == 0) {
+		VSB_printf(hp->vsb, "0%s%s", nl, nl);
+	} else {
+		for (u = 0; u < sizeof buf; u++)
+			buf[u] = (u & 7) + '0';
 
-	for (u = 0; u < len; u += 16384) {
-		v = len - u;
-		if (v > sizeof buf)
-			v = sizeof buf;
-		vsb_printf(hp->vsb, "%x%s", v, nl);
-		vsb_printf(hp->vsb, "%*.*s%s", v, v, buf, nl);
+		VSB_printf(hp->vsb, "%x%s", len, nl);
+		for (u = 0; u < len; u += v) {
+			v = len - u;
+			if (v > sizeof buf)
+				v = sizeof buf;
+			VSB_bcat(hp->vsb, buf, v);
+		}
+		VSB_printf(hp->vsb, "%s", nl);
 	}
-	vsb_printf(hp->vsb, "%x%s%s", 0, nl, nl);
 	http_write(hp, 4, "chunked");
 }
 
@@ -859,7 +1030,7 @@ cmd_http_accept(CMD_ARGS)
 	CAST_OBJ_NOTNULL(hp, priv, HTTP_MAGIC);
 	AZ(av[1]);
 	assert(hp->sfd >= 0);
-	TCP_close(&hp->fd);
+	VTCP_close(&hp->fd);
 	vtc_log(vl, 4, "Accepting");
 	hp->fd = accept(hp->sfd, NULL, NULL);
 	if (hp->fd < 0)
@@ -882,7 +1053,7 @@ cmd_http_loop(CMD_ARGS)
 	AN(av[1]);
 	AN(av[2]);
 	AZ(av[3]);
-	n = strtod(av[1], NULL);
+	n = strtoul(av[1], NULL, 0);
 	for (m = 1 ; m <= n; m++) {
 		vtc_log(vl, 4, "Loop #%u", m);
 		s = strdup(av[2]);
@@ -901,10 +1072,12 @@ static const struct cmds http_cmds[] = {
 
 	{ "rxreq",		cmd_http_rxreq },
 	{ "rxhdrs",		cmd_http_rxhdrs },
+	{ "rxchunk",		cmd_http_rxchunk },
 	{ "rxbody",		cmd_http_rxbody },
 
 	{ "txresp",		cmd_http_txresp },
 	{ "rxresp",		cmd_http_rxresp },
+	{ "gunzip",		cmd_http_gunzip_body },
 	{ "expect",		cmd_http_expect },
 	{ "send",		cmd_http_send },
 	{ "chunked",		cmd_http_chunked },
@@ -927,12 +1100,14 @@ http_process(struct vtclog *vl, const char *spec, int sock, int sfd)
 	ALLOC_OBJ(hp, HTTP_MAGIC);
 	AN(hp);
 	hp->fd = sock;
-	hp->timeout = 3000;
+	hp->timeout = 5000;
 	hp->nrxbuf = 640*1024;
-	hp->vsb = vsb_newauto();
+	hp->vsb = VSB_new_auto();
 	hp->rxbuf = malloc(hp->nrxbuf);		/* XXX */
 	hp->sfd = sfd;
 	hp->vl = vl;
+	hp->gziplevel = 0;
+	hp->gzipresidual = -1;
 	AN(hp->rxbuf);
 	AN(hp->vsb);
 
@@ -941,7 +1116,69 @@ http_process(struct vtclog *vl, const char *spec, int sock, int sfd)
 	assert(q > s);
 	AN(s);
 	parse_string(s, http_cmds, hp, vl);
-	vsb_delete(hp->vsb);
+	VSB_delete(hp->vsb);
 	free(hp->rxbuf);
 	free(hp);
 }
+
+/**********************************************************************
+ * Magic test routine
+ *
+ * This function brute-forces some short strings through gzip(9) to
+ * find candidates for all possible 8 bit positions of the stopbit.
+ *
+ * Here is some good short output strings:
+ *
+ *	0 184 <e04c8d0fd604c>
+ *	1 257 <1ea86e6cf31bf4ec3d7a86>
+ *	2 106 <10>
+ *	3 163 <a5e2e2e1c2e2>
+ *	4 180 <71c5d18ec5d5d1>
+ *	5 189 <39886d28a6d2988>
+ *	6 118 <80000>
+ *	7 151 <386811868>
+ *
+ */
+
+#if 0
+void xxx(void);
+
+void
+xxx(void)
+{
+	z_stream vz;
+	int n;
+	char ibuf[200];
+	char obuf[200];
+	int fl[8];
+	int i, j;
+
+	for (n = 0; n < 8; n++)
+		fl[n] = 9999;
+
+	memset(&vz, 0, sizeof vz);
+
+	for(n = 0;  n < 999999999; n++) {
+		*ibuf = 0;
+		for (j = 0; j < 7; j++) {
+			sprintf(strchr(ibuf, 0), "%x",
+			    (unsigned)random() & 0xffff);
+			vz.next_in = TRUST_ME(ibuf);
+			vz.avail_in = strlen(ibuf);
+			vz.next_out = TRUST_ME(obuf);
+			vz.avail_out = sizeof obuf;
+			assert(Z_OK == deflateInit2(&vz,
+			    9, Z_DEFLATED, 31, 9, Z_DEFAULT_STRATEGY));
+			assert(Z_STREAM_END == deflate(&vz, Z_FINISH));
+			i = vz.stop_bit & 7;
+			if (fl[i] > strlen(ibuf)) {
+				printf("%d %jd <%s>\n", i, vz.stop_bit, ibuf);
+				fl[i] = strlen(ibuf);
+			}
+			assert(Z_OK == deflateEnd(&vz));
+		}
+	}
+
+	printf("FOO\n");
+}
+#endif

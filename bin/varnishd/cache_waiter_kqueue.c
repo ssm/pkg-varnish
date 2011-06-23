@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2009 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -33,9 +33,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #if defined(HAVE_KQUEUE)
 
 #include <stdio.h>
@@ -47,12 +44,11 @@ SVNID("$Id$")
 
 #include <sys/event.h>
 
-#include "shmlog.h"
 #include "cache.h"
 #include "cache_waiter.h"
 
 
-/**********************************************************************/
+/*--------------------------------------------------------------------*/
 
 
 static pthread_t vca_kqueue_thread;
@@ -198,7 +194,7 @@ vca_kqueue_main(void *arg)
 			if (sp->t_open > deadline)
 				break;
 			VTAILQ_REMOVE(&sesshead, sp, list);
-			// XXX: not yet (void)TCP_linger(sp->fd, 0);
+			// XXX: not yet (void)VTCP_linger(sp->fd, 0);
 			vca_close_session(sp, "timeout");
 			SES_Delete(sp);
 		}

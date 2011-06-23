@@ -1,13 +1,13 @@
-# $Id$
-
 AC_PREREQ(2.59)
 AC_COPYRIGHT([Copyright (c) 2006 Verdens Gang AS
-Copyright (c) 2006-2010 Redpill Linpro AS
-Copyright (c) 2010 Varnish Software AS])
+Copyright (c) 2006-2011 Varnish Software AS])
 AC_REVISION([$Id$])
-AC_INIT([Varnish], [2.1.5], [varnish-dev@varnish-cache.org])
+AC_INIT([Varnish], [3.0.0], [varnish-dev@varnish-cache.org])
 AC_CONFIG_SRCDIR(include/varnishapi.h)
 AM_CONFIG_HEADER(config.h)
+
+# save command line CFLAGS for use in VCC_CC (to pass through things like -m64)
+OCFLAGS="$CFLAGS"
 
 AC_CANONICAL_SYSTEM
 AC_LANG(C)
@@ -18,10 +18,30 @@ AM_INIT_AUTOMAKE([foreign])
 AC_GNU_SOURCE
 AC_PROG_CC
 AC_PROG_CC_STDC
-if test "x$ac_cv_prog_cc_c99" = xno; then
-  AC_MSG_ERROR([Could not find a C99 compatible compiler])
+if test "x$ac_cv_prog_cc_c99" = "xno" || test "x$ac_cv_prog_cc_c99" = "x"; then
+# We might be on RHEL5 with a git checkout and so broken
+# autoconf. Check if CC is gcc and if it bails when given -std=gnu99.
+# If not, use that.  Yuck.
+  if test "x$ac_cv_c_compiler_gnu" = "xyes"; then
+     CC="$CC -std=gnu99"
+     AC_RUN_IFELSE(
+	[AC_LANG_PROGRAM([],[[
+return 0;
+    ]])],
+    [],
+    [AC_MSG_ERROR([Could not find a C99 compatible compiler])])
+  else
+    AC_MSG_ERROR([Could not find a C99 compatible compiler])
+  fi
 fi
 AC_PROG_CPP
+
+AX_PTHREAD(,[AC_MSG_ERROR([Could not configure pthreads support])])
+
+LIBS="$PTHREAD_LIBS $LIBS"
+CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
+CC="$PTHREAD_CC"
+
 AC_PROG_INSTALL
 AC_PROG_LIBTOOL
 AC_PROG_MAKE_SET
@@ -35,6 +55,12 @@ if test "x$RST2MAN" = "xno"; then
    AC_MSG_WARN([rst2man not found – not building man pages])
 fi
 AM_CONDITIONAL(HAVE_RST2MAN,[test "x$RST2MAN" != "xno"])
+
+AC_CHECK_PROGS(RST2HTML, [rst2html rst2html.py], "no")
+if test "x$RST2HTML" = "xno"; then
+   AC_MSG_WARN([rst2html not found – not building changelog])
+fi
+AM_CONDITIONAL(HAVE_RST2HTML,[test "x$RST2HTML" != "xno"])
 
 # Checks for libraries.
 save_LIBS="${LIBS}"
@@ -112,6 +138,9 @@ fi
 AC_SUBST(PCRE_CFLAGS)
 AC_SUBST(PCRE_LIBS)
 
+PKG_CHECK_MODULES([LIBEDIT], [libedit], 
+	[AC_DEFINE([HAVE_LIBEDIT], [1], [Define we have libedit])],
+	[AC_MSG_WARN([libedit not found, disabling libedit support])])
 
 # Checks for header files.
 AC_HEADER_STDC
@@ -163,6 +192,7 @@ save_LIBS="${LIBS}"
 LIBS="${PTHREAD_LIBS}"
 AC_CHECK_FUNCS([pthread_set_name_np])
 AC_CHECK_FUNCS([pthread_mutex_isowned_np])
+AC_CHECK_FUNCS([pthread_timedjoin_np])
 LIBS="${save_LIBS}"
 
 # sendfile is tricky: there are multiple versions, and most of them
@@ -199,6 +229,53 @@ if test "$ac_cv_so_sendfile_works" = yes; then
 	AC_DEFINE([SENDFILE_WORKS], [1], [Define if SENDFILE works])
 fi
 
+# Support for visibility attribute 
+save_CFLAGS="${CFLAGS}" 
+CFLAGS="${CFLAGS} -Werror" 
+
+AC_CACHE_CHECK([whether we have support for visibility attributes], 
+	[ac_cv_have_viz], 
+	[AC_RUN_IFELSE( 
+		[AC_LANG_PROGRAM([[ 
+			#if ((__GNUC__-0) * 10 + __GNUC_MINOR__-0 >= 33) 
+			#  define ZLIB_INTERNAL __attribute__((visibility ("hidden"))) 
+			#else 
+			#  define ZLIB_INTERNAL 
+			#endif 
+			int ZLIB_INTERNAL foo; 
+		]],[])], 
+	[ac_cv_have_viz=yes], 
+	[ac_cv_have_viz=no]) 
+])
+if test "$ac_cv_have_viz" = no; then 
+	libvgz_extra_cflags="-DNO_VIZ" 
+	AC_SUBST(libvgz_extra_cflags) 
+fi 
+CFLAGS="${save_CFLAGS}" 
+
+# Use jemalloc on Linux
+JEMALLOC_SUBDIR=
+JEMALLOC_LDADD=
+AC_ARG_WITH([jemalloc],
+            [AS_HELP_STRING([--with-jemalloc],
+              [use jemalloc memory allocator.  Default is yes on Linux,  no elsewhere])],
+            [],
+            [with_jemalloc=check])
+
+case $target in
+    *-*-linux*)
+        if test "x$with_jemalloc" != xno; then
+            AC_CHECK_LIB([jemalloc], [malloc_conf],
+                  [JEMALLOC_LDADD="-ljemalloc"],
+                  [AC_MSG_NOTICE([No system jemalloc found, using bundled version])
+                   JEMALLOC_SUBDIR=libjemalloc
+                   JEMALLOC_LDADD='$(top_builddir)/lib/libjemalloc/libjemalloc_mt.la'])
+	fi
+	;;
+esac
+AC_SUBST(JEMALLOC_SUBDIR)
+AC_SUBST(JEMALLOC_LDADD)
+
 # Userland slab allocator, available only on Solaris
 case $target in
 *-*-solaris*)
@@ -218,8 +295,6 @@ AC_SUBST(LIBUMEM)
 # are not available
 AC_CHECK_FUNCS([setproctitle])
 AC_CHECK_FUNCS([srandomdev])
-AC_CHECK_FUNCS([strlcat strlcpy])
-AC_CHECK_FUNCS([strndup])
 AC_CHECK_FUNCS([backtrace])
 # white lie - we don't actually test it
 AC_MSG_CHECKING([whether daemon() works])
@@ -257,7 +332,7 @@ AC_ARG_ENABLE(kqueue,
 
 if test "$enable_kqueue" = yes; then
 	case $target in
-	*-*-freebsd* | *-*-darwin9* )
+	*-*-freebsd* | *-*-darwin9* | *-*-netbsd* )
 		AC_CHECK_FUNCS([kqueue])
 		;;
 	*-*-bsd*)
@@ -297,10 +372,7 @@ else
 fi
 
 AM_MISSING_HAS_RUN
-AC_CHECK_PROGS(TCLSH, [tclsh tclsh8.4 tclsh8.5], :)
-if test "$TCLSH" = :; then
-  TCLSH="${am_missing_run}tclsh"
-fi
+AC_CHECK_PROGS(PYTHON, [python3 python3.1 python3.2 python2.7 python2.6 python2.5 python2 python], [AC_MSG_ERROR([Python is needed to build Varnish, please install python.])])
 
 # Solaris defines SO_{RCV,SND}TIMEO, but does not implement them.
 # Varnish will build and run without these, but connections will not
@@ -317,7 +389,13 @@ AC_CACHE_CHECK([whether SO_RCVTIMEO works],
     ]],[[
 int sd = socket(AF_INET, SOCK_STREAM, 0);
 struct timeval tv = { 1, 0 };
-return !!setsockopt(sd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+if (setsockopt(sd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv) == 0) {
+    socklen_t l = sizeof tv;
+    if (getsockopt(sd, SOL_SOCKET, SO_RCVTIMEO, &tv, &l) == 0) {
+        return (l != sizeof tv);
+    }
+}
+return 1;
     ]])],
     [ac_cv_so_rcvtimeo_works=yes],
     [ac_cv_so_rcvtimeo_works=no])
@@ -336,7 +414,13 @@ AC_CACHE_CHECK([whether SO_SNDTIMEO works],
     ]],[[
 int sd = socket(AF_INET, SOCK_STREAM, 0);
 struct timeval tv = { 1, 0 };
-return !!setsockopt(sd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
+if (setsockopt(sd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv) == 0) {
+    socklen_t l = sizeof tv;
+    if (getsockopt(sd, SOL_SOCKET, SO_SNDTIMEO, &tv, &l) == 0) {
+        return (l != sizeof tv);
+    }
+}
+return 1;
     ]])],
     [ac_cv_so_sndtimeo_works=yes],
     [ac_cv_so_sndtimeo_works=no])
@@ -357,6 +441,10 @@ AC_SUBST(VARNISH_STATE_DIR)
 # Default configuration directory.
 varnishconfdir='${sysconfdir}/varnish'
 AC_SUBST(varnishconfdir)
+
+# Check for linker script support
+gl_LD_VERSION_SCRIPT
+
 # Now that we're done using the compiler to look for functions and
 # libraries, set CFLAGS to what we want them to be for our own code
 
@@ -384,12 +472,34 @@ AC_ARG_ENABLE(diagnostics,
 # --enable-extra-developer-warnings
 AC_ARG_ENABLE(extra-developer-warnings,
 	AS_HELP_STRING([--enable-extra-developer-warnings],[enable even stricter warnings (default is NO)]),
-	CFLAGS="${CFLAGS} ${EXTRA_DEVELOPER_CFLAGS}")
+	[],
+	[enable_extra_developer_warnings=no])
+
+if test "x$enable_stack_protector" != "xno"; then
+	save_CFLAGS="$CFLAGS"
+	CFLAGS="${CFLAGS} ${EXTRA_DEVELOPER_CFLAGS}"
+	AC_COMPILE_IFELSE(
+		[AC_LANG_PROGRAM([],[],[])],
+		[],
+		[AC_MSG_WARN([All of ${EXTRA_DEVELOPER_CFLAGS} not supported, disabling])
+		    CFLAGS="$save_CFLAGS"])
+fi
 
 # --enable-stack-protector
 AC_ARG_ENABLE(stack-protector,
 	AS_HELP_STRING([--enable-stack-protector],[enable stack protector (default is NO)]),
-	CFLAGS="${CFLAGS} -fstack-protector-all")
+	[],
+	[enable_stack_protector=no])
+
+if test "x$enable_stack_protector" != "xno"; then
+	save_CFLAGS="$CFLAGS"
+	CFLAGS="${CFLAGS} -fstack-protector-all"
+	AC_COMPILE_IFELSE(
+		[AC_LANG_PROGRAM([],[],[])],
+		[],
+		[AC_MSG_WARN([-fstack-protector not supported, disabling])
+		    CFLAGS="$save_CFLAGS"])
+fi
 
 # --enable-tests
 AC_ARG_ENABLE(tests,
@@ -410,39 +520,26 @@ if test "$ac_cv_env_VCC_CC_set" = "set"; then
 else
 	case $target in
 	*-*-solaris*)
-		VCC_CC="cc -Kpic -G -o %o %s"
+		case $PTHREAD_CC in
+		*gcc*)
+			VCC_CC="$PTHREAD_CC $OCFLAGS $PTHREAD_CFLAGS -fpic -shared -o %o %s"
+			break
+			;;
+		*cc)
+			VCC_CC="$PTHREAD_CC $OCFLAGS $PTHREAD_CFLAGS -Kpic -G -o %o %s"
+			;;
+		esac
 		;;
 	*-*-darwin*)
-		VCC_CC="exec cc -dynamiclib -Wl,-undefined,dynamic_lookup -o %o %s"
+		VCC_CC="exec cc $OCFLAGS -dynamiclib -Wl,-undefined,dynamic_lookup -o %o %s"
 		;;
 	*)
-		VCC_CC="exec cc -fpic -shared -Wl,-x -o %o %s"
+		VCC_CC="exec $PTHREAD_CC $OCFLAGS $PTHREAD_CFLAGS -fpic -shared -Wl,-x -o %o %s"
 		;;
 	esac
 fi
+
 AC_DEFINE_UNQUOTED([VCC_CC],"$VCC_CC",[C compiler command line for VCL code])
-
-# Use jemalloc on Linux
-JEMALLOC_SUBDIR=
-JEMALLOC_LDADD=
-AC_ARG_ENABLE(jemalloc,
-AS_HELP_STRING([--disable-jemalloc],[do not use jemalloc (default is yes on Linux, no everywhere else)]),
-[if test "x$enableval" = "xyes"; then
-	JEMALLOC_SUBDIR=libjemalloc
-	JEMALLOC_LDADD='$(top_builddir)/lib/libjemalloc/libjemalloc_mt.la'
-fi],
-[case $target in #(
-*-*-linux*)
-	JEMALLOC_SUBDIR=libjemalloc
-	JEMALLOC_LDADD='$(top_builddir)/lib/libjemalloc/libjemalloc_mt.la'
-	;; #(
-*)
-	true
-	;;
-esac])
-
-AC_SUBST(JEMALLOC_SUBDIR)
-AC_SUBST(JEMALLOC_LDADD)
 
 # Generate output
 AC_CONFIG_FILES([
@@ -460,6 +557,7 @@ AC_CONFIG_FILES([
     bin/varnishtop/Makefile
     doc/Makefile
     doc/sphinx/Makefile
+    doc/sphinx/conf.py
     etc/Makefile
     include/Makefile
     lib/Makefile
@@ -467,6 +565,8 @@ AC_CONFIG_FILES([
     lib/libvarnishapi/Makefile
     lib/libvarnishcompat/Makefile
     lib/libvcl/Makefile
+    lib/libvgz/Makefile
+    lib/libvmod_std/Makefile
     lib/libjemalloc/Makefile
     man/Makefile
     redhat/Makefile

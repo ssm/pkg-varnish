@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -26,12 +26,14 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $Id$
  */
 
 #include <errno.h>
 #include <time.h>
 #include <stdint.h>
+#include <sys/types.h>
+
+#include "vas.h"
 
 #ifndef NULL
 #define NULL ((void*)0)
@@ -39,13 +41,7 @@
 
 struct vsb;
 
-/* from libvarnish/argv.c */
-void FreeArgv(char **argv);
-char **ParseArgv(const char *s, int flag);
-char *BackSlashDecode(const char *s, const char *e);
-int BackSlash(const char *s, char *res);
-#define ARGV_COMMENT	(1 << 0)
-#define ARGV_COMMA	(1 << 1)
+#include "vav.h"
 
 /* from libvarnish/num.c */
 const char *str2bytes(const char *p, uintmax_t *r, uintmax_t rel);
@@ -57,35 +53,36 @@ int SUB_run(struct vsb *sb, sub_func_f *func, void *priv, const char *name,
 
 /* from libvarnish/tcp.c */
 /* NI_MAXHOST and NI_MAXSERV are ridiculously long for numeric format */
-#define TCP_ADDRBUFSIZE		64
-#define TCP_PORTBUFSIZE		16
+#define VTCP_ADDRBUFSIZE		64
+#define VTCP_PORTBUFSIZE		16
 
-#if defined (__SVR4) && defined (__sun)
+#if (defined (__SVR4) && defined (__sun)) || defined (__NetBSD__)
 /*
  * Solaris returns EINVAL if the other end unexepectedly reset the
- * connection.  This is a bug in Solaris.
+ * connection.  This is a bug in Solaris and documented behaviour on NetBSD.
  */
-#define TCP_Check(a) ((a) == 0 || errno == ECONNRESET || errno == ENOTCONN \
+#define VTCP_Check(a) ((a) == 0 || errno == ECONNRESET || errno == ENOTCONN \
     || errno == EINVAL)
 #else
-#define TCP_Check(a) ((a) == 0 || errno == ECONNRESET || errno == ENOTCONN)
+#define VTCP_Check(a) ((a) == 0 || errno == ECONNRESET || errno == ENOTCONN)
 #endif
 
-#define TCP_Assert(a) assert(TCP_Check(a))
+#define VTCP_Assert(a) assert(VTCP_Check(a))
 
-void TCP_myname(int sock, char *abuf, unsigned alen, char *pbuf, unsigned plen);
-void TCP_hisname(int sock, char *abuf, unsigned alen, char *pbuf, unsigned plen);
-int TCP_filter_http(int sock);
-int TCP_blocking(int sock);
-int TCP_nonblocking(int sock);
-int TCP_linger(int sock, int linger);
+void VTCP_myname(int sock, char *abuf, unsigned alen, char *pbuf, unsigned plen);
+void VTCP_hisname(int sock, char *abuf, unsigned alen, char *pbuf, unsigned plen);
+int VTCP_filter_http(int sock);
+int VTCP_blocking(int sock);
+int VTCP_nonblocking(int sock);
+int VTCP_linger(int sock, int linger);
 #ifdef SOL_SOCKET
-void TCP_name(const struct sockaddr *addr, unsigned l, char *abuf,
+int VTCP_port(const struct sockaddr_storage *addr);
+void VTCP_name(const struct sockaddr_storage *addr, unsigned l, char *abuf,
     unsigned alen, char *pbuf, unsigned plen);
-int TCP_connect(int s, const struct sockaddr *name, socklen_t namelen,
+int VTCP_connect(int s, const struct sockaddr_storage *name, socklen_t namelen,
     int msec);
-void TCP_close(int *s);
-void TCP_set_read_timeout(int s, double seconds);
+void VTCP_close(int *s);
+void VTCP_set_read_timeout(int s, double seconds);
 #endif
 
 /* from libvarnish/time.c */
@@ -95,57 +92,19 @@ time_t TIM_parse(const char *p);
 double TIM_mono(void);
 double TIM_real(void);
 void TIM_sleep(double t);
+struct timespec TIM_timespec(double t);
+struct timeval TIM_timeval(double t);
 
 /* from libvarnish/version.c */
-void varnish_version(const char *);
+void VCS_Message(const char *);
 
 /* from libvarnish/vtmpfile.c */
+int seed_random(void);
 int vtmpfile(char *);
-char *vreadfile(const char *fn);
+char *vreadfile(const char *pfx, const char *fn, ssize_t *sz);
+char *vreadfd(int fd, ssize_t *sz);
 
-/*
- * assert(), AN() and AZ() are static checks that should not happen.
- *	In general asserts should be cheap, such as checking return
- *	values and similar.
- * diagnostic() are asserts which are so expensive that we may want
- *	to compile them out for performance at a later date.
- * xxxassert(), XXXAN() and XXXAZ() marks conditions we ought to
- *	handle gracefully, such as malloc failure.
- */
-
-typedef void lbv_assert_f(const char *, const char *, int, const char *,
-    int, int);
-
-extern lbv_assert_f *lbv_assert;
-
-#ifdef WITHOUT_ASSERTS
-#define assert(e)	((void)(e))
-#else /* WITH_ASSERTS */
-#define assert(e)							\
-do {									\
-	if (!(e))							\
-		lbv_assert(__func__, __FILE__, __LINE__, #e, errno, 0);	\
-} while (0)
-#endif
-
-#define xxxassert(e)							\
-do {									\
-	if (!(e))							\
-		lbv_assert(__func__, __FILE__, __LINE__, #e, errno, 1); \
-} while (0)
-
-/* Assert zero return value */
-#define AZ(foo)	do { assert((foo) == 0); } while (0)
-#define AN(foo)	do { assert((foo) != 0); } while (0)
-#define XXXAZ(foo)	do { xxxassert((foo) == 0); } while (0)
-#define XXXAN(foo)	do { xxxassert((foo) != 0); } while (0)
-#define diagnostic(foo)	assert(foo)
-#define WRONG(expl)							\
-do {									\
-	lbv_assert(__func__, __FILE__, __LINE__, expl, errno, 3);	\
-	abort();							\
-} while (0)
-const char* svn_version(void);
+const char* VCS_Version(void);
 
 /* Safe printf into a fixed-size buffer */
 #define bprintf(buf, fmt, ...)						\

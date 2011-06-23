@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -29,9 +29,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/types.h>
 
 #include <stdio.h>
@@ -39,7 +36,6 @@ SVNID("$Id$")
 #include <limits.h>
 #include <math.h>
 
-#include "shmlog.h"
 #include "cache.h"
 #include "vrt.h"
 
@@ -72,9 +68,9 @@ SVNID("$Id$")
 double
 RFC2616_Ttl(const struct sess *sp)
 {
-	int ttl;
+	double ttl;
 	unsigned max_age, age;
-	double h_date, h_expires, ttd;
+	double h_date, h_expires;
 	char *p;
 	const struct http *hp;
 
@@ -85,12 +81,26 @@ RFC2616_Ttl(const struct sess *sp)
 	ttl = params->default_ttl;
 
 	max_age = age = 0;
-	ttd = 0;
 	h_expires = 0;
 	h_date = 0;
 
-	do {	/* Allows us to break when we want out */
+	/*
+	 * Initial cacheability determination per [RFC2616, 13.4]
+	 * We do not support ranges yet, so 206 is out.
+	 */
 
+	switch (sp->err_code) {
+	default:
+		sp->wrk->exp.ttl = -1.;
+		break;
+	case 200: /* OK */
+	case 203: /* Non-Authoritative Information */
+	case 300: /* Multiple Choices */
+	case 301: /* Moved Permanently */
+	case 302: /* Moved Temporarily */
+	case 307: /* Temporary Redirect */
+	case 410: /* Gone */
+	case 404: /* Not Found */
 		/*
 		 * First find any relative specification from the backend
 		 * These take precedence according to RFC2616, 13.2.4
@@ -100,7 +110,10 @@ RFC2616_Ttl(const struct sess *sp)
 		    http_GetHdrField(hp, H_Cache_Control, "max-age", &p)) &&
 		    p != NULL) {
 
-			max_age = strtoul(p, NULL, 0);
+			if (*p == '-')
+				max_age = 0;
+			else
+				max_age = strtoul(p, NULL, 0);
 			if (http_GetHdr(hp, H_Age, &p)) {
 				age = strtoul(p, NULL, 0);
 				sp->wrk->age = age;
@@ -117,6 +130,8 @@ RFC2616_Ttl(const struct sess *sp)
 
 		if (http_GetHdr(hp, H_Expires, &p))
 			h_expires = TIM_parse(p);
+
+		/* No expire header, fall back to default */
 		if (h_expires == 0)
 			break;
 
@@ -130,8 +145,7 @@ RFC2616_Ttl(const struct sess *sp)
 		}
 
 		if (h_date == 0 ||
-		    (h_date < sp->wrk->entered + params->clock_skew &&
-		    h_date + params->clock_skew > sp->wrk->entered)) {
+		    fabs(h_date - sp->wrk->entered) < params->clock_skew) {
 			/*
 			 * If we have no Date: header or if it is
 			 * sufficiently close to our clock we will
@@ -140,33 +154,28 @@ RFC2616_Ttl(const struct sess *sp)
 			if (h_expires < sp->wrk->entered)
 				ttl = 0;
 			else
-				ttd = h_expires;
+				ttl = h_expires - sp->wrk->entered;
 			break;
+		} else {
+			/*
+			 * But even if the clocks are out of whack we can still
+			 * derive a relative time from the two headers.
+			 * (the negative ttl case is caught above)
+			 */
+			ttl = (int)(h_expires - h_date);
 		}
 
-		/*
-		 * But even if the clocks are out of whack we can still
-		 * derive a relative time from the two headers.
-		 * (the negative ttl case is caught above)
-		 */
-		ttl = (int)(h_expires - h_date);
-
-	} while (0);
-
-	if (ttl > 0 && ttd == 0)
-		ttd = sp->wrk->entered + ttl;
+	}
 
 	/* calculated TTL, Our time, Date, Expires, max-age, age */
-	WSP(sp, SLT_TTL, "%u RFC %d %d %d %d %u %u", sp->xid,
-	    ttd ? (int)(ttd - sp->wrk->entered) : 0,
-	    (int)sp->wrk->entered, (int)h_date,
-	    (int)h_expires, max_age, age);
+	WSP(sp, SLT_TTL, "%u RFC %g %.0f %.0f %.0f %u %u", sp->xid,
+	    ttl, sp->wrk->entered, h_date, h_expires, max_age, age);
 
-	return (ttd);
+	return (ttl);
 }
 
 /*--------------------------------------------------------------------
- * Body existence and fetch method
+ * Body existence, fetch method and close policy.
  */
 
 enum body_status
@@ -175,7 +184,14 @@ RFC2616_Body(const struct sess *sp)
 	struct http *hp;
 	char *b;
 
-	hp = sp->wrk->beresp1;
+	hp = sp->wrk->beresp;
+
+	if (hp->protover < 1.1 && !http_HdrIs(hp, H_Connection, "keep-alive"))
+		sp->wrk->do_close = 1;
+	else if (http_HdrIs(hp, H_Connection, "close"))
+		sp->wrk->do_close = 1;
+	else
+		sp->wrk->do_close = 0;
 
 	if (!strcasecmp(http_GetReq(sp->wrk->bereq), "head")) {
 		/*
@@ -224,7 +240,7 @@ RFC2616_Body(const struct sess *sp)
 		return (BS_ERROR);
 	}
 
-	if (http_GetHdr(hp, H_Content_Length, &b)) {
+	if (http_GetHdr(hp, H_Content_Length, &sp->wrk->h_content_length)) {
 		sp->wrk->stats.fetch_length++;
 		return (BS_LENGTH);
 	}
@@ -259,4 +275,33 @@ RFC2616_Body(const struct sess *sp)
 	 */
 	sp->wrk->stats.fetch_eof++;
 	return (BS_EOF);
+}
+
+/*--------------------------------------------------------------------
+ * Find out if the request can receive a gzip'ed response
+ */
+
+unsigned
+RFC2616_Req_Gzip(const struct sess *sp)
+{
+
+
+	/*
+	 * "x-gzip" is for http/1.0 backwards compat, final note in 14.3
+	 * p104 says to not do q values for x-gzip, so we just test
+	 * for its existence.
+	 */
+	if (http_GetHdrData(sp->http, H_Accept_Encoding, "x-gzip", NULL))
+		return (1);
+
+	/*
+	 * "gzip" is the real thing, but the 'q' value must be nonzero.
+	 * We do not care a hoot if the client prefers some other
+	 * compression more than gzip: Varnish only does gzip.
+	 */
+	if (http_GetHdrQ(sp->http, H_Accept_Encoding, "gzip") > 0.)
+		return (1);
+
+	/* Bad client, no gzip. */
+	return (0);
 }

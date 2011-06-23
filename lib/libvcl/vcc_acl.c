@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -28,9 +28,6 @@
  */
 
 #include "config.h"
-
-#include "svnid.h"
-SVNID("$Id$")
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -97,20 +94,20 @@ vcl_acl_cmp(struct acl_e *ae1, struct acl_e *ae2)
 
 
 static void
-vcc_acl_add_entry(struct tokenlist *tl, const struct acl_e *ae, int l,
+vcc_acl_add_entry(struct vcc *tl, const struct acl_e *ae, int l,
     const unsigned char *u, int fam)
 {
 	struct acl_e *ae2, *aen;
 	int i;
 
 	if (fam == PF_INET && ae->mask > 32) {
-		vsb_printf(tl->sb,
+		VSB_printf(tl->sb,
 		    "Too wide mask (%u) for IPv4 address", ae->mask);
 		vcc_ErrWhere(tl, ae->t_mask);
 		return;
 	}
 	if (fam == PF_INET6 && ae->mask > 128) {
-		vsb_printf(tl->sb,
+		VSB_printf(tl->sb,
 		    "Too wide mask (%u) for IPv6 address", ae->mask);
 		vcc_ErrWhere(tl, ae->t_mask);
 		return;
@@ -137,9 +134,9 @@ vcc_acl_add_entry(struct tokenlist *tl, const struct acl_e *ae, int l,
 			 */
 			if (aen->not == ae2->not)
 				return;
-			vsb_printf(tl->sb, "Conflicting ACL entries:\n");
+			VSB_printf(tl->sb, "Conflicting ACL entries:\n");
 			vcc_ErrWhere(tl, ae2->t_addr);
-			vsb_printf(tl->sb, "vs:\n");
+			VSB_printf(tl->sb, "vs:\n");
 			vcc_ErrWhere(tl, aen->t_addr);
 			return;
 		}
@@ -162,7 +159,7 @@ vcc_acl_add_entry(struct tokenlist *tl, const struct acl_e *ae, int l,
 }
 
 static void
-vcc_acl_try_getaddrinfo(struct tokenlist *tl, struct acl_e *ae)
+vcc_acl_try_getaddrinfo(struct vcc *tl, struct acl_e *ae)
 {
 	struct addrinfo *res0, *res, hint;
 	struct sockaddr_in *sin4;
@@ -176,7 +173,7 @@ vcc_acl_try_getaddrinfo(struct tokenlist *tl, struct acl_e *ae)
 	error = getaddrinfo(ae->t_addr->dec, "0", &hint, &res0);
 	if (error) {
 		if (ae->para) {
-			vsb_printf(tl->sb,
+			VSB_printf(tl->sb,
 			    "Warning: %s ignored\n  -- %s\n",
 			    ae->t_addr->dec, gai_strerror(error));
 			Fh(tl, 1, "/* Ignored ACL entry: %s%s",
@@ -188,7 +185,7 @@ vcc_acl_try_getaddrinfo(struct tokenlist *tl, struct acl_e *ae)
 			Fh(tl, 1, " * getaddrinfo:  %s */\n",
 			     gai_strerror(error));
 		} else {
-			vsb_printf(tl->sb,
+			VSB_printf(tl->sb,
 			    "DNS lookup(%s): %s\n",
 			    ae->t_addr->dec, gai_strerror(error));
 			vcc_ErrWhere(tl, ae->t_addr);
@@ -220,7 +217,7 @@ vcc_acl_try_getaddrinfo(struct tokenlist *tl, struct acl_e *ae)
 			vcc_acl_add_entry(tl, ae, 16, u, res->ai_family);
 			break;
 		default:
-			vsb_printf(tl->sb,
+			VSB_printf(tl->sb,
 			    "Ignoring unknown protocol family (%d) for %.*s\n",
 				res->ai_family, PF(ae->t_addr));
 			continue;
@@ -230,7 +227,7 @@ vcc_acl_try_getaddrinfo(struct tokenlist *tl, struct acl_e *ae)
 	freeaddrinfo(res0);
 
 	if (ae->t_mask != NULL && i4 > 0 && i6 > 0) {
-		vsb_printf(tl->sb,
+		VSB_printf(tl->sb,
 		    "Mask (%u) specified, but string resolves to"
 		    " both IPv4 and IPv6 addresses.\n", ae->mask);
 		vcc_ErrWhere(tl, ae->t_mask);
@@ -246,7 +243,7 @@ vcc_acl_try_getaddrinfo(struct tokenlist *tl, struct acl_e *ae)
  */
 
 static int
-vcc_acl_try_netnotation(struct tokenlist *tl, struct acl_e *ae)
+vcc_acl_try_netnotation(struct vcc *tl, struct acl_e *ae)
 {
 	unsigned char b[4];
 	int i, j, k;
@@ -275,7 +272,7 @@ vcc_acl_try_netnotation(struct tokenlist *tl, struct acl_e *ae)
 }
 
 static void
-vcc_acl_entry(struct tokenlist *tl)
+vcc_acl_entry(struct vcc *tl)
 {
 	struct acl_e *ae;
 
@@ -332,7 +329,7 @@ vcc_acl_entry(struct tokenlist *tl)
 
 /*lint -save -e506 -e774 -e550 */
 static void
-c_is_a_silly_language(const struct tokenlist *tl)
+c_is_a_silly_language(const struct vcc *tl)
 {
 	struct sockaddr sa;
 
@@ -351,7 +348,7 @@ c_is_a_silly_language(const struct tokenlist *tl)
 /*lint -restore */
 
 static void
-vcc_acl_emit(const struct tokenlist *tl, const char *acln, int anon)
+vcc_acl_emit(const struct vcc *tl, const char *acln, int anon)
 {
 	struct acl_e *ae;
 	int depth, l, m, i;
@@ -449,46 +446,26 @@ vcc_acl_emit(const struct tokenlist *tl, const char *acln, int anon)
 }
 
 void
-vcc_Cond_Ip(const struct var *vp, struct tokenlist *tl)
+vcc_Acl_Hack(struct vcc *tl, char *b)
 {
-	unsigned tcond;
 	char acln[32];
+	unsigned tcond;
 
-	switch (tl->t->tok) {
-	case '~':
-		vcc_NextToken(tl);
-		ExpectErr(tl, ID);
-		vcc_AddRef(tl, tl->t, R_ACL);
-		Fb(tl, 1, "match_acl_named_%.*s(sp, %s)\n",
-		    PF(tl->t), vp->rname);
-		vcc_NextToken(tl);
-		break;
-	case T_EQ:
-	case T_NEQ:
-
-		VTAILQ_INIT(&tl->acl);
-		tcond = tl->t->tok;
-		vcc_NextToken(tl);
-		bprintf(acln, "%u", tl->cnt);
-		vcc_acl_entry(tl);
-		vcc_acl_emit(tl, acln, 1);
-		Fb(tl, 1, "%smatch_acl_anon_%s(sp, %s)\n",
-		    (tcond == T_NEQ ? "!" : ""), acln, vp->rname);
-		break;
-	default:
-		vsb_printf(tl->sb, "Invalid condition ");
-		vcc_ErrToken(tl, tl->t);
-		vsb_printf(tl->sb, " on IP number variable\n");
-		vsb_printf(tl->sb, "  only '==', '!=' and '~' are legal\n");
-		vcc_ErrWhere(tl, tl->t);
-		break;
-	}
+	VTAILQ_INIT(&tl->acl);
+	tcond = tl->t->tok;
+	vcc_NextToken(tl);
+	bprintf(acln, "%u", tl->cnt);
+	vcc_acl_entry(tl);
+	vcc_acl_emit(tl, acln, 1);
+	sprintf(b, "%smatch_acl_anon_%s(sp, \v1)",
+	    (tcond == T_NEQ ? "!" : ""), acln);
 }
 
 void
-vcc_Acl(struct tokenlist *tl)
+vcc_Acl(struct vcc *tl)
 {
 	struct token *an;
+	int i;
 	char acln[1024];
 
 	vcc_NextToken(tl);
@@ -498,7 +475,12 @@ vcc_Acl(struct tokenlist *tl)
 	an = tl->t;
 	vcc_NextToken(tl);
 
-	vcc_AddDef(tl, an, R_ACL);
+	i = vcc_AddDef(tl, an, SYM_ACL);
+	if (i > 1) {
+		VSB_printf(tl->sb, "ACL %.*s redefined\n", PF(an));
+		vcc_ErrWhere(tl, an);
+		return;
+	}
 	bprintf(acln, "%.*s", PF(an));
 
 	SkipToken(tl, '{');

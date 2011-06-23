@@ -1,5 +1,5 @@
-/*
- * Copyright (c) 2008-2010 Redpill Linpro AS
+/*-
+ * Copyright (c) 2008-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -28,14 +28,10 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <pthread.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -57,11 +53,12 @@ struct client {
 
 	char			*spec;
 
-	char			*connect;
+	char			connect[256];
 
 	unsigned		repeat;
 
 	pthread_t		tp;
+	unsigned		running;
 };
 
 static VTAILQ_HEAD(, client)	clients =
@@ -77,41 +74,41 @@ client_thread(void *priv)
 	struct client *c;
 	struct vtclog *vl;
 	int fd;
-	int i;
 	unsigned u;
 	struct vsb *vsb;
 	char *p;
+	char mabuf[32], mpbuf[32];
 
 	CAST_OBJ_NOTNULL(c, priv, CLIENT_MAGIC);
-	AN(c->connect);
-
-	p = strdup(c->connect);
-	vsb = macro_expand(p);
-	AN(vsb);
+	AN(*c->connect);
 
 	vl = vtc_logopen(c->name);
+
+	p = strdup(c->connect);
+	AN(p);
+	vsb = macro_expand(vl, p);
+	AN(vsb);
 
 	if (c->repeat == 0)
 		c->repeat = 1;
 	if (c->repeat != 1)
 		vtc_log(vl, 2, "Started (%u iterations)", c->repeat);
 	for (u = 0; u < c->repeat; u++) {
-		vtc_log(vl, 3, "Connect to %s", vsb_data(vsb));
-		fd = VSS_open(vsb_data(vsb), 0);
-		for (i = 0; fd < 0 && i < 3; i++) {
-			(void)sleep(1);
-			fd = VSS_open(vsb_data(vsb), 0);
-		}
+		vtc_log(vl, 3, "Connect to %s", VSB_data(vsb));
+		fd = VSS_open(VSB_data(vsb), 10.);
 		if (fd < 0)
-			vtc_log(c->vl, 0, "Failed to open %s", vsb_data(vsb));
+			vtc_log(c->vl, 0, "Failed to open %s", VSB_data(vsb));
 		assert(fd >= 0);
-		vtc_log(vl, 3, "Connected to %s fd is %d", vsb_data(vsb), fd);
+		VTCP_blocking(fd);
+		VTCP_myname(fd, mabuf, sizeof mabuf, mpbuf, sizeof mpbuf);
+		vtc_log(vl, 3, "connected fd %d from %s %s to %s",
+		    fd, mabuf, mpbuf, VSB_data(vsb));
 		http_process(vl, c->spec, fd, -1);
-		vtc_log(vl, 3, "Closing fd %d", fd);
-		TCP_close(&fd);
+		vtc_log(vl, 3, "closing fd %d", fd);
+		VTCP_close(&fd);
 	}
 	vtc_log(vl, 2, "Ending");
-	vsb_delete(vsb);
+	VSB_delete(vsb);
 	free(p);
 	return (NULL);
 }
@@ -134,7 +131,7 @@ client_new(const char *name)
 	if (*c->name != 'c')
 		vtc_log(c->vl, 0, "Client name must start with 'c'");
 
-	REPLACE(c->connect, "${v1_sock}");
+	bprintf(c->connect, "%s", "${v1_sock}");
 	VTAILQ_INSERT_TAIL(&clients, c, list);
 	return (c);
 }
@@ -151,7 +148,6 @@ client_delete(struct client *c)
 	vtc_logclose(c->vl);
 	free(c->spec);
 	free(c->name);
-	free(c->connect);
 	/* XXX: MEMLEAK (?)*/
 	FREE_OBJ(c);
 }
@@ -167,6 +163,7 @@ client_start(struct client *c)
 	CHECK_OBJ_NOTNULL(c, CLIENT_MAGIC);
 	vtc_log(c->vl, 2, "Starting client");
 	AZ(pthread_create(&c->tp, NULL, client_thread, c));
+	c->running = 1;
 }
 
 /**********************************************************************
@@ -184,6 +181,7 @@ client_wait(struct client *c)
 	if (res != NULL)
 		vtc_log(c->vl, 0, "Client returned \"%s\"", (char *)res);
 	c->tp = 0;
+	c->running = 0;
 }
 
 /**********************************************************************
@@ -236,8 +234,18 @@ cmd_client(CMD_ARGS)
 	for (; *av != NULL; av++) {
 		if (vtc_error)
 			break;
+
+		if (!strcmp(*av, "-wait")) {
+			client_wait(c);
+			continue;
+		}
+
+		/* Don't muck about with a running client */
+		if (c->running)
+			client_wait(c);
+
 		if (!strcmp(*av, "-connect")) {
-			REPLACE(c->connect, av[1]);
+			bprintf(c->connect, "%s", av[1]);
 			av++;
 			continue;
 		}
@@ -248,10 +256,6 @@ cmd_client(CMD_ARGS)
 		}
 		if (!strcmp(*av, "-start")) {
 			client_start(c);
-			continue;
-		}
-		if (!strcmp(*av, "-wait")) {
-			client_wait(c);
 			continue;
 		}
 		if (!strcmp(*av, "-run")) {

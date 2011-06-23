@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2009 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -31,15 +31,11 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 
-#include "shmlog.h"
 #include "cache.h"
 #include "hash_slinger.h"
 
@@ -101,7 +97,7 @@ hcl_start(void)
 
 	for (u = 0; u < hcl_nhash; u++) {
 		VTAILQ_INIT(&hcl_head[u].head);
-		Lck_New(&hcl_head[u].mtx);
+		Lck_New(&hcl_head[u].mtx, lck_hcl);
 		hcl_head[u].magic = HCL_HEAD_MAGIC;
 	}
 }
@@ -179,7 +175,7 @@ hcl_deref(struct objhead *oh)
 
 /*--------------------------------------------------------------------*/
 
-struct hash_slinger hcl_slinger = {
+const struct hash_slinger hcl_slinger = {
 	.magic	=	SLINGER_MAGIC,
 	.name	=	"classic",
 	.init	=	hcl_init,

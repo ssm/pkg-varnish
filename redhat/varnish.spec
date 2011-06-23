@@ -1,34 +1,37 @@
 Summary: High-performance HTTP accelerator
 Name: varnish
-Version: 2.1.5
+Version: 3.0.0
 Release: 1%{?dist}
 License: BSD
 Group: System Environment/Daemons
 URL: http://www.varnish-cache.org/
-Source0: http://downloads.sourceforge.net/varnish/varnish-%{version}.tar.gz
+#Source0: http://repo.varnish-cache.org/source/%{name}-%{version}.tar.gz
+Source0: %{name}-3.0.0-beta2.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
-# The svn sources needs autoconf, automake and libtool to generate a suitable
-# configure script. Release tarballs would not need this
-#BuildRequires: automake autoconf libtool
+# To build from git, start with a make dist, see redhat/README.redhat 
+# You will need at least automake autoconf libtool python-docutils
+#BuildRequires: automake autoconf libtool python-docutils
 BuildRequires: ncurses-devel libxslt groff pcre-devel pkgconfig
 Requires: varnish-libs = %{version}-%{release}
 Requires: logrotate
 Requires: ncurses
 Requires: pcre
 Requires(pre): shadow-utils
-Requires(post): /sbin/chkconfig, /usr/bin/mkpasswd
+Requires(post): /sbin/chkconfig, /usr/bin/uuidgen
 Requires(preun): /sbin/chkconfig
 Requires(preun): /sbin/service
+%if %{undefined suse_version}
 Requires(preun): initscripts
+%endif
 
 # Varnish actually needs gcc installed to work. It uses the C compiler 
 # at runtime to compile the VCL configuration files. This is by design.
 Requires: gcc
 
 %description
-This is the Varnish high-performance HTTP accelerator. Documentation
-wiki and additional information about Varnish is available on the following
-web site: http://www.varnish-cache.org/
+This is Varnish Cache, a high-performance HTTP accelerator.
+Documentation wiki and additional information about Varnish is
+available on the following web site: http://www.varnish-cache.org/
 
 %package libs
 Summary: Libraries for %{name}
@@ -38,7 +41,7 @@ BuildRequires: ncurses-devel
 
 %description libs
 Libraries for %{name}.
-Varnish is a high-performance HTTP accelerator.
+Varnish Cache is a high-performance HTTP accelerator
 
 %package libs-devel
 Summary: Development files for %{name}-libs
@@ -48,12 +51,11 @@ Requires: varnish-libs = %{version}-%{release}
 
 %description libs-devel
 Development files for %{name}-libs
-Varnish is a high-performance HTTP accelerator
+Varnish Cache is a high-performance HTTP accelerator
 
 %package docs
 Summary: Documentation files for %name
 Group: System Environment/Libraries
-BuildRequires: python-sphinx
 
 %description docs
 Documentation files for %name
@@ -66,40 +68,20 @@ Documentation files for %name
 #
 #%description libs-static
 #Files for static linking of varnish library functions
-#Varnish is a high-performance HTTP accelerator
+#Varnish Cache is a high-performance HTTP accelerator
 
 %prep
-%setup -q
-#%setup -q -n varnish-cache
-
-# The svn sources needs to generate a suitable configure script
-# Release tarballs would not need this
-#./autogen.sh
-
-# Hack to get 32- and 64-bits tests run concurrently on the same build machine
-case `uname -m` in
-	ppc64 | s390x | x86_64 | sparc64 )
-		sed -i ' 
-			s,9001,9011,g;
-			s,9080,9090,g; 
-			s,9081,9091,g; 
-			s,9082,9092,g; 
-			s,9180,9190,g;
-		' bin/varnishtest/*.c bin/varnishtest/tests/*vtc
-		;;
-	*)
-		;;
-esac
+#%setup -q
+%setup -q -n varnish-3.0.0-beta2
 
 mkdir examples
 cp bin/varnishd/default.vcl etc/zope-plone.vcl examples
 
 %build
-
 # No pkgconfig/libpcre.pc in rhel4
 %if 0%{?rhel} == 4
-	export PCRE_CFLAGS=`pcre-config --cflags`
-	export PCRE_LIBS=`pcre-config --libs` 
+	export PCRE_CFLAGS="`pcre-config --cflags`"
+	export PCRE_LIBS="`pcre-config --libs`"
 %endif
 
 # Remove "--disable static" if you want to build static libraries 
@@ -112,8 +94,8 @@ cp bin/varnishd/default.vcl etc/zope-plone.vcl examples
 
 # We have to remove rpath - not allowed in Fedora
 # (This problem only visible on 64 bit arches)
-sed -i 's|^hardcode_libdir_flag_spec=.*|hardcode_libdir_flag_spec=""|g;
-	s|^runpath_var=LD_RUN_PATH|runpath_var=DIE_RPATH_DIE|g' libtool
+#sed -i 's|^hardcode_libdir_flag_spec=.*|hardcode_libdir_flag_spec=""|g;
+#	s|^runpath_var=LD_RUN_PATH|runpath_var=DIE_RPATH_DIE|g' libtool
 
 %{__make} %{?_smp_mflags}
 
@@ -155,8 +137,7 @@ cp -r doc/sphinx/\=build/html doc
 	%endif
 %endif
 
-LD_LIBRARY_PATH="lib/libvarnish/.libs:lib/libvarnishcompat/.libs:lib/libvarnishapi/.libs:lib/libvcl/.libs" bin/varnishd/varnishd -b 127.0.0.1:80 -C -n /tmp/foo
-%{__make} check LD_LIBRARY_PATH="../../lib/libvarnish/.libs:../../lib/libvarnishcompat/.libs:../../lib/libvarnishapi/.libs:../../lib/libvcl/.libs"
+%{__make} check LD_LIBRARY_PATH="../../lib/libvarnish/.libs:../../lib/libvarnishcompat/.libs:../../lib/libvarnishapi/.libs:../../lib/libvcl/.libs:../../lib/libvgz/.libs"
 
 %install
 rm -rf %{buildroot}
@@ -177,7 +158,7 @@ mkdir -p %{buildroot}/var/run/varnish
 %{__install} -D -m 0755 redhat/varnish.initrc %{buildroot}%{_initrddir}/varnish
 %{__install} -D -m 0755 redhat/varnishlog.initrc %{buildroot}%{_initrddir}/varnishlog
 %{__install} -D -m 0755 redhat/varnishncsa.initrc %{buildroot}%{_initrddir}/varnishncsa
-%{__install} -D -m 0755 redhat/varnish_reload_vcl %{buildroot}%{_sbindir}/varnish_reload_vcl
+%{__install} -D -m 0755 redhat/varnish_reload_vcl %{buildroot}%{_bindir}/varnish_reload_vcl
 
 %clean
 rm -rf %{buildroot}
@@ -186,9 +167,11 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %{_sbindir}/*
 %{_bindir}/*
+%{_libdir}/varnish
 %{_var}/lib/varnish
 %{_var}/log/varnish
 %{_mandir}/man1/*.1*
+%{_mandir}/man3/*.3*
 %{_mandir}/man7/*.7*
 %doc INSTALL LICENSE README redhat/README.redhat ChangeLog
 %doc examples
@@ -214,9 +197,11 @@ rm -rf %{buildroot}
 %doc LICENSE
 
 %files docs
+%defattr(-,root,root,-)
 %doc LICENSE
 %doc doc/sphinx
 %doc doc/html
+%doc doc/changes*.html
 
 #%files libs-static
 #%{_libdir}/libvarnish.a
@@ -229,14 +214,14 @@ rm -rf %{buildroot}
 getent group varnish >/dev/null || groupadd -r varnish
 getent passwd varnish >/dev/null || \
 	useradd -r -g varnish -d /var/lib/varnish -s /sbin/nologin \
-		-c "Varnish http accelerator user" varnish
+		-c "Varnish Cache" varnish
 exit 0
 
 %post
 /sbin/chkconfig --add varnish
 /sbin/chkconfig --add varnishlog
 /sbin/chkconfig --add varnishncsa 
-test -f /etc/varnish/secret || (mkpasswd > /etc/varnish/secret && chmod 0600 /etc/varnish/secret)
+test -f /etc/varnish/secret || (uuidgen > /etc/varnish/secret && chmod 0600 /etc/varnish/secret)
 
 %preun
 if [ $1 -lt 1 ]; then
@@ -253,6 +238,38 @@ fi
 %postun libs -p /sbin/ldconfig
 
 %changelog
+* Mon Nov 15 2010 Ingvar Hagelund <ingvar@redpill-linpro.com> - 3.0.0-0.svn20101115r5543
+- Merged some changes from fedora
+- Upped general version to 3.0 prerelease in trunk
+
+* Wed Nov 04 2010 Ingvar Hagelund <ingvar@redpill-linpro.com> - 2.1.4-4
+- Added a patch fixing a missing echo in the init script that
+  masked failure output from the script
+- Added a patch from upstream, fixing a problem with Content-Length
+  headers (upstream r5461, upstream bug #801)
+- Added a patch from upstream, adding empty Default-Start and Default-Stop
+  to initscripts for better lsb compliance
+- Added varnish_reload_vcl from trunk
+- Synced descriptions from release spec
+
+* Thu Oct 28 2010 Ingvar Hagelund <ingvar@redpill-linpro.com> - 2.1.4-3
+- Fixed missing manpages because of no rst2man in rhel4 and 5
+
+* Mon Oct 25 2010 Ingvar Hagelund <ingvar@redpill-linpro.com> - 2.1.4-2
+- Removed RHEL6/ppc64 specific patch that has been included upstream
+
+* Mon Oct 25 2010 Ingvar Hagelund <ingvar@redpill-linpro.com> - 2.1.4-1
+- New upstream release
+- New URL for source tarball and main website
+- Prebuilt html docs now included, use that instead of running sphinx
+- Putting sphinx generated doc in a separate subpackage
+- Replaced specific include files with a wildcard glob
+- Needs python-sphinx and deps to build sphinx documentation
+
+* Tue Aug 24 2010 Ingvar Hagelund <ingvar@redpill-linpro.com> - 2.1.3-2
+- Added a RHEL6/ppc64 specific patch that changes the hard coded
+  stack size in tests/c00031.vtc
+
 * Thu Jul 29 2010 Ingvar Hagelund <ingvar@redpill-linpro.com> - 2.1.4-0.svn20100824r5117
 - Replaced specific include files with a wildcard glob
 - Needs python-sphinx and deps to build sphinx documentation

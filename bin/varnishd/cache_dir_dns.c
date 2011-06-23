@@ -1,6 +1,5 @@
 /*-
- * Copyright (c) 2009 Redpill Linpro AS
- * Copyright (c) 2010 Varnish Software AS
+ * Copyright (c) 2009-2010 Varnish Software AS
  * All rights reserved.
  *
  * Author: Kristian Lyngstol <kristian@redpill-linpro.com>
@@ -30,9 +29,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -44,7 +40,7 @@ SVNID("$Id$")
 
 #include <stdio.h>
 #include <netinet/in.h>
-#include "shmlog.h"
+
 #include "cache.h"
 #include "cache_backend.h"
 #include "vrt.h"
@@ -55,12 +51,12 @@ SVNID("$Id$")
 #define VDI_DNS_MAX_CACHE		1024
 #define VDI_DNS_GROUP_MAX_BACKENDS	1024
 
-/* DNS Cache entry 
+/* DNS Cache entry
  */
 struct vdi_dns_hostgroup {
 	unsigned			magic;
 #define VDI_DNSDIR_MAGIC		0x1bacab21
-	char 				*hostname;
+	char				*hostname;
 	struct director			*hosts[VDI_DNS_GROUP_MAX_BACKENDS];
 	unsigned			nhosts;
 	unsigned			next_host; /* Next to use...*/
@@ -81,68 +77,60 @@ struct vdi_dns {
 	double			ttl;
 };
 
-
-
 /* Compare an IPv4 backend to a IPv4 addr/len */
 static int
-vdi_dns_comp_addrinfo4(const struct backend *bp, 
-		       const struct sockaddr_in *addr,
+vdi_dns_comp_addrinfo4(const struct backend *bp,
+		       const struct sockaddr_storage *addr,
 		       const socklen_t len)
 {
 	uint32_t u, p;
-	struct sockaddr_in *bps = (struct sockaddr_in *) bp->ipv4;
+	const struct sockaddr_in *bps = (const void *)bp->ipv4;
+	const struct sockaddr_in *bpd = (const void *)addr;
 
 	if (bp->ipv4len != len || len <= 0)
-		return 0;
+		return (0);
 
-	u = addr->sin_addr.s_addr;
+	u = bpd->sin_addr.s_addr;
 	p = bps->sin_addr.s_addr;
 
-	return u == p;
+	return (u == p);
 }
 
 /* Compare an IPv6 backend to a IPv6 addr/len */
 static int
 vdi_dns_comp_addrinfo6(const struct backend *bp,
-		       struct sockaddr_in6 *addr,
+		       const struct sockaddr_storage *addr,
 		       const socklen_t len)
 {
-	uint8_t *u, *p;
-	int i;
-	struct sockaddr_in6 *bps = (struct sockaddr_in6 *) bp->ipv6;
+	const uint8_t *u, *p;
+	const struct sockaddr_in6 *bps = (const void *)bp->ipv6;
+	const struct sockaddr_in6 *bpd = (const void *)addr;
 
 	if (bp->ipv6len != len || len <= 0)
-		return 0;
+		return (0);
 
-	u = addr->sin6_addr.s6_addr;
+	u = bpd->sin6_addr.s6_addr;
 	p = bps->sin6_addr.s6_addr;
 
-	for (i=0; i < 16; i++) {
-		if (u[i] != p[i])
-			return 0;
-	}
-
-	return 1;
+	return (!memcmp(u, p, 16));
 }
 
 /* Check if a backends socket is the same as addr */
 static int
 vdi_dns_comp_addrinfo(const struct director *dir,
-		      struct sockaddr *addr,
+		      const struct sockaddr_storage *addr,
 		      const socklen_t len)
 {
 	struct backend *bp;
 
 	bp = vdi_get_backend_if_simple(dir);
 	AN(bp);
-	if (addr->sa_family == PF_INET && bp->ipv4) {
-		return (vdi_dns_comp_addrinfo4(bp, (struct sockaddr_in *)
-			addr, len));
-	} else if (addr->sa_family == PF_INET6 && bp->ipv6) {
-		return (vdi_dns_comp_addrinfo6(bp, (struct sockaddr_in6 *)
-			addr, len));
+	if (addr->ss_family == PF_INET && bp->ipv4) {
+		return (vdi_dns_comp_addrinfo4(bp, addr, len));
+	} else if (addr->ss_family == PF_INET6 && bp->ipv6) {
+		return (vdi_dns_comp_addrinfo6(bp, addr, len));
 	}
-	return 0;
+	return (0);
 }
 
 /* Pick a host from an existing hostgroup.
@@ -165,13 +153,13 @@ vdi_dns_pick_host(const struct sess *sp, struct vdi_dns_hostgroup *group) {
 			current = i + initial - nhosts;
 		else
 			current = i + initial;
-		if (VBE_Healthy_sp(sp, group->hosts[current])) {
+		if (VDI_Healthy(group->hosts[current], sp)) {
 			group->next_host = current+1;
-			return group->hosts[current];
+			return (group->hosts[current]);
 		}
 	}
 
-	return NULL;
+	return (NULL);
 }
 
 /* Remove an item from the dns cache.
@@ -196,7 +184,7 @@ vdi_dns_pop_cache(struct vdi_dns *vs,
 static inline int
 vdi_dns_groupmatch(const struct vdi_dns_hostgroup *group, const char *hostname)
 {
-	return !strcmp(group->hostname, hostname);
+	return (!strcmp(group->hostname, hostname));
 }
 
 /* Search the cache for 'hostname' and put a backend-pointer as necessary,
@@ -221,17 +209,17 @@ vdi_dns_cache_has(const struct sess *sp,
 		if (hostgr->ttl <= sp->t_req) {
 			if (rwlock)
 				vdi_dns_pop_cache(vs, hostgr);
-			return 0;
+			return (0);
 		}
 		if (vdi_dns_groupmatch(hostgr, hostname)) {
 			ret = (vdi_dns_pick_host(sp, hostgr));
 			*backend = ret;
-			if (*backend != NULL) 
+			if (*backend != NULL)
 				CHECK_OBJ_NOTNULL(*backend, DIRECTOR_MAGIC);
-			return 1;
+			return (1);
 		}
 	}
-	return 0;
+	return (0);
 }
 
 /* Add a newly cached item to the dns cache list.
@@ -243,7 +231,7 @@ vdi_dns_cache_list_add(const struct sess *sp,
 		       struct vdi_dns_hostgroup *new)
 {
 	if (vs->ncachelist >= VDI_DNS_MAX_CACHE) {
-		VSL_stats->dir_dns_cache_full++;
+		VSC_C_main->dir_dns_cache_full++;
 		vdi_dns_pop_cache(vs, NULL);
 	}
 	CHECK_OBJ_NOTNULL(new, VDI_DNSDIR_MAGIC);
@@ -266,6 +254,7 @@ vdi_dns_cache_add(const struct sess *sp,
 	int error, i, host = 0;
 	struct addrinfo *res0, *res, hint;
 	struct vdi_dns_hostgroup *new;
+
 	/* Due to possible race while upgrading the lock, we have to
 	 * recheck if the result is already looked up. The overhead for
 	 * this is insignificant unless dns isn't cached properly (all
@@ -273,24 +262,23 @@ vdi_dns_cache_add(const struct sess *sp,
 	 */
 
 	if (vdi_dns_cache_has(sp, vs, hostname, backend, 1))
-		return 1;
-	
+		return (1);
+
 	memset(&hint, 0, sizeof hint);
 	hint.ai_family = PF_UNSPEC;
 	hint.ai_socktype = SOCK_STREAM;
 
 	ALLOC_OBJ(new, VDI_DNSDIR_MAGIC);
 	XXXAN(new);
-	new->hostname = calloc(sizeof(char), strlen(hostname)+1);
-	XXXAN(new->hostname);
-	strcpy(new->hostname, hostname);
+
+	REPLACE(new->hostname, hostname);
 
 	error = getaddrinfo(hostname, "80", &hint, &res0);
-	VSL_stats->dir_dns_lookups++;
+	VSC_C_main->dir_dns_lookups++;
 	if (error) {
 		vdi_dns_cache_list_add(sp, vs, new);
-		VSL_stats->dir_dns_failed++;
-		return 0;
+		VSC_C_main->dir_dns_failed++;
+		return (0);
 	}
 
 	for (res = res0; res; res = res->ai_next) {
@@ -298,8 +286,10 @@ vdi_dns_cache_add(const struct sess *sp,
 			continue;
 
 		for (i = 0; i < vs->nhosts; i++) {
+			struct sockaddr_storage ss_hack;
+			memcpy(&ss_hack, res->ai_addr, res->ai_addrlen);
 			if (vdi_dns_comp_addrinfo(vs->hosts[i],
-			    res->ai_addr, res->ai_addrlen)) {
+			    &ss_hack, res->ai_addrlen)) {
 				new->hosts[host] = vs->hosts[i];
 				CHECK_OBJ_NOTNULL(new->hosts[host],
 				    DIRECTOR_MAGIC);
@@ -311,8 +301,8 @@ vdi_dns_cache_add(const struct sess *sp,
 
 	new->nhosts = host;
 	vdi_dns_cache_list_add(sp, vs, new);
-	*backend = vdi_dns_pick_host(sp, new);	
-	return 1;
+	*backend = vdi_dns_pick_host(sp, new);
+	return (1);
 }
 
 /* Walk through the cached lookups looking for the relevant host, add one
@@ -327,20 +317,26 @@ vdi_dns_walk_cache(const struct sess *sp,
 {
 	struct director *backend = NULL;
 	int ret;
+
 	AZ(pthread_rwlock_rdlock(&vs->rwlock));
 	ret = vdi_dns_cache_has(sp, vs, hostname, &backend, 0);
 	AZ(pthread_rwlock_unlock(&vs->rwlock));
 	if (!ret) {
+		/*
+		 * XXX: Isn't there a race here where another thread
+		 * XXX: could grab the lock and add it before we do ?
+		 * XXX: Should 'ret' be checked for that ?
+		 */
 		AZ(pthread_rwlock_wrlock(&vs->rwlock));
 		ret = vdi_dns_cache_add(sp, vs, hostname, &backend);
 		AZ(pthread_rwlock_unlock(&vs->rwlock));
 	} else
-		VSL_stats->dir_dns_hit++;
+		VSC_C_main->dir_dns_hit++;
 
 	/* Bank backend == cached a failure, so to speak */
 	if (backend != NULL)
 		CHECK_OBJ_NOTNULL(backend, DIRECTOR_MAGIC);
-	return backend;
+	return (backend);
 }
 
 /* Parses the Host:-header and heads out to find a backend.
@@ -350,9 +346,8 @@ vdi_dns_find_backend(const struct sess *sp, struct vdi_dns *vs)
 {
 	struct director *ret;
 	struct http *hp;
-	char *p;
+	char *p, *q;
 	char hostname[NI_MAXHOST];
-	int i;
 
 	/* bereq is only present after recv et. al, otherwise use req (ie:
 	 * use req for health checks in vcl_recv and such).
@@ -367,53 +362,46 @@ vdi_dns_find_backend(const struct sess *sp, struct vdi_dns *vs)
 	if (http_GetHdr(hp, H_Host, &p) == 0)
 		return (NULL);
 
-	/* We need a working copy since it's going to be modified */	
-	strncpy(hostname, p, sizeof(hostname));
+	q = strchr(p, ':');
+	if (q == NULL)
+		q = strchr(p, '\0');
+	AN(q);
 
-	/* remove port-portion of the Host-header, if present. */
-	for (i = 0; i < strlen(hostname); i++) {
-		if (hostname[i] == ':') {
-			hostname[i] = '\0';
-			break;
-		}
-	}
-
-	if (vs->suffix)
-		strncat(hostname, vs->suffix, sizeof(hostname) - strlen(hostname));
+	bprintf(hostname, "%.*s%s", (int)(q - p), p,
+	    vs->suffix ? vs->suffix : "");
 
 	ret = vdi_dns_walk_cache(sp, vs, hostname);
-	return ret;
+	return (ret);
 }
 
-static struct vbe_conn *
+static struct vbc *
 vdi_dns_getfd(const struct director *director, struct sess *sp)
 {
 	struct vdi_dns *vs;
 	struct director *dir;
-	struct vbe_conn *vbe;
+	struct vbc *vbe;
 
 	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
 	CHECK_OBJ_NOTNULL(director, DIRECTOR_MAGIC);
 	CAST_OBJ_NOTNULL(vs, director->priv, VDI_DNS_MAGIC);
 
 	dir = vdi_dns_find_backend(sp, vs);
-	if (!dir || !VBE_Healthy_sp(sp, dir))
+	if (!dir || !VDI_Healthy(dir, sp))
 		return (NULL);
-	
-	vbe = VBE_GetFd(dir, sp);
+
+	vbe = VDI_GetFd(dir, sp);
 	return (vbe);
 }
 
 static unsigned
-vdi_dns_healthy(double now, const struct director *dir, uintptr_t target)
+vdi_dns_healthy(const struct director *dir, const struct sess *sp)
 {
 	/* XXX: Fooling -Werror for a bit until it's actually implemented.
 	 */
-	if (now || dir || target)
-		return 1;
-	else
-		return 1;
-	return 1;
+	(void)dir;
+	(void)sp;
+	return (1);
+
 	/*
 	struct vdi_dns *vs;
 	struct director *dir;
@@ -426,14 +414,13 @@ vdi_dns_healthy(double now, const struct director *dir, uintptr_t target)
 	dir = vdi_dns_find_backend(sp, vs);
 
 	if (dir)
-		return 1;
-	return 0;
+		return (1);
+	return (0);
 	*/
 }
 
-/*lint -e{818} not const-able */
 static void
-vdi_dns_fini(struct director *d)
+vdi_dns_fini(const struct director *d)
 {
 	struct vdi_dns *vs;
 

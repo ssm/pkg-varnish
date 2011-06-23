@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2009 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -31,9 +31,6 @@
 
 #include "config.h"
 
-#include "svnid.h"
-SVNID("$Id$")
-
 #include <sys/types.h>
 
 #include <stdio.h>
@@ -41,7 +38,6 @@ SVNID("$Id$")
 #include <ctype.h>
 #include <stdlib.h>
 
-#include "shmlog.h"
 #include "vrt.h"
 #include "vre.h"
 #include "vcl.h"
@@ -74,7 +70,7 @@ VRT_re_match(const char *s, void *re)
 	int i;
 
 	if (s == NULL)
-		return (0);
+		s = "";
 	AN(re);
 	t = re;
 	i = VRE_exec(t, s, strlen(s), 0, 0, NULL, 0);
@@ -98,7 +94,7 @@ VRT_regsub(const struct sess *sp, int all, const char *str, void *re,
 
 	AN(re);
 	if (str == NULL)
-		return ("");
+		str = "";
 	t = re;
 	memset(ovector, 0, sizeof(ovector));
 	i = VRE_exec(t, str, strlen(str), 0, 0, ovector, 30);

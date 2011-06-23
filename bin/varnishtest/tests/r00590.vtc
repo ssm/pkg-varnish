@@ -1,6 +1,4 @@
-# $Id$
-
-test "Regression test for 590"
+varnishtest "Regression test for 590"
 
 server s1 {
 	rxreq
@@ -63,7 +61,7 @@ varnish v1 -vcl+backend {
 		return (pass);
 	}
 	sub vcl_fetch {
-		esi;
+		set beresp.do_esi = true;
 	}
 } -start
 

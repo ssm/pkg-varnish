@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2009 Linpro AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -26,8 +26,6 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $Id$
- *
  * This file contains the heritage passed when mgt forks cache
  */
 
@@ -46,7 +44,7 @@ struct heritage {
 
 	/* Two pipe(2)'s for CLI connection between cache and mgt.  */
 	int				cli_in;
-	int				cli_out;
+	int				VCLI_Out;
 
 	/* File descriptor for stdout/stderr */
 	int				std_fd;
@@ -55,14 +53,10 @@ struct heritage {
 	struct listen_sock_head		socks;
 	unsigned			nsocks;
 
-	/* Share memory log fd and size (incl header) */
-	int				vsl_fd;
-	unsigned			vsl_size;
-
 	/* Hash method */
-	struct hash_slinger		*hash;
+	const struct hash_slinger	*hash;
 
-	char				name[1024];
+	char				*name;
 	char                            identity[1024];
 };
 
@@ -75,10 +69,13 @@ struct params {
 	gid_t			gid;
 
 	/* TTL used for lack of anything better */
-	unsigned		default_ttl;
+	double			default_ttl;
 
-	/* TTL used for synthesized error pages */
-	unsigned		err_ttl;
+	/* Default grace period */
+	double			default_grace;
+
+	/* Default keep period */
+	double			default_keep;
 
 	/* Maximum concurrent sessions */
 	unsigned		max_sess;
@@ -94,13 +91,18 @@ struct params {
 	unsigned		wthread_purge_delay;
 	unsigned		wthread_stats_rate;
 	unsigned		wthread_stacksize;
+	unsigned		wthread_workspace;
 
-	unsigned		overflow_max;
+	unsigned		queue_max;
 
 	/* Memory allocation hints */
 	unsigned		sess_workspace;
 	unsigned		shm_workspace;
-	unsigned		http_headers;
+	unsigned		http_req_size;
+	unsigned		http_req_hdr_len;
+	unsigned		http_resp_size;
+	unsigned		http_resp_hdr_len;
+	unsigned		http_max_hdr;
 
 	unsigned		shm_reclen;
 
@@ -114,6 +116,7 @@ struct params {
 
 	/* Fetcher hints */
 	unsigned		fetch_chunksize;
+	unsigned		fetch_maxchunksize;
 
 #ifdef SENDFILE_WORKS
 	/* Sendfile object minimum size */
@@ -140,16 +143,13 @@ struct params {
 	unsigned		max_restarts;
 
 	/* Maximum esi:include depth allowed */
-	unsigned		max_esi_includes;
+	unsigned		max_esi_depth;
 
 	/* ESI parser hints */
 	unsigned		esi_syntax;
 
 	/* Rush exponent */
 	unsigned		rush_exponent;
-
-	/* Cache vbe_conns */
-	unsigned		cache_vbe_conns;
 
 	/* Default connection_timeout */
 	double			connect_timeout;
@@ -166,9 +166,6 @@ struct params {
 
 	/* Control diagnostic code */
 	unsigned		diag_bitmap;
-
-	/* Default grace period */
-	unsigned		default_grace;
 
 	/* Log hash string to shm */
 	unsigned		log_hash;
@@ -190,8 +187,8 @@ struct params {
 	double			acceptor_sleep_incr;
 	double			acceptor_sleep_decay;
 
-	/* Get rid of duplicate purges */
-	unsigned		purge_dups;
+	/* Get rid of duplicate bans */
+	unsigned		ban_dups;
 
 	/* How long time does the ban lurker sleep */
 	double			ban_lurker_sleep;
@@ -203,17 +200,21 @@ struct params {
 
 	unsigned		http_range_support;
 
+	unsigned		http_gzip_support;
+	unsigned		gzip_stack_buffer;
+	unsigned		gzip_tmp_space;
+	unsigned		gzip_level;
+
 	double			critbit_cooloff;
+
+	double			shortlived;
 };
 
 /*
  * We declare this a volatile pointer, so that reads of parameters
  * become atomic, leaving the CLI thread lattitude to change the values
  */
-extern volatile struct params *params;
+extern volatile struct params * params;
 extern struct heritage heritage;
 
 void child_main(void);
-
-int varnish_instance(const char *n_arg, char *name, size_t namelen,
-    char *dir, size_t dirlen);
