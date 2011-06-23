@@ -1,4 +1,4 @@
-libvarnishapi.so.1 libvarnish1 #MINVER#
+libvarnishapi.so.1 libvarnishapi1 #MINVER#
  LIBVARNISHAPI_1.0@LIBVARNISHAPI_1.0 3.0.0
  VCLI_AuthResponse@LIBVARNISHAPI_1.0 3.0.0
  VCLI_ReadResult@LIBVARNISHAPI_1.0 3.0.0
