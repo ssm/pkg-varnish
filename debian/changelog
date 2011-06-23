@@ -1,6 +1,9 @@
-varnish (3.0.0-1) UNRELEASED; urgency=low
+varnish (3.0.0-1) unstable; urgency=low
 
   * New upstream release
+  * Add a varnish-log package
+  * Rename the library packages, to reflect library name
+  * Add new upstream URI to debian/watch
 
  -- Stig Sandbeck Mathisen <ssm@debian.org>  Thu, 23 Jun 2011 10:49:45 +0200
 
