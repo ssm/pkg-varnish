@@ -24,7 +24,7 @@ endif
 
 # Main build rule, leave everything to debhelper
 %:
-	dh $@
+	dh $@ --parallel
 
 # Disable build tests for some architectures
 ifneq (,$(findstring :$(DEB_HOST_ARCH):,$(DISABLE_TEST_ARCH_LIST)))
