@@ -1,1 +1,4 @@
 doc/sphinx/=build/html
+doc/*.rst
+doc/*.html
+doc/*.css
