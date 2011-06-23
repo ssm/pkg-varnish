@@ -37,7 +37,7 @@ Description: state of the art, high-performance web accelerator
 Package: varnish-doc
 Architecture: all
 Section: doc
-Depends: ${misc:Depends}
+Depends: ${misc:Depends}, libjs-jquery
 Description: documentation for Varnish Cache
  This package contains HTML documentation for Varnish Cache.
 
