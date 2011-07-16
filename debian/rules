@@ -6,10 +6,6 @@ DH_VERBOSE=1
 # which is needed by jemalloc
 DISABLE_JEMALLOC_ARCH_LIST := :hppa:s390:sparc:m68k:
 
-# List of architectures (or buildds) that fail "make test" for some
-# reason or another
-DISABLE_TEST_ARCH_LIST := :armel:hppa:ia64:mipsel:sh4:sparc:
-
 # Explicitly initialize a variable to select architecture, unless it has been
 # defined before.  This is compared against the DISABLE_*_LIST variables later
 # in this makefile
@@ -26,11 +22,8 @@ endif
 %:
 	dh $@ --parallel
 
-# Disable build tests for some architectures
-ifneq (,$(findstring :$(DEB_HOST_ARCH):,$(DISABLE_TEST_ARCH_LIST)))
+# Disable automated build tests
 override_dh_auto_test:
-	@echo "dh_auto_test disabled on $(DEB_HOST_ARCH)"
-endif
 
 # Override to add local configure flags
 override_dh_auto_configure:
