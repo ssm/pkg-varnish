@@ -1,3 +1,9 @@
+varnish (3.0.0-3) unstable; urgency=low
+
+  * Disable build tests (Closes: #632320)
+
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Sun, 17 Jul 2011 12:08:19 +0200
+
 varnish (3.0.0-2) unstable; urgency=low
 
   [ Daniel Baumann ]
