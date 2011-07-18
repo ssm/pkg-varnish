@@ -1,9 +1,9 @@
-varnish (3.0.0-4) UNRELEASED; urgency=low
+varnish (3.0.0-4) unstable; urgency=low
 
   * Add package with detached debugging symbols for varnish (Thanks,
     Jean-Baptiste Quenot)
 
- -- Stig Sandbeck Mathisen <ssm@debian.org>  Mon, 18 Jul 2011 11:52:25 +0200
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Mon, 18 Jul 2011 12:25:02 +0200
 
 varnish (3.0.0-3) unstable; urgency=low
 
