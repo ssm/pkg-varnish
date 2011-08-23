@@ -4,6 +4,7 @@ varnish (3.0.0-4) UNRELEASED; urgency=low
   * Change automake build-dep to automake rather than forcing 1.9.
   * Remove .la files rather than neutering them.
   * Remove .a files, they are not supported upstream.
+  * Move /usr/lib/varnish/lib*.so to varnish package, add Replaces
 
  -- Tollef Fog Heen <tfheen@debian.org>  Tue, 23 Aug 2011 07:53:12 +0200
 
