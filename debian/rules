@@ -42,6 +42,8 @@ override_dh_auto_install:
 	@ # Remove .la files
 	@ # (See http://wiki.debian.org/ReleaseGoals/LAFileRemoval)
 	find $(CURDIR)/debian/ -name \*.la -delete
+	@ # Nuke the static libs too
+	find $(CURDIR)/debian -name \*.a -delete
 
 override_dh_install:
 	dh_install -a

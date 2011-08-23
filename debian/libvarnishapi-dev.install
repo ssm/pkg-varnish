@@ -1,5 +1,3 @@
 usr/include
-usr/lib/*.a
 usr/lib/libvarnishapi.so
 usr/lib/pkgconfig/*.pc
-usr/lib/varnish/*.a
