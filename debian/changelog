@@ -5,6 +5,7 @@ varnish (3.0.0-4) UNRELEASED; urgency=low
   * Remove .la files rather than neutering them.
   * Remove .a files, they are not supported upstream.
   * Move /usr/lib/varnish/lib*.so to varnish package, add Replaces
+  * Add --fail-missing to dh_install call and fix up varnish.install.
 
  -- Tollef Fog Heen <tfheen@debian.org>  Tue, 23 Aug 2011 07:53:12 +0200
 
