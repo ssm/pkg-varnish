@@ -1,3 +1,9 @@
+varnish (3.0.0-4) UNRELEASED; urgency=low
+
+  * Drop build-dep on tcl, it's no longer needed.
+
+ -- Tollef Fog Heen <tfheen@debian.org>  Tue, 23 Aug 2011 07:53:12 +0200
+
 varnish (3.0.0-3) unstable; urgency=low
 
   * Disable build tests (Closes: #632320)
