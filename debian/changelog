@@ -1,4 +1,4 @@
-varnish (3.0.0-5) UNRELEASED; urgency=low
+varnish (3.0.0-5) unstable; urgency=low
 
   [ Tollef Fog Heen ]
   * Drop build-dep on tcl, it's no longer needed.
@@ -12,7 +12,7 @@ varnish (3.0.0-5) UNRELEASED; urgency=low
   * Update lintian-overrides
   * Use packaged javascript libraries
 
- -- Stig Sandbeck Mathisen <ssm@debian.org>  Wed, 24 Aug 2011 13:23:12 +0200
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Wed, 24 Aug 2011 13:36:26 +0200
 
 varnish (3.0.0-4) unstable; urgency=low
 
