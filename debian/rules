@@ -39,14 +39,14 @@ override_dh_auto_install:
 	@ # Activate the default backend
 	sed -i '/backend default {/,/}/ s/^#[[:space:]]//'  \
 		$(CURDIR)/debian/tmp/etc/varnish/default.vcl
-	@ # Remove dependency_libs from .la files
+	@ # Remove .la files
 	@ # (See http://wiki.debian.org/ReleaseGoals/LAFileRemoval)
-	sed -i "/dependency_libs/ s/'.*'/''/" \
-		$(CURDIR)/debian/tmp/usr/lib/*.la \
-		$(CURDIR)/debian/tmp/usr/lib/varnish/*.la
+	find $(CURDIR)/debian/ -name \*.la -delete
+	@ # Nuke the static libs too
+	find $(CURDIR)/debian -name \*.a -delete
 
 override_dh_install:
-	dh_install -a
+	dh_install -a --fail-missing
 	@ # Override to add the "reload-vcl" script
 	install -o root -g root -m 755 \
 		$(CURDIR)/debian/reload-vcl \

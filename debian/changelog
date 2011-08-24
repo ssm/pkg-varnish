@@ -1,3 +1,14 @@
+varnish (3.0.0-5) UNRELEASED; urgency=low
+
+  * Drop build-dep on tcl, it's no longer needed.
+  * Change automake build-dep to automake rather than forcing 1.9.
+  * Remove .la files rather than neutering them.
+  * Remove .a files, they are not supported upstream.
+  * Move /usr/lib/varnish/lib*.so to varnish package, add Replaces
+  * Add --fail-missing to dh_install call and fix up varnish.install.
+
+ -- Tollef Fog Heen <tfheen@debian.org>  Tue, 23 Aug 2011 07:53:12 +0200
+
 varnish (3.0.0-4) unstable; urgency=low
 
   * Add package with detached debugging symbols for varnish (Thanks,
