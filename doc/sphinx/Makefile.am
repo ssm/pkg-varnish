@@ -102,18 +102,24 @@ EXTRA_DIST = \
 	installation/index.rst \
 	installation/install.rst \
 	installation/prerequisites.rst \
+	installation/upgrade.rst \
 	phk/autocrap.rst \
 	phk/backends.rst \
 	phk/barriers.rst \
+	phk/gzip.rst \
 	phk/index.rst \
 	phk/ipv6suckage.rst \
 	phk/platforms.rst \
 	phk/sphinx.rst \
+	phk/ssl.rst \
 	phk/thoughts.rst \
+	phk/three-zero.rst \
 	phk/vcl_expr.rst \
 	reference/index.rst \
 	reference/shmem.rst \
+	reference/params.rst \
 	reference/varnishadm.rst \
+	reference/varnish-cli.rst \
 	reference/varnishd.rst \
 	reference/varnishhist.rst \
 	reference/varnishlog.rst \
@@ -123,22 +129,25 @@ EXTRA_DIST = \
 	reference/varnishstat.rst \
 	reference/varnishtest.rst \
 	reference/varnishtop.rst \
-	reference/varnish-cli.rst \
 	reference/vcl.rst \
 	reference/vmod.rst \
 	reference/vmod_std.rst \
 	tutorial/advanced_backend_servers.rst \
 	tutorial/advanced_topics.rst \
 	tutorial/backend_servers.rst \
+	tutorial/cookies.rst \
+	tutorial/esi.rst \
 	tutorial/handling_misbehaving_servers.rst \
 	tutorial/increasing_your_hitrate.rst \
 	tutorial/index.rst \
 	tutorial/logging.rst \
+	tutorial/purging.rst \
 	tutorial/putting_varnish_on_port_80.rst \
 	tutorial/sizing_your_cache.rst \
 	tutorial/starting_varnish.rst \
 	tutorial/statistics.rst \
 	tutorial/troubleshooting.rst \
+	tutorial/vary.rst \
 	tutorial/vcl.rst
 
 dist-hook:

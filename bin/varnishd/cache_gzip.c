@@ -202,8 +202,8 @@ VGZ_NewGzip(struct sess *sp, const char *id)
 	i = deflateInit2(&vg->vz,
 	    params->gzip_level,		/* Level */
 	    Z_DEFLATED,			/* Method */
-	    16 + 8,			/* Window bits (16=gzip + 15) */
-	    1,				/* memLevel */
+	    16 + params->gzip_window,	/* Window bits (16=gzip + 15) */
+	    params->gzip_memlevel,	/* memLevel */
 	    Z_DEFAULT_STRATEGY);
 	if (i != Z_OK)
 		printf("deflateInit2() = %d\n", i);
@@ -302,7 +302,7 @@ VGZ_Gunzip(struct vgz *vg, const void **pptr, size_t *plen)
 		return (VGZ_END);
 	if (i == Z_BUF_ERROR)
 		return (VGZ_STUCK);
-printf("INFLATE=%d (%s)\n", i, vg->vz.msg);
+	VSL(SLT_Debug, 0, "Unknown INFLATE=%d (%s)\n", i, vg->vz.msg);
 	return (VGZ_ERROR);
 }
 
@@ -629,6 +629,10 @@ vfp_testgzip_bytes(struct sess *sp, struct http_conn *htc, ssize_t bytes)
 		while (!VGZ_IbufEmpty(vg)) {
 			VGZ_Obuf(vg, obuf, sizeof obuf);
 			i = VGZ_Gunzip(vg, &dp, &dl);
+			if (i == VGZ_END && !VGZ_IbufEmpty(vg)) {
+				WSP(sp, SLT_FetchError, "Junk after gzip data");
+				return (-1);
+			}
 			if (i != VGZ_OK && i != VGZ_END) {
 				WSP(sp, SLT_FetchError,
 				    "Invalid Gzip data: %s", vg->vz.msg);

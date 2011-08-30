@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2010 Varnish Software AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -44,6 +44,7 @@ struct sma_sc {
 #define SMA_SC_MAGIC		0x1ac8a345
 	struct lock		sma_mtx;
 	size_t			sma_max;
+	size_t			sma_alloc;
 	struct VSC_C_sma	*stats;
 };
 
@@ -59,17 +60,22 @@ static struct storage *
 sma_alloc(struct stevedore *st, size_t size)
 {
 	struct sma_sc *sma_sc;
-	struct sma *sma;
+	struct sma *sma = NULL;
+	void *p;
 
 	CAST_OBJ_NOTNULL(sma_sc, st->priv, SMA_SC_MAGIC);
 	Lck_Lock(&sma_sc->sma_mtx);
-	sma_sc->stats->nreq++;
-	if (sma_sc->stats->nbytes + size > sma_sc->sma_max)
+	sma_sc->stats->c_req++;
+	if (sma_sc->sma_alloc + size > sma_sc->sma_max) {
+		sma_sc->stats->c_fail += size;
 		size = 0;
-	else {
-		sma_sc->stats->nobj++;
-		sma_sc->stats->nbytes += size;
-		sma_sc->stats->balloc += size;
+	} else {
+		sma_sc->sma_alloc += size;
+		sma_sc->stats->c_bytes += size;
+		sma_sc->stats->g_alloc++;
+		sma_sc->stats->g_bytes += size;
+		if (sma_sc->sma_max != SIZE_MAX)
+			sma_sc->stats->g_space -= size;
 	}
 	Lck_Unlock(&sma_sc->sma_mtx);
 
@@ -82,17 +88,33 @@ sma_alloc(struct stevedore *st, size_t size)
 	 * performance-wise it would be a catastropy with chunksized
 	 * allocations growing another full page, just to accomodate the sma.
 	 */
-	ALLOC_OBJ(sma, SMA_MAGIC);
-	if (sma == NULL)
-		return (NULL);		/* XXX: stats suffer */
+
+	p = malloc(size);
+	if (p != NULL) {
+		ALLOC_OBJ(sma, SMA_MAGIC);
+		if (sma != NULL)
+			sma->s.ptr = p;
+		else
+			free(p);
+	}
+	if (sma == NULL) {
+		Lck_Lock(&sma_sc->sma_mtx);
+		/*
+		 * XXX: Not nice to have counters go backwards, but we do
+		 * XXX: Not want to pick up the lock twice just for stats.
+		 */
+		sma_sc->stats->c_fail++;
+		sma_sc->stats->c_bytes -= size;
+		sma_sc->stats->g_alloc--;
+		sma_sc->stats->g_bytes -= size;
+		if (sma_sc->sma_max != SIZE_MAX)
+			sma_sc->stats->g_space += size;
+		Lck_Unlock(&sma_sc->sma_mtx);
+		return (NULL);
+	}
 	sma->sc = sma_sc;
 	sma->sz = size;
 	sma->s.priv = sma;
-	sma->s.ptr = malloc(size);
-	if (sma->s.ptr == NULL) {
-		free(sma);
-		return (NULL);		/* XXX: stats suffer */
-	}
 	sma->s.len = 0;
 	sma->s.space = size;
 #ifdef SENDFILE_WORKS
@@ -114,9 +136,12 @@ sma_free(struct storage *s)
 	sma_sc = sma->sc;
 	assert(sma->sz == sma->s.space);
 	Lck_Lock(&sma_sc->sma_mtx);
-	sma_sc->stats->nobj--;
-	sma_sc->stats->nbytes -= sma->sz;
-	sma_sc->stats->bfree += sma->sz;
+	sma_sc->sma_alloc -= sma->sz;
+	sma_sc->stats->g_alloc--;
+	sma_sc->stats->g_bytes -= sma->sz;
+	sma_sc->stats->c_freed += sma->sz;
+	if (sma_sc->sma_max != SIZE_MAX)
+		sma_sc->stats->g_space += sma->sz;
 	Lck_Unlock(&sma_sc->sma_mtx);
 	free(sma->s.ptr);
 	free(sma);
@@ -128,6 +153,7 @@ sma_trim(struct storage *s, size_t size)
 	struct sma_sc *sma_sc;
 	struct sma *sma;
 	void *p;
+	size_t delta;
 
 	CHECK_OBJ_NOTNULL(s, STORAGE_MAGIC);
 	CAST_OBJ_NOTNULL(sma, s->priv, SMA_MAGIC);
@@ -135,10 +161,16 @@ sma_trim(struct storage *s, size_t size)
 
 	assert(sma->sz == sma->s.space);
 	assert(size < sma->sz);
+	delta = sma->sz - size;
+	if (delta < 256)
+		return;
 	if ((p = realloc(sma->s.ptr, size)) != NULL) {
 		Lck_Lock(&sma_sc->sma_mtx);
-		sma_sc->stats->nbytes -= (sma->sz - size);
-		sma_sc->stats->bfree += sma->sz - size;
+		sma_sc->sma_alloc -= delta;
+		sma_sc->stats->g_bytes -= delta;
+		sma_sc->stats->c_freed += delta;
+		if (sma_sc->sma_max != SIZE_MAX)
+			sma_sc->stats->g_space += delta;
 		sma->sz = size;
 		Lck_Unlock(&sma_sc->sma_mtx);
 		sma->s.ptr = p;
@@ -152,7 +184,7 @@ sma_used_space(const struct stevedore *st)
 	struct sma_sc *sma_sc;
 
 	CAST_OBJ_NOTNULL(sma_sc, st->priv, SMA_SC_MAGIC);
-	return (sma_sc->stats->nbytes);
+	return (sma_sc->sma_alloc);
 }
 
 static double
@@ -161,7 +193,7 @@ sma_free_space(const struct stevedore *st)
 	struct sma_sc *sma_sc;
 
 	CAST_OBJ_NOTNULL(sma_sc, st->priv, SMA_SC_MAGIC);
-	return (sma_sc->sma_max - sma_sc->stats->nbytes);
+	return (sma_sc->sma_max - sma_sc->sma_alloc);
 }
 
 static void
@@ -175,6 +207,7 @@ sma_init(struct stevedore *parent, int ac, char * const *av)
 	ALLOC_OBJ(sc, SMA_SC_MAGIC);
 	AN(sc);
 	sc->sma_max = SIZE_MAX;
+	assert(sc->sma_max == SIZE_MAX);
 	parent->priv = sc;
 
 	AZ(av[ac]);
@@ -193,10 +226,7 @@ sma_init(struct stevedore *parent, int ac, char * const *av)
 		ARGV_ERR("(-smalloc) size \"%s\": too small, "
 			 "did you forget to specify M or G?\n", av[0]);
 
-	printf("SMA.%s: max size %ju MB.\n", parent->ident,
-	    u / (1024 * 1024));
 	sc->sma_max = u;
-
 }
 
 static void
@@ -209,6 +239,8 @@ sma_open(const struct stevedore *st)
 	sma_sc->stats = VSM_Alloc(sizeof *sma_sc->stats,
 	    VSC_CLASS, VSC_TYPE_SMA, st->ident);
 	memset(sma_sc->stats, 0, sizeof *sma_sc->stats);
+	if (sma_sc->sma_max != SIZE_MAX)
+		sma_sc->stats->g_space = sma_sc->sma_max;
 }
 
 const struct stevedore sma_stevedore = {

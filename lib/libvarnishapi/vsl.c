@@ -165,7 +165,7 @@ vsl_nextlog(struct vsl *vsl, uint32_t **pp)
 			vsl->rbuflen = l;
 		}
 		i = read(vsl->r_fd, vsl->rbuf + 2, l * 4L - 8L);
-		if (i != l)
+		if (i != (l * 4L - 8L))
 			return (-1);
 		*pp = vsl->rbuf;
 		return (1);
@@ -173,20 +173,30 @@ vsl_nextlog(struct vsl *vsl, uint32_t **pp)
 	for (w = 0; w < TIMEOUT_USEC;) {
 		t = *vsl->log_ptr;
 
-		if (t == VSL_WRAPMARKER ||
-		    (t == VSL_ENDMARKER && vsl->last_seq != vsl->log_start[0])) {
+		if (t == VSL_WRAPMARKER) {
+			/* Wrap around not possible at front */
+			assert(vsl->log_ptr != vsl->log_start + 1);
 			vsl->log_ptr = vsl->log_start + 1;
-			vsl->last_seq = vsl->log_start[0];
 			VRMB();
 			continue;
 		}
 		if (t == VSL_ENDMARKER) {
+			if (vsl->log_ptr != vsl->log_start + 1 &&
+			    vsl->last_seq != vsl->log_start[0]) {
+				/* ENDMARKER not at front and seq wrapped */
+				vsl->log_ptr = vsl->log_start + 1;
+				VRMB();
+				continue;
+			}
 			if (vsl->flags & F_NON_BLOCKING)
 				return (-1);
 			w += SLEEP_USEC;
-			AZ(usleep(SLEEP_USEC));
+			assert(usleep(SLEEP_USEC) == 0 || errno == EINTR);
 			continue;
 		}
+		if (vsl->log_ptr == vsl->log_start + 1)
+			vsl->last_seq = vsl->log_start[0];
+
 		*pp = (void*)(uintptr_t)vsl->log_ptr; /* Loose volatile */
 		vsl->log_ptr = VSL_NEXT(vsl->log_ptr);
 		return (1);
@@ -375,9 +385,11 @@ VSL_Open(struct VSM_data *vd, int diag)
 	vsl = vd->vsl;
 	CHECK_OBJ_NOTNULL(vsl, VSL_MAGIC);
 
-	i = VSM_Open(vd, diag);
-	if (i)
-		return (i);
+	if (vsl->r_fd == -1) {
+		i = VSM_Open(vd, diag);
+		if (i)
+			return (i);
+	}
 
 	if (!vsl->d_opt && vsl->r_fd == -1) {
 		while (*vsl->log_ptr != VSL_ENDMARKER)

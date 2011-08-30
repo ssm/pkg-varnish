@@ -418,6 +418,9 @@ main(int argc, char * const *argv)
 		MCF_ParamSet(cli, "http_resp_size", "8192");
 		cli_check(cli);
 
+		MCF_ParamSet(cli, "http_req_size", "12288");
+		cli_check(cli);
+
 		MCF_ParamSet(cli, "thread_pool_stack", "32bit");
 		cli_check(cli);
 
@@ -500,12 +503,10 @@ main(int argc, char * const *argv)
 			VCS_Message("varnishd");
 			exit(0);
 		case 'x':
-#ifdef DIAGNOSTICS
 			if (!strcmp(optarg, "dumprst")) {
 				MCF_DumpRst();
 				exit (0);
 			}
-#endif /* DIAGNOSTICS */
 			usage();
 			break;
 		case 'w':

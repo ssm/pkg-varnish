@@ -164,10 +164,13 @@ cnt_prepresp(struct sess *sp)
 	CHECK_OBJ_NOTNULL(sp->obj, OBJECT_MAGIC);
 	CHECK_OBJ_NOTNULL(sp->vcl, VCL_CONF_MAGIC);
 
+	if (sp->wrk->do_stream)
+		AssertObjCorePassOrBusy(sp->obj->objcore);
+
 	sp->wrk->res_mode = 0;
 
-	if (!sp->wrk->do_stream ||
-	    (sp->wrk->h_content_length != NULL && !sp->wrk->do_gunzip))
+	if ((sp->wrk->h_content_length != NULL || !sp->wrk->do_stream) &&
+	    !sp->wrk->do_gzip && !sp->wrk->do_gunzip)
 		sp->wrk->res_mode |= RES_LEN;
 
 	if (!sp->disable_esi && sp->obj->esidata != NULL) {
@@ -200,7 +203,7 @@ cnt_prepresp(struct sess *sp)
 			sp->wrk->res_mode |= RES_LEN;
 		else if (!sp->wantbody) {
 			/* Nothing */
-		} else if (sp->http->protover >= 1.1) {
+		} else if (sp->http->protover >= 11) {
 			sp->wrk->res_mode |= RES_CHUNKED;
 		} else {
 			sp->wrk->res_mode |= RES_EOF;
@@ -233,6 +236,7 @@ cnt_prepresp(struct sess *sp)
 		AZ(sp->obj);
 		sp->restarts++;
 		sp->director = NULL;
+		sp->wrk->h_content_length = NULL;
 		http_Setup(sp->wrk->bereq, NULL);
 		http_Setup(sp->wrk->beresp, NULL);
 		http_Setup(sp->wrk->resp, NULL);
@@ -241,10 +245,12 @@ cnt_prepresp(struct sess *sp)
 	default:
 		WRONG("Illegal action in vcl_deliver{}");
 	}
-	if (sp->wrk->do_stream)
+	if (sp->wrk->do_stream) {
+		AssertObjCorePassOrBusy(sp->obj->objcore);
 		sp->step = STP_STREAMBODY;
-	else
+	} else {
 		sp->step = STP_DELIVER;
+	}
 	return (0);
 }
 
@@ -303,6 +309,13 @@ cnt_done(struct sess *sp)
 	AZ(sp->vbc);
 	sp->director = NULL;
 	sp->restarts = 0;
+
+	sp->wrk->do_esi = 0;
+	sp->wrk->do_gunzip = 0;
+	sp->wrk->do_gzip = 0;
+	sp->wrk->do_stream = 0;
+	sp->wrk->is_gunzip = 0;
+	sp->wrk->is_gzip = 0;
 
 	if (sp->vcl != NULL && sp->esi_level == 0) {
 		if (sp->wrk->vcl != NULL)
@@ -411,24 +424,35 @@ cnt_error(struct sess *sp)
 
 	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
 
+	sp->wrk->do_esi = 0;
+	sp->wrk->is_gzip = 0;
+	sp->wrk->is_gunzip = 0;
+	sp->wrk->do_gzip = 0;
+	sp->wrk->do_gunzip = 0;
+	sp->wrk->do_stream = 0;
+
 	w = sp->wrk;
 	if (sp->obj == NULL) {
 		HSH_Prealloc(sp);
 		/* XXX: 1024 is a pure guess */
 		EXP_Clr(&w->exp);
 		sp->obj = STV_NewObject(sp, NULL, 1024, &w->exp,
-		     params->http_max_hdr);
-		if (sp->obj == NULL) 
+		     (uint16_t)params->http_max_hdr);
+		if (sp->obj == NULL)
 			sp->obj = STV_NewObject(sp, TRANSIENT_STORAGE,
-			    1024, &w->exp, params->http_max_hdr);
+			    1024, &w->exp, (uint16_t)params->http_max_hdr);
 		if (sp->obj == NULL) {
 			sp->doclose = "Out of objects";
+			sp->director = NULL;
+			sp->wrk->h_content_length = NULL;
+			http_Setup(sp->wrk->beresp, NULL);
+			http_Setup(sp->wrk->bereq, NULL);
 			sp->step = STP_DONE;
 			return(0);
 		}
 		AN(sp->obj);
 		sp->obj->xid = sp->xid;
-		sp->obj->entered = sp->t_req;
+		sp->obj->exp.entered = sp->t_req;
 	} else {
 		/* XXX: Null the headers ? */
 	}
@@ -554,16 +578,15 @@ cnt_fetch(struct sess *sp)
 		/*
 		 * What does RFC2616 think about TTL ?
 		 */
-		sp->wrk->entered = TIM_real();
-		sp->wrk->age = 0;
 		EXP_Clr(&sp->wrk->exp);
-		sp->wrk->exp.ttl = RFC2616_Ttl(sp);
+		sp->wrk->exp.entered = TIM_real();
+		RFC2616_Ttl(sp);
 
 		/* pass from vclrecv{} has negative TTL */
 		if (sp->objcore == NULL)
 			sp->wrk->exp.ttl = -1.;
 
-		sp->wrk->do_esi = 0;
+		AZ(sp->wrk->do_esi);
 
 		VCL_fetch_method(sp);
 
@@ -574,6 +597,7 @@ cnt_fetch(struct sess *sp)
 			sp->step = STP_FETCHBODY;
 			return (0);
 		case VCL_RET_DELIVER:
+			AssertObjCorePassOrBusy(sp->objcore);
 			sp->step = STP_FETCHBODY;
 			return (0);
 		default:
@@ -638,7 +662,8 @@ cnt_fetchbody(struct sess *sp)
 	int i;
 	struct http *hp, *hp2;
 	char *b;
-	unsigned l, nhttp;
+	uint16_t nhttp;
+	unsigned l;
 	struct vsb *vary = NULL;
 	int varyl = 0, pass;
 
@@ -717,7 +742,7 @@ cnt_fetchbody(struct sess *sp)
 	else if (sp->wrk->is_gzip)
 		sp->wrk->vfp = &vfp_testgzip;
 
-	if (sp->wrk->do_esi)
+	if (sp->wrk->do_esi || sp->esi_level > 0)
 		sp->wrk->do_stream = 0;
 	if (!sp->wantbody)
 		sp->wrk->do_stream = 0;
@@ -754,7 +779,10 @@ cnt_fetchbody(struct sess *sp)
 		 */
 		sp->obj = STV_NewObject(sp, TRANSIENT_STORAGE, l,
 		    &sp->wrk->exp, nhttp);
-		sp->wrk->exp.ttl = params->shortlived;
+		if (sp->wrk->exp.ttl > params->shortlived)
+			sp->wrk->exp.ttl = params->shortlived;
+		sp->wrk->exp.grace = 0.0;
+		sp->wrk->exp.keep = 0.0;
 	}
 	if (sp->obj == NULL) {
 		sp->err_code = 503;
@@ -779,8 +807,6 @@ cnt_fetchbody(struct sess *sp)
 
 	sp->obj->xid = sp->xid;
 	sp->obj->response = sp->err_code;
-	sp->obj->age = sp->wrk->age;
-	sp->obj->entered = sp->wrk->entered;
 	WS_Assert(sp->obj->ws_o);
 
 	/* Filter into object */
@@ -796,9 +822,21 @@ cnt_fetchbody(struct sess *sp)
 	if (http_GetHdr(hp, H_Last_Modified, &b))
 		sp->obj->last_modified = TIM_parse(b);
 	else
-		sp->obj->last_modified = floor(sp->wrk->entered);
+		sp->obj->last_modified = floor(sp->wrk->exp.entered);
 
 	assert(WRW_IsReleased(sp->wrk));
+
+	/*
+	 * If we can deliver a 304 reply, we don't bother streaming.
+	 * Notice that vcl_deliver{} could still nuke the headers
+	 * that allow the 304, in which case we return 200 non-stream.
+	 */
+	if (sp->obj->response == 200 &&
+	    sp->http->conds &&
+	    RFC2616_Do_Cond(sp))
+		sp->wrk->do_stream = 0;
+
+	AssertObjCorePassOrBusy(sp->obj->objcore);
 
 	if (sp->wrk->do_stream) {
 		sp->step = STP_PREPRESP;
@@ -867,6 +905,8 @@ cnt_streambody(struct sess *sp)
 	}
 
 	RES_StreamStart(sp);
+
+	AssertObjCorePassOrBusy(sp->obj->objcore);
 
 	i = FetchBody(sp);
 
@@ -962,6 +1002,8 @@ cnt_hit(struct sess *sp)
 
 	assert(!(sp->obj->objcore->flags & OC_F_PASS));
 
+	AZ(sp->wrk->do_stream);
+
 	VCL_hit_method(sp);
 
 	if (sp->handling == VCL_RET_DELIVER) {
@@ -1032,6 +1074,16 @@ cnt_lookup(struct sess *sp)
 	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
 	CHECK_OBJ_NOTNULL(sp->vcl, VCL_CONF_MAGIC);
 
+	if (sp->hash_objhead == NULL) {
+		/* Not a waiting list return */
+		AZ(sp->vary_b);
+		AZ(sp->vary_l);
+		AZ(sp->vary_e);
+		(void)WS_Reserve(sp->ws, 0);
+		sp->vary_b = (void*)sp->ws->f;
+		sp->vary_e = (void*)sp->ws->r;
+		sp->vary_b[2] = '\0';
+	}
 
 	oc = HSH_Lookup(sp, &oh);
 
@@ -1045,12 +1097,21 @@ cnt_lookup(struct sess *sp)
 		return (1);
 	}
 
+
 	CHECK_OBJ_NOTNULL(oc, OBJCORE_MAGIC);
 	CHECK_OBJ_NOTNULL(oh, OBJHEAD_MAGIC);
 
 	/* If we inserted a new object it's a miss */
 	if (oc->flags & OC_F_BUSY) {
 		sp->wrk->stats.cache_miss++;
+
+		if (sp->vary_l != NULL)
+			WS_ReleaseP(sp->ws, (void*)sp->vary_l);
+		else
+			WS_Release(sp->ws, 0);
+		sp->vary_b = NULL;
+		sp->vary_l = NULL;
+		sp->vary_e = NULL;
 
 		sp->objcore = oc;
 		sp->step = STP_MISS;
@@ -1060,6 +1121,11 @@ cnt_lookup(struct sess *sp)
 	o = oc_getobj(sp->wrk, oc);
 	CHECK_OBJ_NOTNULL(o, OBJECT_MAGIC);
 	sp->obj = o;
+
+	WS_Release(sp->ws, 0);
+	sp->vary_b = NULL;
+	sp->vary_l = NULL;
+	sp->vary_e = NULL;
 
 	if (oc->flags & OC_F_PASS) {
 		sp->wrk->stats.cache_hitpass++;
@@ -1130,6 +1196,7 @@ cnt_miss(struct sess *sp)
 	case VCL_RET_ERROR:
 		AZ(HSH_Deref(sp->wrk, sp->objcore, NULL));
 		sp->objcore = NULL;
+		http_Setup(sp->wrk->bereq, NULL);
 		sp->step = STP_ERROR;
 		return (0);
 	case VCL_RET_PASS:
@@ -1198,6 +1265,7 @@ cnt_pass(struct sess *sp)
 	sp->wrk->between_bytes_timeout = 0;
 	VCL_pass_method(sp);
 	if (sp->handling == VCL_RET_ERROR) {
+		http_Setup(sp->wrk->bereq, NULL);
 		sp->step = STP_ERROR;
 		return (0);
 	}
@@ -1308,7 +1376,8 @@ cnt_recv(struct sess *sp)
 		return (0);
 	}
 
-	/* XXX: do_esi ? */
+	/* Zap these, in case we came here through restart */
+	sp->wrk->do_esi = 0;
 	sp->wrk->is_gzip = 0;
 	sp->wrk->is_gunzip = 0;
 	sp->wrk->do_gzip = 0;
@@ -1375,7 +1444,7 @@ DOT start -> recv [style=bold,color=green]
 static int
 cnt_start(struct sess *sp)
 {
-	int done;
+	uint16_t done;
 	char *p;
 	const char *r = "HTTP/1.1 100 Continue\r\n\r\n";
 
@@ -1403,7 +1472,7 @@ cnt_start(struct sess *sp)
 	done = http_DissectRequest(sp);
 
 	/* If we could not even parse the request, just close */
-	if (done < 0) {
+	if (done == 400) {
 		sp->step = STP_DONE;
 		vca_close_session(sp, "junk");
 		return (0);
@@ -1489,6 +1558,13 @@ CNT_Session(struct sess *sp)
 	    sp->step == STP_LOOKUP ||
 	    sp->step == STP_RECV);
 
+	AZ(w->do_stream);
+	AZ(w->is_gzip);
+	AZ(w->do_gzip);
+	AZ(w->is_gunzip);
+	AZ(w->do_gunzip);
+	AZ(w->do_esi);
+
 	/*
 	 * Whenever we come in from the acceptor we need to set blocking
 	 * mode, but there is no point in setting it when we come from
@@ -1530,6 +1606,12 @@ CNT_Session(struct sess *sp)
 		CHECK_OBJ_ORNULL(w->nobjhead, OBJHEAD_MAGIC);
 	}
 	WSL_Flush(w, 0);
+	AZ(w->do_stream);
+	AZ(w->is_gzip);
+	AZ(w->do_gzip);
+	AZ(w->is_gunzip);
+	AZ(w->do_gunzip);
+	AZ(w->do_esi);
 	assert(WRW_IsReleased(w));
 }
 

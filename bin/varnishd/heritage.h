@@ -117,6 +117,7 @@ struct params {
 	/* Fetcher hints */
 	unsigned		fetch_chunksize;
 	unsigned		fetch_maxchunksize;
+	unsigned		nuke_limit;
 
 #ifdef SENDFILE_WORKS
 	/* Sendfile object minimum size */
@@ -204,6 +205,8 @@ struct params {
 	unsigned		gzip_stack_buffer;
 	unsigned		gzip_tmp_space;
 	unsigned		gzip_level;
+	unsigned		gzip_window;
+	unsigned		gzip_memlevel;
 
 	double			critbit_cooloff;
 

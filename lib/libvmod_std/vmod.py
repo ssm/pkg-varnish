@@ -255,7 +255,6 @@ if initname != "":
 
 def file_header(fo):
         fo.write("""/*
- *
  * NB:  This file is machine generated, DO NOT EDIT!
  *
  * Edit vmod.vcc and run vmod.py instead
@@ -281,6 +280,7 @@ fh.write(plist)
 
 fc.write('#include "vrt.h"\n')
 fc.write('#include "vcc_if.h"\n')
+fc.write('#include "vmod_abi.h"\n')
 fc.write("\n");
 
 fc.write("\n");
@@ -307,5 +307,6 @@ fc.write("\n");
 
 fc.write('const char * const Vmod_Spec[] = {\n' + slist + '\t0\n};\n')
 
+fc.write('const char Vmod_Varnish_ABI[] = VMOD_ABI_Version;\n')
 fc.write("\n")
 
