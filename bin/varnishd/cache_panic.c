@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #ifndef HAVE_EXECINFO_H
 #include "compat/execinfo.h"
@@ -56,6 +57,7 @@
  */
 
 static struct vsb vsps, *vsp;
+static pthread_mutex_t panicstr_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 /*--------------------------------------------------------------------*/
 
@@ -240,6 +242,17 @@ pan_sess(const struct sess *sp)
 	VSB_printf(vsp, "  restarts = %d, esi_level = %d\n",
 	    sp->restarts, sp->esi_level);
 
+	VSB_printf(vsp, "  flags = ");
+	if (sp->wrk->do_stream)	VSB_printf(vsp, " do_stream");
+	if (sp->wrk->do_gzip)	VSB_printf(vsp, " do_gzip");
+	if (sp->wrk->do_gunzip)	VSB_printf(vsp, " do_gunzip");
+	if (sp->wrk->do_esi)	VSB_printf(vsp, " do_esi");
+	if (sp->wrk->do_close)	VSB_printf(vsp, " do_close");
+	if (sp->wrk->is_gzip)	VSB_printf(vsp, " is_gzip");
+	if (sp->wrk->is_gunzip)	VSB_printf(vsp, " is_gunzip");
+	VSB_printf(vsp, "\n");
+	VSB_printf(vsp, "  bodystatus = %d\n", sp->wrk->body_status);
+
 	pan_ws(sp->ws, 2);
 	pan_http("req", sp->http, 2);
 
@@ -294,6 +307,9 @@ pan_ic(const char *func, const char *file, int line, const char *cond,
 	const char *q;
 	const struct sess *sp;
 
+	AZ(pthread_mutex_lock(&panicstr_mtx)); /* Won't be released,
+						  we're going to die
+						  anyway */
 	switch(xxx) {
 	case 3:
 		VSB_printf(vsp,

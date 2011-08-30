@@ -35,6 +35,18 @@
  *
  * We hold a single object reference for both data structures.
  *
+ * An attempted overview:
+ *
+ *	                        EXP_Ttl()      EXP_Grace()   EXP_Keep()
+ *				   |                |            |
+ *      entered                    v                v            |
+ *         |                       +--------------->+            |
+ *         v                       |      grace                  |
+ *         +---------------------->+                             |
+ *                  ttl            |                             v
+ *                                 +---------------------------->+
+ *                                     keep
+ *
  */
 
 #include "config.h"
@@ -68,6 +80,8 @@ EXP_Clr(struct exp *e)
 	e->ttl = -1;
 	e->grace = -1;
 	e->keep = -1;
+	e->age = 0;
+	e->entered = 0;
 }
 
 #define EXP_ACCESS(fld, low_val, extra)				\
@@ -93,8 +107,8 @@ EXP_ACCESS(grace, 0., )
 EXP_ACCESS(keep, 0.,)
 
 /*--------------------------------------------------------------------
- * Calculate when an object is out of ttl or grace, possibly constrained
- * by per-session limits.
+ * Calculate an objects effective keep, grace or ttl time, suitably
+ * adjusted for defaults and by per-session limits.
  */
 
 static double
@@ -131,7 +145,7 @@ EXP_Ttl(const struct sess *sp, const struct object *o)
 	r = o->exp.ttl;
 	if (sp != NULL && sp->exp.ttl > 0. && sp->exp.ttl < r)
 		r = sp->exp.ttl;
-	return (o->entered + r);
+	return (o->exp.entered + r);
 }
 
 /*--------------------------------------------------------------------
@@ -168,6 +182,8 @@ exp_insert(struct objcore *oc, struct lru *lru)
 	CHECK_OBJ_NOTNULL(oc, OBJCORE_MAGIC);
 	CHECK_OBJ_NOTNULL(lru, LRU_MAGIC);
 
+	Lck_AssertHeld(&lru->mtx);
+	Lck_AssertHeld(&exp_mtx);
 	assert(oc->timer_idx == BINHEAP_NOIDX);
 	binheap_insert(exp_heap, oc);
 	assert(oc->timer_idx != BINHEAP_NOIDX);
@@ -214,8 +230,8 @@ EXP_Insert(struct object *o)
 	AssertObjBusy(o);
 	HSH_Ref(oc);
 
-	assert(o->entered != 0 && !isnan(o->entered));
-	o->last_lru = o->entered;
+	assert(o->exp.entered != 0 && !isnan(o->exp.entered));
+	o->last_lru = o->exp.entered;
 
 	lru = oc_getlru(oc);
 	CHECK_OBJ_NOTNULL(lru, LRU_MAGIC);
@@ -322,6 +338,7 @@ exp_timer(struct sess *sp, void *priv)
 	struct objcore *oc;
 	struct lru *lru;
 	double t;
+	struct object *o;
 
 	(void)priv;
 	t = TIM_real();
@@ -385,6 +402,9 @@ exp_timer(struct sess *sp, void *priv)
 		VSC_C_main->n_expired++;
 
 		CHECK_OBJ_NOTNULL(oc->objhead, OBJHEAD_MAGIC);
+		o = oc_getobj(sp->wrk, oc);
+		WSL(sp->wrk, SLT_ExpKill, 0, "%u %.0f",
+		    o->xid, EXP_Ttl(NULL, o) - t);
 		(void)HSH_Deref(sp->wrk, oc, NULL);
 	}
 	NEEDLESS_RETURN(NULL);

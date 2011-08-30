@@ -81,10 +81,6 @@ The following options are available:
 
 -x tag      Exclude log entries with the specified tag.
 
-If the -o option was specified, an additional tag and regex may be
-specified to select only requests which generated a log entry with the
-given tag whose contents match the given regex.
-
 TAGS
 ====
 The following log entry tags are currently defined:
@@ -149,7 +145,7 @@ The following command line simply copies all log entries to a log file:::
 
 The following command line reads that same log file and displays requests for the front page:::
 
-    $ varnishlog -r /var/log/varnish.log -c -o RxURL '^/$'
+    $ varnishlog -r /var/log/varnish.log -c -m 'RxURL:^/$'
 
 SEE ALSO
 ========

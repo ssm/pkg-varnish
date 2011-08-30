@@ -97,6 +97,7 @@ struct director;
 struct object;
 struct objhead;
 struct objcore;
+struct busyobj;
 struct storage;
 struct workreq;
 struct vrt_backend;
@@ -143,12 +144,12 @@ enum step {
 struct ws {
 	unsigned		magic;
 #define WS_MAGIC		0x35fac554
+	unsigned		overflow;	/* workspace overflowed */
 	const char		*id;		/* identity */
 	char			*s;		/* (S)tart of buffer */
 	char			*f;		/* (F)ree pointer */
 	char			*r;		/* (R)eserved length */
 	char			*e;		/* (E)nd of buffer */
-	int			overflow;	/* workspace overflowed */
 };
 
 /*--------------------------------------------------------------------
@@ -166,18 +167,17 @@ struct http {
 	unsigned		magic;
 #define HTTP_MAGIC		0x6428b5c9
 
-	struct ws		*ws;
-
-	unsigned char		conds;		/* If-* headers present */
 	enum httpwhence		logtag;
-	int			status;
-	double			protover;
 
-	unsigned		shd;		/* Size of hd space */
+	struct ws		*ws;
 	txt			*hd;
 	unsigned char		*hdf;
 #define HDF_FILTER		(1 << 0)	/* Filtered by Connection */
-	unsigned		nhd;		/* Next free hd */
+	uint16_t		shd;		/* Size of hd space */
+	uint16_t		nhd;		/* Next free hd */
+	uint16_t		status;
+	uint8_t			protover;
+	uint8_t			conds;		/* If-* headers present */
 };
 
 /*--------------------------------------------------------------------
@@ -242,6 +242,8 @@ struct exp {
 	double			ttl;
 	double			grace;
 	double			keep;
+	double			age;
+	double			entered;
 };
 
 /*--------------------------------------------------------------------*/
@@ -282,6 +284,7 @@ struct worker {
 	struct objhead		*nobjhead;
 	struct objcore		*nobjcore;
 	struct waitinglist	*nwaitinglist;
+	struct busyobj		*nbusyobj;
 	void			*nhashpriv;
 	struct dstat		stats;
 
@@ -299,6 +302,7 @@ struct worker {
 	uint32_t		*wlb, *wlp, *wle;
 	unsigned		wlr;
 
+	/* Lookup stuff */
 	struct SHA256Context	*sha256ctx;
 
 	struct http_conn	htc[1];
@@ -307,8 +311,6 @@ struct worker {
 	struct http		*beresp;
 	struct http		*resp;
 
-	double			age;
-	double			entered;
 	struct exp		exp;
 
 	/* This is only here so VRT can find it */
@@ -416,6 +418,7 @@ struct objcore {
 	void			*priv;
 	unsigned		priv2;
 	struct objhead		*objhead;
+	struct busyobj		*busyobj;
 	double			timer_when;
 	unsigned		flags;
 #define OC_F_BUSY		(1<<1)
@@ -434,6 +437,7 @@ oc_getobj(struct worker *wrk, struct objcore *oc)
 {
 
 	CHECK_OBJ_NOTNULL(oc, OBJCORE_MAGIC);
+	AZ(oc->flags & OC_F_BUSY);
 	AN(oc->methods);
 	AN(oc->methods->getobj);
 	return (oc->methods->getobj(wrk, oc));
@@ -469,7 +473,16 @@ oc_getlru(const struct objcore *oc)
 	return (oc->methods->getlru(oc));
 }
 
+/* Busy Object structure ---------------------------------------------*/
+
+struct busyobj {
+	unsigned		magic;
+#define BUSYOBJ_MAGIC		0x23b95567
+	uint8_t			*vary;
+};
+
 /* Object structure --------------------------------------------------*/
+
 VTAILQ_HEAD(storagehead, storage);
 
 struct object {
@@ -480,12 +493,13 @@ struct object {
 	struct objcore		*objcore;
 
 	struct ws		ws_o[1];
-	unsigned char		*vary;
 
-	unsigned		response;
+	uint8_t			*vary;
+	unsigned		hits;
+	uint16_t		response;
 
 	/* XXX: make bitmap */
-	unsigned		gziped;
+	uint8_t			gziped;
 	/* Bit positions in the gzip stream */
 	ssize_t			gzip_start;
 	ssize_t			gzip_last;
@@ -493,8 +507,6 @@ struct object {
 
 	ssize_t			len;
 
-	double			age;
-	double			entered;
 	struct exp		exp;
 
 	double			last_modified;
@@ -508,7 +520,6 @@ struct object {
 
 	double			last_use;
 
-	int			hits;
 };
 
 /* -------------------------------------------------------------------*/
@@ -551,6 +562,11 @@ struct sess {
 
 	unsigned char		digest[DIGEST_LEN];
 
+	/* Built Vary string */
+	uint8_t			*vary_b;
+	uint8_t			*vary_l;
+	uint8_t			*vary_e;
+
 	struct http_conn	htc[1];
 
 	/* Timestamps, all on TIM_real() timescale */
@@ -567,7 +583,7 @@ struct sess {
 	unsigned		handling;
 	unsigned char		sendbody;
 	unsigned char		wantbody;
-	int			err_code;
+	uint16_t		err_code;
 	const char		*err_reason;
 
 	VTAILQ_ENTRY(sess)	list;
@@ -723,21 +739,21 @@ int VGZ_WrwGunzip(const struct sess *, struct vgz *, const void *ibuf,
 /* cache_http.c */
 unsigned HTTP_estimate(unsigned nhttp);
 void HTTP_Copy(struct http *to, const struct http * const fm);
-struct http *HTTP_create(void *p, unsigned nhttp);
+struct http *HTTP_create(void *p, uint16_t nhttp);
 const char *http_StatusMessage(unsigned);
-unsigned http_EstimateWS(const struct http *fm, unsigned how, unsigned *nhd);
+unsigned http_EstimateWS(const struct http *fm, unsigned how, uint16_t *nhd);
 void HTTP_Init(void);
 void http_ClrHeader(struct http *to);
 unsigned http_Write(struct worker *w, const struct http *hp, int resp);
 void http_CopyResp(struct http *to, const struct http *fm);
-void http_SetResp(struct http *to, const char *proto, int status,
+void http_SetResp(struct http *to, const char *proto, uint16_t status,
     const char *response);
 void http_FilterFields(struct worker *w, int fd, struct http *to,
     const struct http *fm, unsigned how);
 void http_FilterHeader(const struct sess *sp, unsigned how);
 void http_PutProtocol(struct worker *w, int fd, const struct http *to,
     const char *protocol);
-void http_PutStatus(struct http *to, int status);
+void http_PutStatus(struct http *to, uint16_t status);
 void http_PutResponse(struct worker *w, int fd, const struct http *to,
     const char *response);
 void http_PrintfHeader(struct worker *w, int fd, struct http *to,
@@ -752,11 +768,11 @@ int http_GetHdrData(const struct http *hp, const char *hdr,
 int http_GetHdrField(const struct http *hp, const char *hdr,
     const char *field, char **ptr);
 double http_GetHdrQ(const struct http *hp, const char *hdr, const char *field);
-int http_GetStatus(const struct http *hp);
+uint16_t http_GetStatus(const struct http *hp);
 const char *http_GetReq(const struct http *hp);
 int http_HdrIs(const struct http *hp, const char *hdr, const char *val);
-int http_DissectRequest(struct sess *sp);
-int http_DissectResponse(struct worker *w, const struct http_conn *htc,
+uint16_t http_DissectRequest(struct sess *sp);
+uint16_t http_DissectResponse(struct worker *w, const struct http_conn *htc,
     struct http *sp);
 const char *http_DoConnection(const struct http *hp);
 void http_CopyHome(struct worker *w, int fd, const struct http *hp);
@@ -873,7 +889,7 @@ void WSL_Flush(struct worker *w, int overflow);
 #endif
 
 /* cache_response.c */
-void RES_BuildHttp(struct sess *sp);
+void RES_BuildHttp(const struct sess *sp);
 void RES_WriteObj(struct sess *sp);
 void RES_StreamStart(struct sess *sp);
 void RES_StreamEnd(struct sess *sp);
@@ -881,7 +897,7 @@ void RES_StreamPoll(const struct sess *sp);
 
 /* cache_vary.c */
 struct vsb *VRY_Create(const struct sess *sp, const struct http *hp);
-int VRY_Match(const struct sess *sp, const unsigned char *vary);
+int VRY_Match(struct sess *sp, const uint8_t *vary);
 
 /* cache_vcl.c */
 void VCL_Init(void);
@@ -918,9 +934,10 @@ char *WS_Snapshot(struct ws *ws);
 unsigned WS_Free(const struct ws *ws);
 
 /* rfc2616.c */
-double RFC2616_Ttl(const struct sess *sp);
+void RFC2616_Ttl(const struct sess *sp);
 enum body_status RFC2616_Body(const struct sess *sp);
 unsigned RFC2616_Req_Gzip(const struct sess *sp);
+int RFC2616_Do_Cond(const struct sess *sp);
 
 /* storage_synth.c */
 struct vsb *SMS_Makesynth(struct object *obj);
@@ -988,8 +1005,8 @@ AssertObjBusy(const struct object *o)
 }
 
 static inline void
-AssertObjPassOrBusy(const struct object *o)
+AssertObjCorePassOrBusy(const struct objcore *oc)
 {
-	if (o->objcore != NULL)
-		AN (o->objcore->flags & OC_F_BUSY);
+	if (oc != NULL)
+		AN (oc->flags & OC_F_BUSY);
 }

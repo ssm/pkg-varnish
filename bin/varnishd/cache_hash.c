@@ -111,6 +111,11 @@ HSH_Prealloc(const struct sess *sp)
 	}
 	CHECK_OBJ_NOTNULL(w->nwaitinglist, WAITINGLIST_MAGIC);
 
+	if (w->nbusyobj == NULL) {
+		ALLOC_OBJ(w->nbusyobj, BUSYOBJ_MAGIC);
+		XXXAN(w->nbusyobj);
+	}
+
 	if (hash->prep != NULL)
 		hash->prep(sp);
 }
@@ -138,6 +143,10 @@ HSH_Cleanup(struct worker *w)
 		/* XXX: If needed, add slinger method for this */
 		free(w->nhashpriv);
 		w->nhashpriv = NULL;
+	}
+	if (w->nbusyobj != NULL) {
+		FREE_OBJ(w->nbusyobj);
+		w->nbusyobj = NULL;
 	}
 }
 
@@ -342,8 +351,15 @@ HSH_Lookup(struct sess *sp, struct objhead **poh)
 		assert(oc->objhead == oh);
 
 		if (oc->flags & OC_F_BUSY) {
-			if (!sp->hash_ignore_busy)
-				busy_oc = oc;
+			CHECK_OBJ_NOTNULL(oc->busyobj, BUSYOBJ_MAGIC);
+			if (sp->hash_ignore_busy)
+				continue;
+
+			if (oc->busyobj->vary != NULL &&
+			    !VRY_Match(sp, oc->busyobj->vary))
+				continue;
+
+			busy_oc = oc;
 			continue;
 		}
 
@@ -367,9 +383,9 @@ HSH_Lookup(struct sess *sp, struct objhead **poh)
 		 */
 		if (EXP_Grace(sp, o) >= sp->t_req) {
 			if (grace_oc == NULL ||
-			    grace_ttl < o->entered + o->exp.ttl) {
+			    grace_ttl < o->exp.entered + o->exp.ttl) {
 				grace_oc = oc;
-				grace_ttl = o->entered + o->exp.ttl;
+				grace_ttl = o->exp.entered + o->exp.ttl;
 			}
 		}
 	}
@@ -445,6 +461,10 @@ HSH_Lookup(struct sess *sp, struct objhead **poh)
 	AN(oc->flags & OC_F_BUSY);
 	oc->refcnt = 1;
 
+	w->nbusyobj->vary = sp->vary_b;
+	oc->busyobj = w->nbusyobj;
+	w->nbusyobj = NULL;
+
 	/*
 	 * Busy objects go on the tail, so they will not trip up searches.
 	 * HSH_Unbusy() will move them to the front.
@@ -470,8 +490,6 @@ hsh_rush(struct objhead *oh)
 	CHECK_OBJ_NOTNULL(oh, OBJHEAD_MAGIC);
 	Lck_AssertHeld(&oh->mtx);
 	wl = oh->waitinglist;
-	if (wl == NULL)
-		return;
 	CHECK_OBJ_NOTNULL(wl, WAITINGLIST_MAGIC);
 	for (u = 0; u < params->rush_exponent; u++) {
 		sp = VTAILQ_FIRST(&wl->list);
@@ -570,7 +588,7 @@ HSH_Drop(struct sess *sp)
 	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
 	o = sp->obj;
 	CHECK_OBJ_NOTNULL(o, OBJECT_MAGIC);
-	AssertObjPassOrBusy(o);
+	AssertObjCorePassOrBusy(o->objcore);
 	o->exp.ttl = -1.;
 	if (o->objcore != NULL)		/* Pass has no objcore */
 		HSH_Unbusy(sp);
@@ -594,7 +612,6 @@ HSH_Unbusy(const struct sess *sp)
 
 	AssertObjBusy(o);
 	AN(oc->ban);
-	assert(oc_getobj(sp->wrk, oc) == o);
 	assert(oc->refcnt > 0);
 	assert(oh->refcnt > 0);
 	if (o->ws_o->overflow)
@@ -610,9 +627,14 @@ HSH_Unbusy(const struct sess *sp)
 	VTAILQ_REMOVE(&oh->objcs, oc, list);
 	VTAILQ_INSERT_HEAD(&oh->objcs, oc, list);
 	oc->flags &= ~OC_F_BUSY;
-	hsh_rush(oh);
+	AZ(sp->wrk->nbusyobj);
+	sp->wrk->nbusyobj = oc->busyobj;
+	oc->busyobj = NULL;
+	if (oh->waitinglist != NULL)
+		hsh_rush(oh);
 	AN(oc->ban);
 	Lck_Unlock(&oh->mtx);
+	assert(oc_getobj(sp->wrk, oc) == o);
 }
 
 void
@@ -686,7 +708,7 @@ HSH_Deref(struct worker *w, struct objcore *oc, struct object **oo)
 		/* Must have an object */
 		AN(oc->methods);
 	}
-	if (oc->flags & OC_F_BUSY)
+	if (oh->waitinglist != NULL)
 		hsh_rush(oh);
 	Lck_Unlock(&oh->mtx);
 	if (r != 0)
@@ -694,6 +716,16 @@ HSH_Deref(struct worker *w, struct objcore *oc, struct object **oo)
 
 	BAN_DestroyObj(oc);
 	AZ(oc->ban);
+
+	if (oc->flags & OC_F_BUSY) {
+		CHECK_OBJ_NOTNULL(oc->busyobj, BUSYOBJ_MAGIC);
+		if (w->nbusyobj == NULL)
+			w->nbusyobj = oc->busyobj;
+		else
+			FREE_OBJ(oc->busyobj);
+		oc->busyobj = NULL;
+	}
+	AZ(oc->busyobj);
 
 	if (oc->methods != NULL) {
 		oc_freeobj(oc);

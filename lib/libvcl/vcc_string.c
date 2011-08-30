@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2006 Verdens Gang AS
- * Copyright (c) 2006-2010 Varnish Software AS
+ * Copyright (c) 2006-2011 Varnish Software AS
  * All rights reserved.
  *
  * Author: Poul-Henning Kamp <phk@phk.freebsd.dk>
@@ -63,7 +63,7 @@ vcc_regexp(struct vcc *tl)
 		return (NULL);
 	}
 	VRE_free(&t);
-	sprintf(buf, "VGC_re_%u", tl->recnt++);
+	sprintf(buf, "VGC_re_%u", tl->unique++);
 	p = TlAlloc(tl, strlen(buf) + 1);
 	strcpy(p, buf);
 

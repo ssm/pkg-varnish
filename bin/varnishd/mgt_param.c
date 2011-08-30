@@ -522,7 +522,7 @@ static const struct parspec input_parspec[] = {
 		"Maximum length of any HTTP client request header we will "
 		"allow.  The limit is inclusive its continuation lines.\n",
 		0,
-		"2048", "bytes" },
+		"4096", "bytes" },
 	{ "http_req_size", tweak_uint, &master.http_req_size,
 		256, UINT_MAX,
 		"Maximum number of bytes of HTTP client request we will deal "
@@ -538,7 +538,7 @@ static const struct parspec input_parspec[] = {
 		"Maximum length of any HTTP backend response header we will "
 		"allow.  The limit is inclusive its continuation lines.\n",
 		0,
-		"2048", "bytes" },
+		"4096", "bytes" },
 	{ "http_resp_size", tweak_uint, &master.http_resp_size,
 		256, UINT_MAX,
 		"Maximum number of bytes of HTTP backend resonse we will deal "
@@ -549,7 +549,7 @@ static const struct parspec input_parspec[] = {
 		"how much of that the request is allowed to take up.",
 		0,
 		"32768", "bytes" },
-	{ "http_max_hdr", tweak_uint, &master.http_max_hdr, 32, UINT_MAX,
+	{ "http_max_hdr", tweak_uint, &master.http_max_hdr, 32, 65535,
 		"Maximum number of HTTP headers we will deal with in "
 		"client request or backend reponses.  "
 		"Note that the first line occupies five header fields.\n"
@@ -617,6 +617,12 @@ static const struct parspec input_parspec[] = {
 		"Restart child process automatically if it dies.\n",
 		0,
 		"on", "bool" },
+	{ "nuke_limit",
+		tweak_uint, &master.nuke_limit, 0, UINT_MAX,
+		"Maximum number of objects we attempt to nuke in order"
+		"to make space for a object body.",
+		EXPERIMENTAL,
+		"10", "allocations" },
 	{ "fetch_chunksize",
 		tweak_uint, &master.fetch_chunksize, 4, UINT_MAX / 1024.,
 		"The default chunksize used by fetcher. "
@@ -887,6 +893,16 @@ static const struct parspec input_parspec[] = {
 		"Gzip compression level: 0=debug, 1=fast, 9=best",
 		0,
 		"6", ""},
+	{ "gzip_window", tweak_uint, &master.gzip_window, 8, 15,
+		"Gzip window size 8=least, 15=most compression.\n"
+		"Memory impact is 8=1k, 9=2k, ... 15=128k.",
+		0,
+		"15", ""},
+	{ "gzip_memlevel", tweak_uint, &master.gzip_memlevel, 1, 9,
+		"Gzip memory level 1=slow/least, 9=fast/most compression.\n"
+		"Memory impact is 1=1k, 2=2k, ... 9=256k.",
+		0,
+		"8", ""},
 	{ "gzip_stack_buffer", tweak_uint, &master.gzip_stack_buffer,
 	        2048, UINT_MAX,
 		"Size of stack buffer used for gzip processing.\n"
@@ -1137,8 +1153,6 @@ MCF_ParamInit(struct cli *cli)
 
 /*--------------------------------------------------------------------*/
 
-#ifdef DIAGNOSTICS
-
 void
 MCF_DumpRst(void)
 {
@@ -1151,7 +1165,8 @@ MCF_DumpRst(void)
 		printf("%s\n", pp->name);
 		if (pp->units != NULL && *pp->units != '\0')
 			printf("\t- Units: %s\n", pp->units);
-		printf("\t- Default: %s\n", strcmp(pp->def,MAGIC_INIT_STRING) == 0 ? "magic" : pp->def);
+		printf("\t- Default: %s\n",
+		    strcmp(pp->def,MAGIC_INIT_STRING) == 0 ? "magic" : pp->def);
 		/*
 		 * XXX: we should mark the params with one/two flags
 		 * XXX: that say if ->min/->max are valid, so we
@@ -1188,7 +1203,10 @@ MCF_DumpRst(void)
 			} else if (*p == '\n') {
 				printf("\n\t");
 			} else if (*p == ':' && p[1] == '\n') {
-				/* Start of definition list, use RSTs code mode for this */
+				/*
+				 * Start of definition list,
+				 * use RSTs code mode for this
+				 */
 				printf("::\n");
 			} else {
 				printf("%c", *p);
@@ -1198,4 +1216,3 @@ MCF_DumpRst(void)
 	}
 	printf("\n");
 }
-#endif /* DIAGNOSTICS */

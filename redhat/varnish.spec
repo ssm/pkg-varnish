@@ -1,12 +1,12 @@
 Summary: High-performance HTTP accelerator
 Name: varnish
-Version: 3.0.0
+Version: 3.0.1
 Release: 1%{?dist}
 License: BSD
 Group: System Environment/Daemons
 URL: http://www.varnish-cache.org/
 #Source0: http://repo.varnish-cache.org/source/%{name}-%{version}.tar.gz
-Source0: %{name}-3.0.0-beta2.tar.gz
+Source0: %{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 # To build from git, start with a make dist, see redhat/README.redhat 
 # You will need at least automake autoconf libtool python-docutils
@@ -72,7 +72,7 @@ Documentation files for %name
 
 %prep
 #%setup -q
-%setup -q -n varnish-3.0.0-beta2
+%setup -q -n varnish-%{version}
 
 mkdir examples
 cp bin/varnishd/default.vcl etc/zope-plone.vcl examples
@@ -110,7 +110,7 @@ EOF
 
 tail -n +11 etc/default.vcl >> redhat/default.vcl
 
-%if 0%{?fedora}%{?rhel} == 0 || 0%{?rhel} <= 4 && 0%{?fedora} <= 8
+%if 0%{?fedora}%{?rhel} != 0 && 0%{?rhel} <= 4 && 0%{?fedora} <= 8
 	# Old style daemon function
 	sed -i 's,--pidfile \$pidfile,,g;
 		s,status -p \$pidfile,status,g;

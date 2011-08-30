@@ -68,8 +68,7 @@ The following options are available:
 	         Remote host
 
 	      %{X}i
-	         The contents of header line X.  Supported headers are
-	         *Referer*, *Host*, *X-Forwarded-For* and *User-agent*.
+	         The contents of request header line X.
 
 	      %l
 	         Remote logname (always '-')
@@ -79,6 +78,9 @@ The following options are available:
 
 	      %q
 	         The query string, if no query string exists, an empty string.
+
+	      %{X}o
+	         The contents of response header line X.
 
 	      %r
 	         The first line of the request

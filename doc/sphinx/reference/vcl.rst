@@ -62,7 +62,9 @@ depending on context one of
 * error
 * fetch
 * hash
+* hit_for_pass
 * lookup
+* ok
 * pass
 * pipe
 * restart
@@ -71,9 +73,6 @@ Please see the list of subroutines to see what return actions are
 available where.
 
 VCL has if tests, but no loops.
-
-You may log arbitrary strings to the shared memory log with the
-keyword *log*.
 
 The contents of another VCL file may be inserted at any point in the
 code by using the *include* keyword followed by the name of the other
@@ -115,8 +114,8 @@ These can be set in the declaration like this:::
   }
 
 To mark a backend as unhealthy after number of items have been added
-to it's saintmode list .saintmode_threshold can be set to the maximum
-list size. Setting a value of 0 disables saintmode checking entirely
+to its saintmode list ``.saintmode_threshold`` can be set to the maximum
+list size. Setting a value of 0 disables saint mode checking entirely
 for that backend.  The value in the backend declaration overrides the
 parameter.
 
@@ -224,6 +223,22 @@ The above example will append "internal.example.net" to the incoming Host
 header supplied by the client, before looking it up. All settings are
 optional.
 
+The fallback director
+~~~~~~~~~~~~~~~~~~~~~
+
+The fallback director will pick the first backend that is healthy. It 
+considers them in the order in which they are listed in its definition.
+
+The fallback director does not take any options.
+
+An example of a fallback director::
+
+  director b3 fallback {
+    { .backend = www1; }
+    { .backend = www2; } // will only be used if www1 is unhealthy.
+    { .backend = www3; } // will only be used if both www1 and www2
+                         // are unhealthy.
+  }
 
 Backend probes
 --------------
@@ -236,7 +251,8 @@ us to consider the backend healthy.  .initial is how many of the
 probes are considered good when Varnish starts - defaults to the same
 amount as the threshold.
 
-A backend with a probe can be defined like this:::
+A backend with a probe can be defined like this, together with the
+backend or director:::
 
   backend www {
     .host = "www.example.com";
@@ -250,18 +266,34 @@ A backend with a probe can be defined like this:::
     }
   }
 
-It is also possible to specify the raw HTTP request::
+Or it can be defined separately and then referenced:::
+
+  probe healthcheck {
+     .url = "/status.cgi";
+     .interval = 60s;     
+     .timeout = 0.3 s;
+     .window = 8;
+     .threshold = 3;
+     .initial = 3;
+  }	
 
   backend www {
     .host = "www.example.com";
     .port = "http";
-    .probe = {
+    .probe = healthcheck;
+  }
+
+If you have many backends this can simplify the config a lot.
+
+
+It is also possible to specify the raw HTTP request::
+
+  probe rawprobe {
       # NB: \r\n automatically inserted after each string!
       .request =
         "GET / HTTP/1.1"
         "Host: www.foo.bar"
         "Connection: close";
-    }
   }
 
 ACLs
@@ -351,6 +383,15 @@ and various other aspects of each request, and to a certain extent
 decide how the request should be handled.  Each subroutine terminates
 by calling one of a small number of keywords which indicates the
 desired outcome.
+
+vcl_init
+  Called when VCL is loaded, before any requests pass through it.
+  Typically used to initialize VMODs.
+
+  return() values:
+
+  ok
+    Normal return, VCL continues loading.
 
 vcl_recv
   Called at the beginning of a request, after the complete request has
@@ -471,8 +512,12 @@ vcl_fetch
   error code [reason]
     Return the specified error code to the client and abandon the request.
 
-  pass
-    Switch to pass mode.  Control will eventually pass to vcl_pass.
+  hit_for_pass
+    Pass in fetch. This will create a hit_for_pass object. Note that
+    the TTL for the hit_for_pass object will be set to what the
+    current value of beresp.ttl. Control will be handled to
+    vcl_deliver on the current request, but subsequent requests will
+    go directly to vcl_pass based on the hit_for_pass object.
 
   restart
     Restart the transaction. Increases the restart counter. If the number 
@@ -510,6 +555,16 @@ vcl_error
     Restart the transaction. Increases the restart counter. If the number 
     of restarts is higher than *max_restarts* varnish emits a guru meditation 
     error.
+
+vcl_fini
+  Called when VCL is discarded only after all requests have exited the VCL.
+  Typically used to clean up VMODs.
+
+  return() values:
+
+  ok
+    Normal return, VCL will be discarded.
+
 
 If one of these subroutines is left undefined or terminates without
 reaching a handling decision, control will be handed over to the
@@ -647,6 +702,12 @@ The following variables are available after the requested object has
 been retrieved from the backend, before it is entered into the cache. In
 other words, they are available in vcl_fetch:
 
+beresp.do_stream 
+  Deliver the object to the client directly without fetching the whole
+  object into varnish. If this request is pass'ed it will not be
+  stored in memory. As of Varnish Cache 3.0 the object will marked as busy
+  as it is delivered so only client can access the object.
+
 beresp.do_esi
   Boolean. ESI-process the object after fetching it. Defaults to false. Set it
   to true to parse the object for ESI directives.
@@ -667,15 +728,6 @@ beresp.status
 beresp.response
   The HTTP status message returned by the server.
 
-beresp.cacheable
-  True if the request resulted in a cacheable response. A response is
-  considered cacheable if HTTP status code is 200, 203, 300, 301, 302,
-  404 or 410 and pass wasn't called in vcl_recv. If however, both the
-  TTL and the grace time for the response are 0 beresp.cacheable will
-  be 0.
-  
-  beresp.cacheable is writable.
-
 beresp.ttl
   The object's remaining time to live, in seconds. beresp.ttl is writable.
 
@@ -691,10 +743,6 @@ obj.status
 
 obj.response
   The HTTP status message returned by the server.
-
-obj.cacheable
-  True if the object had beresp.cacheable. Unless you've forced delivery
-  in your VCL obj.cacheable will always be true.
 
 obj.ttl
   The object's remaining time to live, in seconds. obj.ttl is writable.
@@ -819,9 +867,11 @@ based on the request URL:::
   default_ttl run-time parameter, as that only affects document for
   which the backend did not specify a TTL:::
   
+  import std; # needed for std.log
+
   sub vcl_fetch {
     if (beresp.ttl < 120s) {
-      log "Adjusting TTL";
+      std.log("Adjusting TTL");
       set beresp.ttl = 120s;
     }
   }
@@ -876,14 +926,15 @@ SEE ALSO
 ========
 
 * varnishd(1)
+* vmod_std(7)
 
 HISTORY
 =======
 
-The VCL language was developed by Poul-Henning Kamp in cooperation
-with Verdens Gang AS, Varnish Software AS and Varnish Software.  This manual
-page was written by Dag-Erling Smørgrav and later edited by
-Poul-Henning Kamp and Per Buer.
+VCL was developed by Poul-Henning Kamp in cooperation with Verdens
+Gang AS, Redpill Linpro and Varnish Software.  This manual page was
+written by Dag-Erling Smørgrav and later edited by Poul-Henning Kamp
+and Per Buer.
 
 COPYRIGHT
 =========

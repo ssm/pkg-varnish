@@ -83,7 +83,7 @@ emit_sockaddr(struct vcc *tl, void *sa, unsigned sal)
 	AN(sal);
 	assert(sal < 256);
 	Fh(tl, 0, "\nstatic const unsigned char sockaddr%u[%d] = {\n",
-	    tl->nsockaddr, sal + 1);
+	    tl->unique, sal + 1);
 	Fh(tl, 0, "    %3u, /* Length */\n",  sal);
 	u = sa;
 	for (len = 0; len <sal; len++) {
@@ -96,7 +96,7 @@ emit_sockaddr(struct vcc *tl, void *sa, unsigned sal)
 			Fh(tl, 0, "\n");
 	}
 	Fh(tl, 0, "\n};\n");
-	return (tl->nsockaddr++);
+	return (tl->unique++);
 }
 
 /*--------------------------------------------------------------------
@@ -208,44 +208,6 @@ Emit_Sockaddr(struct vcc *tl, const struct token *t_host, const char *port)
 		    PF(t_host) );
 		vcc_ErrWhere(tl, t_host);
 	}
-}
-
-/*--------------------------------------------------------------------
- * When a new VCL is loaded, it is likely to contain backend declarations
- * identical to other loaded VCL programs, and we want to reuse the state
- * of those in order to not have to relearn statistics, DNS etc.
- *
- * This function emits a space separated text-string of the tokens which
- * define a given backend which can be used to determine "identical backend"
- * in that context.
- */
-
-void
-vcc_EmitBeIdent(const struct vcc *tl, struct vsb *v,
-    int serial, const struct token *first, const struct token *last)
-{
-
-	assert(first != last);
-	VSB_printf(v, "\t.ident =");
-	if (serial >= 0) {
-		VSB_printf(v, "\n\t    \"%.*s %.*s [%d] \"",
-		    PF(tl->t_policy), PF(tl->t_dir), serial);
-	} else {
-		VSB_printf(v, "\n\t    \"%.*s %.*s \"",
-		    PF(tl->t_policy), PF(tl->t_dir));
-	}
-	while (1) {
-		if (first->dec != NULL)
-			VSB_printf(v, "\n\t    \"\\\"\" %.*s \"\\\" \"",
-			    PF(first));
-		else
-			VSB_printf(v, "\n\t    \"%.*s \"", PF(first));
-		if (first == last)
-			break;
-		first = VTAILQ_NEXT(first, list);
-		AN(first);
-	}
-	VSB_printf(v, ",\n");
 }
 
 /*--------------------------------------------------------------------
@@ -691,7 +653,7 @@ vcc_DefBackend(struct vcc *tl, const struct token *nm)
 		VSB_printf(tl->sb, "Backend %.*s redefined\n", PF(tl->t));
 		vcc_ErrWhere(tl, nm);
 		return;
-	} 
+	}
 	sym->fmt = BACKEND;
 	sym->eval = vcc_Eval_Backend;
 	sym->ndef++;
@@ -733,6 +695,7 @@ static const struct dirlist {
 	{ "random",		vcc_ParseRandomDirector },
 	{ "client",		vcc_ParseRandomDirector },
 	{ "round-robin",	vcc_ParseRoundRobinDirector },
+	{ "fallback",		vcc_ParseRoundRobinDirector },
 	{ "dns",		vcc_ParseDnsDirector },
 	{ NULL,		NULL }
 };
