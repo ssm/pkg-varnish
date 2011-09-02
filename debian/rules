@@ -7,7 +7,7 @@ BUILD_TEST_ARCH_LIST := amd64 i386
 
 # List of architectures that lack the *_2POW definitions in varnish,
 # which is needed by jemalloc
-DISABLE_JEMALLOC_ARCH_LIST := :hppa:s390:sparc:m68k:
+DISABLE_JEMALLOC_ARCH_LIST := hppa s390 sparc m68k
 
 # Explicitly initialize a variable to select architecture, unless it has been
 # defined before.  This is compared against the DISABLE_*_LIST variables later
@@ -17,7 +17,7 @@ DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
 # Set local state dir for FHS
 LOCAL_CONFIGURE_FLAGS = --localstatedir=/var/lib
 
-ifneq (,$(findstring :$(DEB_HOST_ARCH):,$(DISABLE_JEMALLOC_ARCH_LIST)))
+ifneq ($(filter $(DEB_HOST_ARCH),$(DISABLE_JEMALLOC_ARCH_LIST)),)
 LOCAL_CONFIGURE_FLAGS += --disable-jemalloc
 endif
 
