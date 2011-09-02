@@ -1,8 +1,10 @@
-varnish (3.0.1-1) UNRELEASED; urgency=low
+varnish (3.0.1-1) unstable; urgency=low
 
   * New upstrem release
+  * Do not run autogen.sh unless we need to
+  * Enable build tests on presumably sane architectures and buildbot hosts
 
- -- Stig Sandbeck Mathisen <ssm@debian.org>  Tue, 30 Aug 2011 15:13:17 +0200
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Fri, 02 Sep 2011 21:27:03 +0200
 
 varnish (3.0.0-5) unstable; urgency=low
 
