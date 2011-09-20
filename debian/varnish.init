@@ -86,6 +86,7 @@ reload_varnishd() {
 
 status_varnishd() {
     status_of_proc -p "${PIDFILE}" "${DAEMON}" "${NAME}"
+    exit $?
 }
 
 case "$1" in

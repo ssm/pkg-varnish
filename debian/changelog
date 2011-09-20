@@ -2,6 +2,8 @@ varnish (3.0.1-2) UNRELEASED; urgency=low
 
   * Make it possible to override DAEMON_OPTS for varnishlog and
     varnishncsa.
+  * Make /etc/init.d/varnish status exit with a sensible status code
+    rather than always being 0
 
  -- Tollef Fog Heen <tfheen@varnish-software.com>  Tue, 20 Sep 2011 10:43:51 +0200
 
