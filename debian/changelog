@@ -4,6 +4,7 @@ varnish (3.0.1-2) UNRELEASED; urgency=low
     varnishncsa.
   * Make /etc/init.d/varnish status exit with a sensible status code
     rather than always being 0
+  * Add missing options to reload-vcl to allow -C, -i, -M.
 
  -- Tollef Fog Heen <tfheen@varnish-software.com>  Tue, 20 Sep 2011 10:43:51 +0200
 
