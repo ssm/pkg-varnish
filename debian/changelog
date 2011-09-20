@@ -1,3 +1,10 @@
+varnish (3.0.1-2) UNRELEASED; urgency=low
+
+  * Make it possible to override DAEMON_OPTS for varnishlog and
+    varnishncsa.
+
+ -- Tollef Fog Heen <tfheen@varnish-software.com>  Tue, 20 Sep 2011 10:43:51 +0200
+
 varnish (3.0.1-1) unstable; urgency=low
 
   * New upstrem release

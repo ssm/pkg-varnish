@@ -20,6 +20,7 @@ DAEMON=/usr/bin/$NAME
 PIDFILE=/var/run/$NAME/$NAME.pid
 LOGFILE=/var/log/varnish/varnishncsa.log
 USER=varnishlog
+DAEMON_OPTS="-a -w ${LOGFILE} -D -P $PIDFILE}"
 
 # Include defaults if available
 if [ -f /etc/default/$NAME ] ; then
@@ -34,8 +35,6 @@ if [ -z "${VARNISHNCSA_ENABLED}" ] || \
 fi
 
 test -x $DAEMON || exit 0
-
-DAEMON_OPTS="-a -c -w ${LOGFILE} -D -P $PIDFILE"
 
 start_varnishncsa() {
     output=$(/bin/tempfile -s.varnish)
