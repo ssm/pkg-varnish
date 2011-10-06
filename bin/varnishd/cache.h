@@ -66,13 +66,22 @@
 #include "vsl.h"
 
 enum body_status {
-	BS_NONE,
-	BS_ZERO,
-	BS_ERROR,
-	BS_CHUNKED,
-	BS_LENGTH,
-	BS_EOF
+#define BODYSTATUS(U,l)	BS_##U,
+#include "body_status.h"
+#undef BODYSTATUS
 };
+
+static inline const char *
+body_status(enum body_status e)
+{
+	switch(e) {
+#define BODYSTATUS(U,l)	case BS_##U: return (#l);
+#include "body_status.h"
+#undef BODYSTATUS
+	default:
+		return ("?");
+	}
+}
 
 /*
  * NB: HDR_STATUS is only used in cache_http.c, everybody else uses the
@@ -194,6 +203,7 @@ struct http_conn {
 	struct ws		*ws;
 	txt			rxbuf;
 	txt			pipeline;
+	const char		*error;
 };
 
 /*--------------------------------------------------------------------*/
@@ -208,8 +218,8 @@ struct acct {
 /*--------------------------------------------------------------------*/
 
 #define L0(n)
-#define L1(n)			int n;
-#define VSC_F(n, t, l, f, e)	L##l(n)
+#define L1(n)			uint64_t n;
+#define VSC_F(n, t, l, f, e,d)	L##l(n)
 #define VSC_DO_MAIN
 struct dstat {
 #include "vsc_fields.h"
@@ -353,6 +363,8 @@ struct worker {
 #define RES_ESI_CHILD		(1<<5)
 #define RES_GUNZIP		(1<<6)
 
+	/* Temporary accounting */
+	struct acct		acct_tmp;
 };
 
 /* Work Request for worker thread ------------------------------------*/
@@ -601,7 +613,6 @@ struct sess {
 	struct sessmem		*mem;
 
 	struct workreq		workreq;
-	struct acct		acct_tmp;
 	struct acct		acct_req;
 	struct acct		acct_ses;
 
@@ -898,6 +909,7 @@ void RES_StreamPoll(const struct sess *sp);
 /* cache_vary.c */
 struct vsb *VRY_Create(const struct sess *sp, const struct http *hp);
 int VRY_Match(struct sess *sp, const uint8_t *vary);
+void VRY_Validate(const uint8_t *vary);
 
 /* cache_vcl.c */
 void VCL_Init(void);

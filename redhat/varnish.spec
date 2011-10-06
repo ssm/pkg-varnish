@@ -1,12 +1,15 @@
+%define v_rc rc1
+%define vd_rc %{?v_rc:-%{?v_rc}}
+
 Summary: High-performance HTTP accelerator
 Name: varnish
-Version: 3.0.1
-Release: 1%{?dist}
+Version: 3.0.2
+Release: 0.%{?v_rc}%{?dist}
 License: BSD
 Group: System Environment/Daemons
 URL: http://www.varnish-cache.org/
 #Source0: http://repo.varnish-cache.org/source/%{name}-%{version}.tar.gz
-Source0: %{name}-%{version}.tar.gz
+Source0: %{name}-%{version}%{?vd_rc}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 # To build from git, start with a make dist, see redhat/README.redhat 
 # You will need at least automake autoconf libtool python-docutils
@@ -72,7 +75,7 @@ Documentation files for %name
 
 %prep
 #%setup -q
-%setup -q -n varnish-%{version}
+%setup -q -n varnish-%{version}%{?vd_rc}
 
 mkdir examples
 cp bin/varnishd/default.vcl etc/zope-plone.vcl examples
@@ -87,7 +90,7 @@ cp bin/varnishd/default.vcl etc/zope-plone.vcl examples
 # Remove "--disable static" if you want to build static libraries 
 # jemalloc is not compatible with Red Hat's ppc64 RHEL kernel :-(
 %ifarch ppc64 ppc
-	%configure --disable-static --localstatedir=/var/lib --disable-jemalloc
+	%configure --disable-static --localstatedir=/var/lib --without-jemalloc
 %else
 	%configure --disable-static --localstatedir=/var/lib
 %endif
