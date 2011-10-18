@@ -20,7 +20,7 @@ DAEMON=/usr/bin/$NAME
 PIDFILE=/var/run/$NAME/$NAME.pid
 LOGFILE=/var/log/varnish/varnishncsa.log
 USER=varnishlog
-DAEMON_OPTS="-a -w ${LOGFILE} -D -P $PIDFILE}"
+DAEMON_OPTS="-a -w ${LOGFILE} -D -P ${PIDFILE}"
 
 # Include defaults if available
 if [ -f /etc/default/$NAME ] ; then
