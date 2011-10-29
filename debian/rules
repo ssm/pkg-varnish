@@ -32,14 +32,7 @@ endif
 
 # Override to add local configure flags
 override_dh_auto_configure:
-ifeq  ($(wildcard Makefile.in),)
-	$(CURDIR)/autogen.sh
-endif
 	dh_auto_configure -- $(LOCAL_CONFIGURE_FLAGS)
-
-override_dh_auto_build:
-	dh_auto_build
-	$(MAKE) dist
 
 override_dh_auto_install:
 	dh_auto_install -a
