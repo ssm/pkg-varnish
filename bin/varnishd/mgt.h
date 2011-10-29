@@ -66,12 +66,17 @@ void mgt_cli_close_all(void);
 void MCF_ParamSync(void);
 void MCF_ParamInit(struct cli *);
 void MCF_ParamSet(struct cli *, const char *param, const char *val);
-#ifdef DIAGNOSTICS
 void MCF_DumpRst(void);
-#endif
 
 /* mgt_sandbox.c */
 void mgt_sandbox(void);
+
+/* mgt_sandbox_solaris.c */
+#ifdef HAVE_SETPPRIV
+void mgt_sandbox_solaris_init(void);
+void mgt_sandbox_solaris_fini(void);
+void mgt_sandbox_solaris_privsep(void);
+#endif
 
 /* mgt_shmem.c */
 void mgt_SHM_Init(const char *arg);

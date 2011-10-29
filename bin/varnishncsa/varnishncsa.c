@@ -31,7 +31,7 @@
  * Obtain log data from the shared memory log, order it by session ID, and
  * display it in Apache / NCSA combined log format:
  *
- *	%h %l %u %t "%r" %>s %b "%{Referer}i" "%{User-agent}i"
+ *	%h %l %u %t "%r" %s %b "%{Referer}i" "%{User-agent}i"
  *
  * where the fields are defined as follows:
  *
@@ -250,7 +250,7 @@ static int
 collect_backend(struct logline *lp, enum VSL_tag_e tag, unsigned spec,
     const char *ptr, unsigned len)
 {
-	const char *end, *next;
+	const char *end, *next, *split;
 
 	assert(spec & VSL_S_BACKEND);
 	end = ptr + len;
@@ -332,16 +332,17 @@ collect_backend(struct logline *lp, enum VSL_tag_e tag, unsigned spec,
 	case SLT_TxHeader:
 		if (!lp->active)
 			break;
+		split = strchr(ptr, ':');
+		if (split == NULL)
+			break;
 		if (isprefix(ptr, "authorization:", end, &next) &&
 		    isprefix(next, "basic", end, &next)) {
 			lp->df_u = trimline(next, end);
 		} else {
 			struct hdr *h;
-			const char *split;
 			size_t l;
 			h = malloc(sizeof(struct hdr));
 			AN(h);
-			split = strchr(ptr, ':');
 			AN(split);
 			l = strlen(split);
 			h->key = trimline(ptr, split-1);
@@ -369,7 +370,7 @@ static int
 collect_client(struct logline *lp, enum VSL_tag_e tag, unsigned spec,
     const char *ptr, unsigned len)
 {
-	const char *end, *next;
+	const char *end, *next, *split;
 	long l;
 	time_t t;
 
@@ -439,6 +440,9 @@ collect_client(struct logline *lp, enum VSL_tag_e tag, unsigned spec,
 	case SLT_RxHeader:
 		if (!lp->active)
 			break;
+		split = strchr(ptr, ':');
+		if (split == NULL)
+			break;
 		if (tag == SLT_RxHeader &&
 		    isprefix(ptr, "authorization:", end, &next) &&
 		    isprefix(next, "basic", end, &next)) {
@@ -446,10 +450,8 @@ collect_client(struct logline *lp, enum VSL_tag_e tag, unsigned spec,
 			lp->df_u = trimline(next, end);
 		} else {
 			struct hdr *h;
-			const char *split;
 			h = malloc(sizeof(struct hdr));
 			AN(h);
-			split = strchr(ptr, ':');
 			AN(split);
 			h->key = trimline(ptr, split);
 			h->value = trimline(split+1, end);
@@ -598,7 +600,7 @@ h_ncsa(void *priv, enum VSL_tag_e tag, unsigned fd,
 			break;
 
 		case 'H':
-			VSB_cat(os, lp->df_H);
+			VSB_cat(os, lp->df_H ? lp->df_H : "HTTP/1.0");
 			break;
 
 		case 'h':
@@ -612,7 +614,7 @@ h_ncsa(void *priv, enum VSL_tag_e tag, unsigned fd,
 			break;
 
 		case 'm':
-			VSB_cat(os, lp->df_m);
+			VSB_cat(os, lp->df_m ? lp->df_m : "-");
 			break;
 
 		case 'q':
@@ -624,24 +626,19 @@ h_ncsa(void *priv, enum VSL_tag_e tag, unsigned fd,
 			 * Fake "%r".  This would be a lot easier if Varnish
 			 * normalized the request URL.
 			 */
-			if (!lp->df_m ||
-			    !req_header(lp, "Host") ||
-			    !lp->df_U ||
-			    !lp->df_H) {
-				clean_logline(lp);
-				return (reopen);
-			}
-			VSB_cat(os, lp->df_m);
+			VSB_cat(os, lp->df_m ? lp->df_m : "-");
 			VSB_putc(os, ' ');
 			if (req_header(lp, "Host")) {
 				if (strncmp(req_header(lp, "Host"), "http://", 7) != 0)
 					VSB_cat(os, "http://");
 				VSB_cat(os, req_header(lp, "Host"));
+			} else {
+				VSB_cat(os, "http://localhost");
 			}
-			VSB_cat(os, lp->df_U);
+			VSB_cat(os, lp->df_U ? lp->df_U : "-");
 			VSB_cat(os, lp->df_q ? lp->df_q : "");
 			VSB_putc(os, ' ');
-			VSB_cat(os, lp->df_H);
+			VSB_cat(os, lp->df_H ? lp->df_H : "HTTP/1.0");
 			break;
 
 		case 's':
@@ -656,7 +653,7 @@ h_ncsa(void *priv, enum VSL_tag_e tag, unsigned fd,
 			break;
 
 		case 'U':
-			VSB_cat(os, lp->df_U);
+			VSB_cat(os, lp->df_U ? lp->df_U : "-");
 			break;
 
 		case 'u':
@@ -714,7 +711,7 @@ h_ncsa(void *priv, enum VSL_tag_e tag, unsigned fd,
 					VSB_cat(os, (lp->df_hitmiss ? lp->df_hitmiss : "-"));
 					p = tmp;
 					break;
-				} else if (strcmp(fname, "handling") == 0) {
+				} else if (strcmp(fname, "Varnish:handling") == 0) {
 					VSB_cat(os, (lp->df_handling ? lp->df_handling : "-"));
 					p = tmp;
 					break;

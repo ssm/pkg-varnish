@@ -522,7 +522,8 @@ http_dissect_hdrs(struct worker *w, struct http *hp, int fd, char *p,
 
 		if (q - p > htc->maxhdr) {
 			VSC_C_main->losthdr++;
-			WSL(w, SLT_LostHeader, fd, "%.*s", q - p, p);
+			WSL(w, SLT_LostHeader, fd, "%.*s",
+			    q - p > 20 ? 20 : q - p, p);
 			return (413);
 		}
 
@@ -547,7 +548,8 @@ http_dissect_hdrs(struct worker *w, struct http *hp, int fd, char *p,
 			hp->nhd++;
 		} else {
 			VSC_C_main->losthdr++;
-			WSL(w, SLT_LostHeader, fd, "%.*s", q - p, p);
+			WSL(w, SLT_LostHeader, fd, "%.*s",
+			    q - p > 20 ? 20 : q - p, p);
 			return (413);
 		}
 	}
@@ -979,6 +981,9 @@ http_PutProtocol(struct worker *w, int fd, const struct http *to,
 {
 
 	http_PutField(w, fd, to, HTTP_HDR_PROTO, protocol);
+	if (to->hd[HTTP_HDR_PROTO].b == NULL)
+		http_SetH(to, HTTP_HDR_PROTO, "HTTP/1.1");
+	Tcheck(to->hd[HTTP_HDR_PROTO]);
 }
 
 void
@@ -995,6 +1000,10 @@ http_PutResponse(struct worker *w, int fd, const struct http *to,
 {
 
 	http_PutField(w, fd, to, HTTP_HDR_RESPONSE, response);
+	if (to->hd[HTTP_HDR_RESPONSE].b == NULL)
+		http_SetH(to, HTTP_HDR_RESPONSE, "Lost Response");
+	Tcheck(to->hd[HTTP_HDR_RESPONSE]);
+
 }
 
 void

@@ -58,6 +58,7 @@ varnishd_SOURCES = \
 	mgt_param.c \
 	mgt_pool.c \
 	mgt_sandbox.c \
+	mgt_sandbox_solaris.c \
 	mgt_shmem.c \
 	mgt_vcc.c \
 	rfc2616.c \
@@ -76,6 +77,7 @@ varnishd_SOURCES = \
 
 noinst_HEADERS = \
 	acct_fields.h \
+	body_status.h \
 	cache.h \
 	cache_backend.h \
 	cache_backend_poll.h \

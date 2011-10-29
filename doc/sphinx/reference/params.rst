@@ -238,7 +238,7 @@ http_range_support
 
 http_req_hdr_len
 	- Units: bytes
-	- Default: 4096
+	- Default: 8192
 
 	Maximum length of any HTTP client request header we will allow.  The limit is inclusive its continuation lines.
 
@@ -251,7 +251,7 @@ http_req_size
 
 http_resp_hdr_len
 	- Units: bytes
-	- Default: 4096
+	- Default: 8192
 
 	Maximum length of any HTTP backend response header we will allow.  The limit is inclusive its continuation lines.
 
@@ -311,7 +311,7 @@ max_restarts
 
 nuke_limit
 	- Units: allocations
-	- Default: 10
+	- Default: 50
 	- Flags: experimental
 
 	Maximum number of objects we attempt to nuke in orderto make space for a object body.

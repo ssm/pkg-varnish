@@ -385,7 +385,7 @@ start_child(struct cli *cli)
 	mgt_cli_start_child(child_cli_in, child_VCLI_Out);
 	child_pid = pid;
 	if (mgt_push_vcls_and_start(&u, &p)) {
-		REPORT(LOG_ERR, "Pushing vcls failed: %s", p);
+		REPORT(LOG_ERR, "Pushing vcls failed:\n%s", p);
 		free(p);
 		child_state = CH_RUNNING;
 		mgt_stop_child();
@@ -479,7 +479,7 @@ mgt_sigchld(const struct vev *e, int what)
 	vsb = VSB_new_auto();
 	XXXAN(vsb);
 	VSB_printf(vsb, "Child (%d) %s", r, status ? "died" : "ended");
-	if (!WIFEXITED(status) && WEXITSTATUS(status)) {
+	if (WIFEXITED(status) && WEXITSTATUS(status)) {
 		VSB_printf(vsb, " status=%d", WEXITSTATUS(status));
 		exit_status |= 0x20;
 	}
@@ -595,8 +595,10 @@ MGT_Run(void)
 		REPORT0(LOG_ERR, "No VCL loaded yet");
 	else if (!d_flag) {
 		start_child(NULL);
-		if (child_state == CH_STOPPED)
-			exit(2);
+		if (child_state == CH_STOPPED) {
+			exit_status = 2;
+			return;
+		}
 	}
 
 	i = vev_schedule(mgt_evb);
