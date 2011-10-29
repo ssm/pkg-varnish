@@ -7,13 +7,13 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>VCL &mdash; Varnish version 3.0.2-rc1 documentation</title>
+    <title>VCL &mdash; Varnish version 3.0.2 documentation</title>
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2-rc1',
+        VERSION:     '3.0.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +22,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2-rc1 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
     <link rel="up" title="The Varnish Reference Manual" href="index.html" />
     <link rel="next" title="varnish" href="varnish-cli.html" />
     <link rel="prev" title="The Varnish Reference Manual" href="index.html" /> 
@@ -40,7 +40,7 @@
         <li class="right" >
           <a href="index.html" title="The Varnish Reference Manual"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>  
@@ -92,14 +92,14 @@ preferences.</p>
 <p>In addition to the C-like assignment (=), comparison (==, !=) and
 boolean (!, &amp;&amp; and ||) operators, VCL supports both regular
 expression and ACL matching using the ~ and the !~ operators.</p>
-<p>Basic strings are enclosed in &#8221; ... &#8221;, and may not contain newlines.</p>
-<p>Long strings are enclosed in {&#8221; ... &#8220;}. They may contain any
-character including &#8221;, newline and other control characters except
+<p>Basic strings are enclosed in &quot; ... &quot;, and may not contain newlines.</p>
+<p>Long strings are enclosed in {&quot; ... &quot;}. They may contain any
+character including &quot;, newline and other control characters except
 for the NUL (0x00) character.</p>
 <p>Unlike C and Perl, the backslash () character has no special meaning
 in strings in VCL, so it can be freely used in regular expressions
 without doubling.</p>
-<p>Strings are concatenated using the &#8216;+&#8217; operator.</p>
+<p>Strings are concatenated using the '+' operator.</p>
 <p>Assignments are introduced with the <em>set</em> keyword.  There are no
 user-defined variables; values can only be assigned to variables
 attached to backend, request or document objects.  Most of these are
@@ -227,7 +227,7 @@ the client by picking up the value of a session cookie or similar.</p>
 <p>The hash director will pick a backend based on the URL hash
 value.</p>
 <p>This is useful is you are using Varnish to load balance in front of
-other Varnish caches or other web accelerators as objects won&#8217;t be
+other Varnish caches or other web accelerators as objects won't be
 duplicated across caches.</p>
 <p>It will use the value of req.hash, just as the normal cache-lookup methods.</p>
 </div>
@@ -263,7 +263,7 @@ The .list-method does not support IPv6. It is not a white-list, it is an
 actual list of backends that will be created internally in Varnish - the
 larger subnet the more overhead.</p>
 <p>The .ttl defines the cache duration of the DNS lookups.</p>
-<p>The above example will append &#8220;internal.example.net&#8221; to the incoming Host
+<p>The above example will append &quot;internal.example.net&quot; to the incoming Host
 header supplied by the client, before looking it up. All settings are
 optional.</p>
 <p>Health checks are not thoroughly supported.</p>
@@ -295,7 +295,7 @@ req.backend.healthy.</p>
 <dl class="docutils">
 <dt>.url</dt>
 <dd>Specify a URL to request from the backend.
-Defaults to &#8220;/&#8221;.</dd>
+Defaults to &quot;/&quot;.</dd>
 <dt>.request</dt>
 <dd>Specify a full HTTP request using multiple strings. .request will
 have \r\n automatically inserted after every string.
@@ -427,7 +427,7 @@ matched string.</dd>
 }</pre>
 </div>
 <p>Subroutines in VCL do not take arguments, nor do they return values.</p>
-<p>To call a subroutine, use the call keyword followed by the subroutine&#8217;s name:</p>
+<p>To call a subroutine, use the call keyword followed by the subroutine's name:</p>
 <p>call pipe_if_local;</p>
 <p>There are a number of special subroutines which hook into the Varnish
 workflow.  These subroutines may inspect and manipulate HTTP headers
@@ -481,7 +481,7 @@ the following keywords:</p>
 </dd>
 <dt>vcl_pass</dt>
 <dd><p class="first">Called upon entering pass mode.  In this mode, the request is passed
-on to the backend, and the backend&#8217;s response is passed on to the
+on to the backend, and the backend's response is passed on to the
 client, but is not entered into the cache.  Subsequent requests sub‐
 mitted over the same client connection are handled normally.</p>
 <p>The vcl_recv subroutine may terminate with calling return() with one of
@@ -654,7 +654,7 @@ made available to the handler subroutines through global variables.</p>
 <p>The following variables are available while processing a request:</p>
 <dl class="docutils">
 <dt>client.ip</dt>
-<dd>The client&#8217;s IP address.</dd>
+<dd>The client's IP address.</dd>
 <dt>client.identity</dt>
 <dd>Identification of the client, used to load balance in the client director.</dd>
 <dt>server.hostname</dt>
@@ -669,7 +669,7 @@ specified by the -n parameter.</dd>
 <dt>server.port</dt>
 <dd>The port number of the socket on which the client connection was received.</dd>
 <dt>req.request</dt>
-<dd>The request type (e.g. &#8220;GET&#8221;, &#8220;HEAD&#8221;).</dd>
+<dd>The request type (e.g. &quot;GET&quot;, &quot;HEAD&quot;).</dd>
 <dt>req.url</dt>
 <dd>The requested URL.</dd>
 <dt>req.proto</dt>
@@ -697,7 +697,7 @@ avoid potential deadlocks.</dd>
 value in beresp.do_esi. Defaults to true. This variable is subject
 to change in future versions, you should avoid using it.</dd>
 <dt>req.esi_level</dt>
-<dd>A count of how many levels of ESI requests we&#8217;re currently at.</dd>
+<dd>A count of how many levels of ESI requests we're currently at.</dd>
 <dt>req.grace</dt>
 <dd>Set to a period to enable grace.</dd>
 <dt>req.xid</dt>
@@ -707,7 +707,7 @@ to change in future versions, you should avoid using it.</dd>
 request (either for a cache miss or for pass or pipe mode):</p>
 <dl class="docutils">
 <dt>bereq.request</dt>
-<dd>The request type (e.g. &#8220;GET&#8221;, &#8220;HEAD&#8221;).</dd>
+<dd>The request type (e.g. &quot;GET&quot;, &quot;HEAD&quot;).</dd>
 <dt>bereq.url</dt>
 <dd>The requested URL.</dd>
 <dt>bereq.proto</dt>
@@ -729,7 +729,7 @@ other words, they are available in vcl_fetch:</p>
 <dl class="docutils">
 <dt>beresp.do_stream</dt>
 <dd>Deliver the object to the client directly without fetching the whole
-object into varnish. If this request is pass&#8217;ed it will not be
+object into varnish. If this request is pass'ed it will not be
 stored in memory. As of Varnish Cache 3.0 the object will marked as busy
 as it is delivered so only client can access the object.</dd>
 <dt>beresp.do_esi</dt>
@@ -748,7 +748,7 @@ to false.</dd>
 <dt>beresp.response</dt>
 <dd>The HTTP status message returned by the server.</dd>
 <dt>beresp.ttl</dt>
-<dd>The object&#8217;s remaining time to live, in seconds. beresp.ttl is writable.</dd>
+<dd>The object's remaining time to live, in seconds. beresp.ttl is writable.</dd>
 <dt>beresp.grace</dt>
 <dd>Set to a period to enable grace.</dd>
 <dt>beresp.saintmode</dt>
@@ -774,7 +774,7 @@ cache, typically in vcl_hit and vcl_deliver.</p>
 <dt>obj.response</dt>
 <dd>The HTTP status message returned by the server.</dd>
 <dt>obj.ttl</dt>
-<dd>The object&#8217;s remaining time to live, in seconds. obj.ttl is writable.</dd>
+<dd>The object's remaining time to live, in seconds. obj.ttl is writable.</dd>
 <dt>obj.lastuse</dt>
 <dd>The approximate time elapsed since the object was last requests, in
 seconds.</dd>
@@ -782,7 +782,7 @@ seconds.</dd>
 <dd>The approximate number of times the object has been delivered. A value
 of 0 indicates a cache miss.</dd>
 <dt>obj.grace</dt>
-<dd>The object&#8217;s grace period in seconds. obj.grace is writable.</dd>
+<dd>The object's grace period in seconds. obj.grace is writable.</dd>
 <dt>obj.http.header</dt>
 <dd>The corresponding HTTP header.</dd>
 </dl>
@@ -850,7 +850,7 @@ Varnish will serve the object, even if it is stale.</p>
 <div class="section" id="examples">
 <h3>EXAMPLES<a class="headerlink" href="#examples" title="Permalink to this headline">¶</a></h3>
 <p>The following code is the equivalent of the default configuration with
-the backend address set to &#8220;backend.example.com&#8221; and no backend port
+the backend address set to &quot;backend.example.com&quot; and no backend port
 specified::</p>
 <div class="highlight-python"><pre>backend default {
  .host = "backend.example.com";
@@ -874,7 +874,7 @@ specified::</p>
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
  *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS&#8217;&#8217; AND
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
  * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL AUTHOR OR CONTRIBUTORS BE
@@ -901,22 +901,22 @@ sub vcl_recv {
     if (req.restarts == 0) {
         if (req.http.x-forwarded-for) {
             set req.http.X-Forwarded-For =
-                req.http.X-Forwarded-For + &#8221;, &#8221; + client.ip;
+                req.http.X-Forwarded-For + &quot;, &quot; + client.ip;
         } else {
             set req.http.X-Forwarded-For = client.ip;
         }
     }
-    if (req.request != &#8220;GET&#8221; &amp;&amp;
-      req.request != &#8220;HEAD&#8221; &amp;&amp;
-      req.request != &#8220;PUT&#8221; &amp;&amp;
-      req.request != &#8220;POST&#8221; &amp;&amp;
-      req.request != &#8220;TRACE&#8221; &amp;&amp;
-      req.request != &#8220;OPTIONS&#8221; &amp;&amp;
-      req.request != &#8220;DELETE&#8221;) {
+    if (req.request != &quot;GET&quot; &amp;&amp;
+      req.request != &quot;HEAD&quot; &amp;&amp;
+      req.request != &quot;PUT&quot; &amp;&amp;
+      req.request != &quot;POST&quot; &amp;&amp;
+      req.request != &quot;TRACE&quot; &amp;&amp;
+      req.request != &quot;OPTIONS&quot; &amp;&amp;
+      req.request != &quot;DELETE&quot;) {
         /* Non-RFC2616 or CONNECT which is weird. */
         return (pipe);
     }
-    if (req.request != &#8220;GET&#8221; &amp;&amp; req.request != &#8220;HEAD&#8221;) {
+    if (req.request != &quot;GET&quot; &amp;&amp; req.request != &quot;HEAD&quot;) {
         /* We only deal with GET and HEAD by default */
         return (pass);
     }
@@ -931,7 +931,7 @@ sub vcl_pipe {
     # Note that only the first request to the backend will have
     # X-Forwarded-For set.  If you use X-Forwarded-For and want to
     # have it set for all requests, make sure to have:
-    # set bereq.http.connection = &#8220;close&#8221;;
+    # set bereq.http.connection = &quot;close&quot;;
     # here.  It is not set by default as it might break some broken web
     # applications, like IIS with NTLM authentication.
     return (pipe);
@@ -962,9 +962,9 @@ sub vcl_miss {
 sub vcl_fetch {
     if (beresp.ttl &lt;= 0s ||
         beresp.http.Set-Cookie ||
-        beresp.http.Vary == &#8220;*&#8221;) {
+        beresp.http.Vary == &quot;*&quot;) {
                 /*
-                 * Mark as &#8220;Hit-For-Pass&#8221; for the next 2 minutes
+                 * Mark as &quot;Hit-For-Pass&quot; for the next 2 minutes
                  */
                 set beresp.ttl = 120 s;
                 return (hit_for_pass);
@@ -977,26 +977,26 @@ sub vcl_deliver {
 }
 
 sub vcl_error {
-    set obj.http.Content-Type = &#8220;text/html; charset=utf-8&#8221;;
-    set obj.http.Retry-After = &#8220;5&#8221;;
-    synthetic {&#8221;
-&lt;?xml version=&#8221;1.0&#8221; encoding=&#8221;utf-8&#8221;?&gt;
-&lt;!DOCTYPE html PUBLIC &#8220;-//W3C//DTD XHTML 1.0 Strict//EN&#8221;
- &#8220;http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd&#8221;&gt;
+    set obj.http.Content-Type = &quot;text/html; charset=utf-8&quot;;
+    set obj.http.Retry-After = &quot;5&quot;;
+    synthetic {&quot;
+&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;
+&lt;!DOCTYPE html PUBLIC &quot;-//W3C//DTD XHTML 1.0 Strict//EN&quot;
+ &quot;http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd&quot;&gt;
 &lt;html&gt;
   &lt;head&gt;
-    &lt;title&gt;&#8221;} + obj.status + &#8221; &#8221; + obj.response + {&#8220;&lt;/title&gt;
+    &lt;title&gt;&quot;} + obj.status + &quot; &quot; + obj.response + {&quot;&lt;/title&gt;
   &lt;/head&gt;
   &lt;body&gt;
-    &lt;h1&gt;Error &#8220;} + obj.status + &#8221; &#8221; + obj.response + {&#8220;&lt;/h1&gt;
-    &lt;p&gt;&#8221;} + obj.response + {&#8220;&lt;/p&gt;
+    &lt;h1&gt;Error &quot;} + obj.status + &quot; &quot; + obj.response + {&quot;&lt;/h1&gt;
+    &lt;p&gt;&quot;} + obj.response + {&quot;&lt;/p&gt;
     &lt;h3&gt;Guru Meditation:&lt;/h3&gt;
-    &lt;p&gt;XID: &#8220;} + req.xid + {&#8220;&lt;/p&gt;
+    &lt;p&gt;XID: &quot;} + req.xid + {&quot;&lt;/p&gt;
     &lt;hr&gt;
     &lt;p&gt;Varnish cache server&lt;/p&gt;
   &lt;/body&gt;
 &lt;/html&gt;
-&#8220;};
+&quot;};
     return (deliver);
 }
 
@@ -1205,7 +1205,7 @@ itself. See LICENSE for details.</p>
         <li class="right" >
           <a href="index.html" title="The Varnish Reference Manual"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" >The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>

@@ -7,13 +7,13 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Security barriers in Varnish &mdash; Varnish version 3.0.2-rc1 documentation</title>
+    <title>Security barriers in Varnish &mdash; Varnish version 3.0.2 documentation</title>
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2-rc1',
+        VERSION:     '3.0.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +22,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2-rc1 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
     <link rel="up" title="Poul-Hennings random outbursts" href="index.html" />
     <link rel="next" title="What were they thinking ?" href="thoughts.html" />
     <link rel="prev" title="Picking platforms" href="platforms.html" /> 
@@ -40,7 +40,7 @@
         <li class="right" >
           <a href="platforms.html" title="Picking platforms"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">Poul-Hennings random outbursts</a> &raquo;</li> 
       </ul>
     </div>  
@@ -53,7 +53,7 @@
   <div class="section" id="security-barriers-in-varnish">
 <span id="phk-barriers"></span><h1>Security barriers in Varnish<a class="headerlink" href="#security-barriers-in-varnish" title="Permalink to this headline">¶</a></h1>
 <p>Security is a very important design driver in Varnish, more likely than not,
-if you find yourself thinking &#8220;Why did he do _that_ ? the answer has to
+if you find yourself thinking &quot;Why did he do _that_ ? the answer has to
 do with security.</p>
 <p>The Varnish security model is based on some very crude but easy to understand
 barriers between the various components:</p>
@@ -92,20 +92,20 @@ barriers between the various components:</p>
 <p>(ASCII-ART rules!)</p>
 <div class="section" id="the-really-important-barrier">
 <h2>The really Important Barrier<a class="headerlink" href="#the-really-important-barrier" title="Permalink to this headline">¶</a></h2>
-<p>The central actor in Varnish is the Manager process, &#8220;MGR&#8221;, which is the
-process the administrator &#8220;(ADMIN)&#8221; starts to get web-cache service.</p>
-<p>Having been there myself, I do not subscribe to the &#8220;I feel cool and important
-when I get woken up at 3AM to restart a dead process&#8221; school of thought, in
+<p>The central actor in Varnish is the Manager process, &quot;MGR&quot;, which is the
+process the administrator &quot;(ADMIN)&quot; starts to get web-cache service.</p>
+<p>Having been there myself, I do not subscribe to the &quot;I feel cool and important
+when I get woken up at 3AM to restart a dead process&quot; school of thought, in
 fact, I think that is a clear sign of mindless stupidity:  If we cannot
 get a computer to restart a dead process, why do we even have them ?</p>
 <p>The task of the Manager process is therefore not cache web content,
 but to make sure there always is a process which does that, the
-Child &#8220;CLD&#8221; process.</p>
+Child &quot;CLD&quot; process.</p>
 <p>That is the major barrier in Varnish:  All management happens in
 one process all actual movement of traffic happens in another, and
 the Manager process does not trust the Child process at all.</p>
 <p>The Child process is in a the totally unprotected domain:  Any
-computer on the InterNet &#8220;(ANON)&#8221; can connect to the Child process
+computer on the InterNet &quot;(ANON)&quot; can connect to the Child process
 and ask for some web-object.</p>
 <p>If John D. Criminal manages to exploit a security hole in Varnish, it is
 the Child process he subverts.  If he carries out a DoS attack, it is
@@ -115,32 +115,32 @@ possible, and we close all filedescriptors it should not have access to and
 so on.</p>
 <p>There are only three channels of communication back to the Manager
 process: An exit code, a CLI response or writing stuff into the
-shared memory file &#8220;VSM&#8221; used for statistics and logging, all of
+shared memory file &quot;VSM&quot; used for statistics and logging, all of
 these are well defended by the Manager process.</p>
 </div>
 <div class="section" id="the-admin-oper-barrier">
 <h2>The Admin/Oper Barrier<a class="headerlink" href="#the-admin-oper-barrier" title="Permalink to this headline">¶</a></h2>
 <p>If you look at the top left corner of the diagram, you will see that Varnish
-operates with separate Administrator &#8220;(ADMIN)&#8221; and Operator &#8220;(OPER)&#8221; roles.</p>
+operates with separate Administrator &quot;(ADMIN)&quot; and Operator &quot;(OPER)&quot; roles.</p>
 <p>The Administrator does things, changes stuff etc.  The Operator keeps an
 eye on things to make sure they are as they should be.</p>
 <p>These days Operators are often scripts and data collection tools, and
 there is no reason to assume they are bugfree, so Varnish does not
 trust the Operator role, that is a pure one-way relationship.</p>
-<p>(Trick:  If the Child process us run under user &#8220;nobody&#8221;, you can
-allow marginally trusted operations personel access to the &#8220;nobody&#8221;
+<p>(Trick:  If the Child process us run under user &quot;nobody&quot;, you can
+allow marginally trusted operations personel access to the &quot;nobody&quot;
 account (for instance using .ssh/authorized_keys2), and they will
 be able to kill the Child process, prompting the Manager process to
 restart it again with the same parameters and settings.)</p>
 <p>The Administrator has the final say, and of course, the administrator
 can decide under which circumstances that authority will be shared.</p>
 <p>Needless to say, if the system on which Varnish runs is not properly
-secured, the Administrator&#8217;s monopoly of control will be compromised.</p>
+secured, the Administrator's monopoly of control will be compromised.</p>
 </div>
 <div class="section" id="all-the-other-barriers">
 <h2>All the other barriers<a class="headerlink" href="#all-the-other-barriers" title="Permalink to this headline">¶</a></h2>
 <p>There are more barriers, you can spot them by following the arrows in
-the diagram, but they are more sort of &#8220;technical&#8221; than &#8220;political&#8221; and
+the diagram, but they are more sort of &quot;technical&quot; than &quot;political&quot; and
 generally try to guard against programming flaws as much as security
 compromise.</p>
 <p>For instance the VCC compiler runs in a separate child process, to make
@@ -208,7 +208,7 @@ process like all other server programs.</p>
         <li class="right" >
           <a href="platforms.html" title="Picking platforms"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" >Poul-Hennings random outbursts</a> &raquo;</li> 
       </ul>
     </div>

@@ -7,13 +7,13 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>HTTP &mdash; Varnish version 3.0.2-rc1 documentation</title>
+    <title>HTTP &mdash; Varnish version 3.0.2 documentation</title>
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2-rc1',
+        VERSION:     '3.0.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +22,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2-rc1 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
     <link rel="up" title="Frequently asked questions" href="index.html" />
     <link rel="next" title="Configuration" href="configuration.html" />
     <link rel="prev" title="General questions" href="general.html" /> 
@@ -40,7 +40,7 @@
         <li class="right" >
           <a href="general.html" title="General questions"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">Frequently asked questions</a> &raquo;</li> 
       </ul>
     </div>  
@@ -77,10 +77,10 @@
   # [...]
 }</pre>
 </div>
-<p>For the apache configuration, we copy the &#8220;combined&#8221; log format to a new one we call &#8220;varnishcombined&#8221;, for instance, and change the client IP field to use the content of the variable we set in the varnish configuration:</p>
+<p>For the apache configuration, we copy the &quot;combined&quot; log format to a new one we call &quot;varnishcombined&quot;, for instance, and change the client IP field to use the content of the variable we set in the varnish configuration:</p>
 <div class="highlight-python"><pre>LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %&gt;s %b \"%{Referer}i\" \"%{User-Agent}i\"" varnishcombined</pre>
 </div>
-<p>And so, in our virtualhost, you need to specify this format instead of &#8220;combined&#8221; (or &#8220;common&#8221;, or whatever else you use):</p>
+<p>And so, in our virtualhost, you need to specify this format instead of &quot;combined&quot; (or &quot;common&quot;, or whatever else you use):</p>
 <div class="highlight-python"><pre>&lt;VirtualHost *:80&gt;
   ServerName www.example.com
   # [...]
@@ -137,7 +137,7 @@
         <li class="right" >
           <a href="general.html" title="General questions"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" >Frequently asked questions</a> &raquo;</li> 
       </ul>
     </div>

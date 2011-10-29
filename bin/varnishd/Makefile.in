@@ -91,9 +91,11 @@ am_varnishd_OBJECTS = varnishd-cache_acceptor.$(OBJEXT) \
 	varnishd-hash_simple_list.$(OBJEXT) \
 	varnishd-mgt_child.$(OBJEXT) varnishd-mgt_cli.$(OBJEXT) \
 	varnishd-mgt_param.$(OBJEXT) varnishd-mgt_pool.$(OBJEXT) \
-	varnishd-mgt_sandbox.$(OBJEXT) varnishd-mgt_shmem.$(OBJEXT) \
-	varnishd-mgt_vcc.$(OBJEXT) varnishd-rfc2616.$(OBJEXT) \
-	varnishd-stevedore.$(OBJEXT) varnishd-storage_file.$(OBJEXT) \
+	varnishd-mgt_sandbox.$(OBJEXT) \
+	varnishd-mgt_sandbox_solaris.$(OBJEXT) \
+	varnishd-mgt_shmem.$(OBJEXT) varnishd-mgt_vcc.$(OBJEXT) \
+	varnishd-rfc2616.$(OBJEXT) varnishd-stevedore.$(OBJEXT) \
+	varnishd-storage_file.$(OBJEXT) \
 	varnishd-storage_malloc.$(OBJEXT) \
 	varnishd-storage_persistent.$(OBJEXT) \
 	varnishd-storage_persistent_mgt.$(OBJEXT) \
@@ -357,6 +359,7 @@ varnishd_SOURCES = \
 	mgt_param.c \
 	mgt_pool.c \
 	mgt_sandbox.c \
+	mgt_sandbox_solaris.c \
 	mgt_shmem.c \
 	mgt_vcc.c \
 	rfc2616.c \
@@ -546,6 +549,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/varnishd-mgt_param.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/varnishd-mgt_pool.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/varnishd-mgt_sandbox.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/varnishd-mgt_sandbox_solaris.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/varnishd-mgt_shmem.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/varnishd-mgt_vcc.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/varnishd-rfc2616.Po@am__quote@
@@ -1254,6 +1258,20 @@ varnishd-mgt_sandbox.obj: mgt_sandbox.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='mgt_sandbox.c' object='varnishd-mgt_sandbox.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(varnishd_CFLAGS) $(CFLAGS) -c -o varnishd-mgt_sandbox.obj `if test -f 'mgt_sandbox.c'; then $(CYGPATH_W) 'mgt_sandbox.c'; else $(CYGPATH_W) '$(srcdir)/mgt_sandbox.c'; fi`
+
+varnishd-mgt_sandbox_solaris.o: mgt_sandbox_solaris.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(varnishd_CFLAGS) $(CFLAGS) -MT varnishd-mgt_sandbox_solaris.o -MD -MP -MF $(DEPDIR)/varnishd-mgt_sandbox_solaris.Tpo -c -o varnishd-mgt_sandbox_solaris.o `test -f 'mgt_sandbox_solaris.c' || echo '$(srcdir)/'`mgt_sandbox_solaris.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/varnishd-mgt_sandbox_solaris.Tpo $(DEPDIR)/varnishd-mgt_sandbox_solaris.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='mgt_sandbox_solaris.c' object='varnishd-mgt_sandbox_solaris.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(varnishd_CFLAGS) $(CFLAGS) -c -o varnishd-mgt_sandbox_solaris.o `test -f 'mgt_sandbox_solaris.c' || echo '$(srcdir)/'`mgt_sandbox_solaris.c
+
+varnishd-mgt_sandbox_solaris.obj: mgt_sandbox_solaris.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(varnishd_CFLAGS) $(CFLAGS) -MT varnishd-mgt_sandbox_solaris.obj -MD -MP -MF $(DEPDIR)/varnishd-mgt_sandbox_solaris.Tpo -c -o varnishd-mgt_sandbox_solaris.obj `if test -f 'mgt_sandbox_solaris.c'; then $(CYGPATH_W) 'mgt_sandbox_solaris.c'; else $(CYGPATH_W) '$(srcdir)/mgt_sandbox_solaris.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/varnishd-mgt_sandbox_solaris.Tpo $(DEPDIR)/varnishd-mgt_sandbox_solaris.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='mgt_sandbox_solaris.c' object='varnishd-mgt_sandbox_solaris.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(varnishd_CFLAGS) $(CFLAGS) -c -o varnishd-mgt_sandbox_solaris.obj `if test -f 'mgt_sandbox_solaris.c'; then $(CYGPATH_W) 'mgt_sandbox_solaris.c'; else $(CYGPATH_W) '$(srcdir)/mgt_sandbox_solaris.c'; fi`
 
 varnishd-mgt_shmem.o: mgt_shmem.c
 @am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(varnishd_CFLAGS) $(CFLAGS) -MT varnishd-mgt_shmem.o -MD -MP -MF $(DEPDIR)/varnishd-mgt_shmem.Tpo -c -o varnishd-mgt_shmem.o `test -f 'mgt_shmem.c' || echo '$(srcdir)/'`mgt_shmem.c

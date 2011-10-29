@@ -7,13 +7,13 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>vmod_std &mdash; Varnish version 3.0.2-rc1 documentation</title>
+    <title>vmod_std &mdash; Varnish version 3.0.2 documentation</title>
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2-rc1',
+        VERSION:     '3.0.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +22,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2-rc1 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
     <link rel="up" title="The Varnish Reference Manual" href="index.html" />
     <link rel="next" title="Shared Memory Logging" href="vsl.html" />
     <link rel="prev" title="VMOD - Varnish Modules" href="vmod.html" /> 
@@ -40,7 +40,7 @@
         <li class="right" >
           <a href="vmod.html" title="VMOD - Varnish Modules"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>  
@@ -75,7 +75,7 @@
 <div class="section" id="description">
 <h3>DESCRIPTION<a class="headerlink" href="#description" title="Permalink to this headline">¶</a></h3>
 <p>The Varnish standard module contains useful, generic function that
-don&#8217;t quite fit in the VCL core, but are still considered very useful
+don't quite fit in the VCL core, but are still considered very useful
 to a broad audience.</p>
 </div>
 <div class="section" id="functions">
@@ -90,7 +90,7 @@ to a broad audience.</p>
 <dt>Description</dt>
 <dd>Converts the STRING S to upper case.</dd>
 <dt>Example</dt>
-<dd>set beresp.http.x-scream = std.toupper(&#8220;yes!&#8221;);</dd>
+<dd>set beresp.http.x-scream = std.toupper(&quot;yes!&quot;);</dd>
 </dl>
 </div>
 <div class="section" id="tolower">
@@ -103,7 +103,7 @@ to a broad audience.</p>
 <dt>Description</dt>
 <dd>Converts the STRING to lower case.</dd>
 <dt>Example</dt>
-<dd>set beresp.http.x-nice = std.tolower(&#8220;VerY&#8221;);</dd>
+<dd>set beresp.http.x-nice = std.tolower(&quot;VerY&quot;);</dd>
 </dl>
 </div>
 <div class="section" id="set-up-tos">
@@ -152,7 +152,7 @@ utilize it.</dd>
 <dt>Description</dt>
 <dd>Logs string to the shared memory log.</dd>
 <dt>Example</dt>
-<dd>std.log(&#8220;Something fishy is going on with the vhost &#8221; + req.host);</dd>
+<dd>std.log(&quot;Something fishy is going on with the vhost &quot; + req.host);</dd>
 </dl>
 </div>
 <div class="section" id="syslog">
@@ -165,7 +165,7 @@ utilize it.</dd>
 <dt>Description</dt>
 <dd>Logs <em>string</em> to syslog marked with <em>priority</em>.</dd>
 <dt>Example</dt>
-<dd>std.syslog( LOG_USER|LOG_ALERT, &#8220;There is serious troble&#8221;);</dd>
+<dd>std.syslog( LOG_USER|LOG_ALERT, &quot;There is serious troble&quot;);</dd>
 </dl>
 </div>
 <div class="section" id="fileread">
@@ -178,10 +178,10 @@ utilize it.</dd>
 <dt>Description</dt>
 <dd>Reads a file and returns a string with the content. Please
 note that it is not recommended to send variables to this
-function the caching in the function doesn&#8217;t take this into
+function the caching in the function doesn't take this into
 account. Also, files are not re-read.</dd>
 <dt>Example</dt>
-<dd>set beresp.http.x-served-by = std.fileread(&#8220;/etc/hostname&#8221;);</dd>
+<dd>set beresp.http.x-served-by = std.fileread(&quot;/etc/hostname&quot;);</dd>
 </dl>
 </div>
 <div class="section" id="duration">
@@ -197,7 +197,7 @@ usual s (seconds), m (minutes), h (hours), d (days) and w
 (weeks) units. If it fails to parse the string <em>fallback</em>
 will be used</dd>
 <dt>Example</dt>
-<dd>set beresp.ttl = std.duration(&#8220;1w&#8221;, 3600);</dd>
+<dd>set beresp.ttl = std.duration(&quot;1w&quot;, 3600);</dd>
 </dl>
 </div>
 <div class="section" id="integer">
@@ -328,7 +328,7 @@ itself. See LICENCE for details.</p>
         <li class="right" >
           <a href="vmod.html" title="VMOD - Varnish Modules"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" >The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>

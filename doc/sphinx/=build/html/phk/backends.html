@@ -7,13 +7,13 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>What do you mean by ‘backend’ ? &mdash; Varnish version 3.0.2-rc1 documentation</title>
+    <title>What do you mean by &#39;backend&#39; ? &mdash; Varnish version 3.0.2 documentation</title>
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2-rc1',
+        VERSION:     '3.0.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +22,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2-rc1 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
     <link rel="up" title="Poul-Hennings random outbursts" href="index.html" />
     <link rel="next" title="Picking platforms" href="platforms.html" />
     <link rel="prev" title="IPv6 Suckage" href="ipv6suckage.html" /> 
@@ -40,7 +40,7 @@
         <li class="right" >
           <a href="ipv6suckage.html" title="IPv6 Suckage"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">Poul-Hennings random outbursts</a> &raquo;</li> 
       </ul>
     </div>  
@@ -51,23 +51,23 @@
           <div class="body">
             
   <div class="section" id="what-do-you-mean-by-backend">
-<span id="phk-backends"></span><h1>What do you mean by &#8216;backend&#8217; ?<a class="headerlink" href="#what-do-you-mean-by-backend" title="Permalink to this headline">¶</a></h1>
+<span id="phk-backends"></span><h1>What do you mean by 'backend' ?<a class="headerlink" href="#what-do-you-mean-by-backend" title="Permalink to this headline">¶</a></h1>
 <p>Given that we are approaching Varnish 3.0, you would think I had this
 question answered conclusively long time ago, but once you try to
 be efficient, things get hairy fast.</p>
 <p>One of the features of Varnish we are very fundamental about, is the
-ability to have multiple VCL&#8217;s loaded at the same time, and to switch
+ability to have multiple VCL's loaded at the same time, and to switch
 between them instantly and seamlessly.</p>
 <p>So Imagine you have 1000 backends in your VCL, not an unreasonable
 number, each configured with health-polling.</p>
 <p>Now you fiddle your vcl_recv{} a bit and load the VCL again, but
 since you are not sure which is the best way to do it, you keep
-both VCL&#8217;s loaded so you can switch forth and back seamlessly.</p>
+both VCL's loaded so you can switch forth and back seamlessly.</p>
 <p>To switch seamlessly, the health status of each backend needs to
 be up to date the instant we switch to the other VCL.</p>
 <p>This basically means that either all VCLs poll all their backends,
 or they must share, somehow.</p>
-<p>We can dismiss the all VCL&#8217;s poll all their backends scenario,
+<p>We can dismiss the all VCL's poll all their backends scenario,
 because it scales truly horribly, and would pummel backends with
 probes if people forget to vcl.discard their old dusty VCLs.</p>
 <div class="section" id="share-and-enjoy">
@@ -84,7 +84,7 @@ having the same physical backend declared as 4 different VCL
 backends.</p>
 <p>The most obvious thing to do, is to use the VCL name of the backend
 as identifier, but that is not enough.  We can have two different
-VCL&#8217;s where backend &#8220;b1&#8221; points at two different physical machines,
+VCL's where backend &quot;b1&quot; points at two different physical machines,
 for instance when we migrate or upgrade the backend.</p>
 <dl class="docutils">
 <dt>The identity of the state than can be shared is therefore the triplet:</dt>
@@ -151,7 +151,7 @@ which throws jobs into the work-pool as the backends needs polled.</p>
         <div class="sphinxsidebarwrapper">
   <h3><a href="../index.html">Table Of Contents</a></h3>
   <ul>
-<li><a class="reference internal" href="#">What do you mean by &#8216;backend&#8217; ?</a><ul>
+<li><a class="reference internal" href="#">What do you mean by 'backend' ?</a><ul>
 <li><a class="reference internal" href="#share-and-enjoy">Share And Enjoy</a></li>
 <li><a class="reference internal" href="#no-information-without-representation">No Information without Representation</a></li>
 <li><a class="reference internal" href="#sharing-health-status">Sharing Health Status</a></li>
@@ -200,7 +200,7 @@ which throws jobs into the work-pool as the backends needs polled.</p>
         <li class="right" >
           <a href="ipv6suckage.html" title="IPv6 Suckage"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" >Poul-Hennings random outbursts</a> &raquo;</li> 
       </ul>
     </div>

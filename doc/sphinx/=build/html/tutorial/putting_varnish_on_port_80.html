@@ -7,13 +7,13 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Put Varnish on port 80 &mdash; Varnish version 3.0.2-rc1 documentation</title>
+    <title>Put Varnish on port 80 &mdash; Varnish version 3.0.2 documentation</title>
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2-rc1',
+        VERSION:     '3.0.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +22,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2-rc1 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
     <link rel="up" title="Using Varnish" href="index.html" />
     <link rel="next" title="Varnish Configuration Language - VCL" href="vcl.html" />
     <link rel="prev" title="Sizing your cache" href="sizing_your_cache.html" /> 
@@ -40,7 +40,7 @@
         <li class="right" >
           <a href="sizing_your_cache.html" title="Sizing your cache"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">Using Varnish</a> &raquo;</li> 
       </ul>
     </div>  
@@ -52,7 +52,7 @@
             
   <div class="section" id="put-varnish-on-port-80">
 <h1>Put Varnish on port 80<a class="headerlink" href="#put-varnish-on-port-80" title="Permalink to this headline">¶</a></h1>
-<p>Until now we&#8217;ve been running with Varnish on a high port, for testing
+<p>Until now we've been running with Varnish on a high port, for testing
 purposes. You should test your application and if it works OK we can
 switch, so Varnish will be running on port 80 and your web server on a
 high port.</p>
@@ -67,7 +67,7 @@ default.vcl and change the port of the <em>default</em> backend to 8080.</p>
 <div class="highlight-python"><div class="highlight"><pre><span class="c"># varnishd -f /usr/local/etc/varnish/default.vcl -s malloc,1G -T 127.0.0.1:2000</span>
 </pre></div>
 </div>
-<p>Note that we&#8217;ve removed the -a option. Now Varnish, as its default
+<p>Note that we've removed the -a option. Now Varnish, as its default
 setting dictates, will bind to the http port (80). Now everyone
 accessing your site will be accessing through Varnish.</p>
 </div>
@@ -118,7 +118,7 @@ accessing your site will be accessing through Varnish.</p>
         <li class="right" >
           <a href="sizing_your_cache.html" title="Sizing your cache"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" >Using Varnish</a> &raquo;</li> 
       </ul>
     </div>

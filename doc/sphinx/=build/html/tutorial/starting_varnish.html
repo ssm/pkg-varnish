@@ -7,13 +7,13 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Starting Varnish &mdash; Varnish version 3.0.2-rc1 documentation</title>
+    <title>Starting Varnish &mdash; Varnish version 3.0.2 documentation</title>
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2-rc1',
+        VERSION:     '3.0.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +22,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2-rc1 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
     <link rel="up" title="Using Varnish" href="index.html" />
     <link rel="next" title="Logging in Varnish" href="logging.html" />
     <link rel="prev" title="Backend servers" href="backend_servers.html" /> 
@@ -40,7 +40,7 @@
         <li class="right" >
           <a href="backend_servers.html" title="Backend servers"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">Using Varnish</a> &raquo;</li> 
       </ul>
     </div>  
@@ -53,7 +53,7 @@
   <div class="section" id="starting-varnish">
 <span id="tutorial-starting-varnish"></span><h1>Starting Varnish<a class="headerlink" href="#starting-varnish" title="Permalink to this headline">¶</a></h1>
 <p>I assume varnishd is in your path. You might want to run <tt class="docutils literal"><span class="pre">pkill</span>
-<span class="pre">varnishd</span></tt> to make sure varnishd isn&#8217;t running. Become root and type:</p>
+<span class="pre">varnishd</span></tt> to make sure varnishd isn't running. Become root and type:</p>
 <p><tt class="docutils literal"><span class="pre">#</span> <span class="pre">varnishd</span> <span class="pre">-f</span> <span class="pre">/usr/local/etc/varnish/default.vcl</span> <span class="pre">-s</span> <span class="pre">malloc,1G</span> <span class="pre">-T</span> <span class="pre">127.0.0.1:2000</span> <span class="pre">-a</span> <span class="pre">0.0.0.0:8080</span></tt></p>
 <p>I added a few options, lets go through them:</p>
 <dl class="docutils">
@@ -69,10 +69,10 @@ for storage. There are other backends as well, described in
 <dd>Varnish has a built-in text-based administration
 interface. Activating the interface makes Varnish manageble without
 stopping it. You can specify what interface the management interface
-should listen to. Make sure you don&#8217;t expose the management interface
+should listen to. Make sure you don't expose the management interface
 to the world as you can easily gain root access to a system via the
 Varnish management interface. I recommend tieing it to localhost. If
-you have users on your system that you don&#8217;t fully trust, use firewall
+you have users on your system that you don't fully trust, use firewall
 rules to restrict access to the interface to root only.</dd>
 <dt><tt class="docutils literal"><span class="pre">-a</span> <span class="pre">0.0.0.0:8080</span></tt></dt>
 <dd>I specify that I want Varnish to listen on port 8080 for incomming
@@ -87,10 +87,10 @@ system) - you should now see your web application running there.</p>
 Varnish depends on a few factors. If you application uses cookies for
 every session (a lot of PHP and Java applications seem to send a
 session cookie if it is needed or not) or if it uses authentication
-chances are Varnish won&#8217;t do much caching. Ignore that for the moment,
+chances are Varnish won't do much caching. Ignore that for the moment,
 we come back to that in <a class="reference internal" href="increasing_your_hitrate.html#tutorial-increasing-your-hitrate"><em>Achieving a high hitrate</em></a>.</p>
 <p>Lets make sure that Varnish really does do something to your web
-site. To do that we&#8217;ll take a look at the logs.</p>
+site. To do that we'll take a look at the logs.</p>
 </div>
 
 
@@ -139,7 +139,7 @@ site. To do that we&#8217;ll take a look at the logs.</p>
         <li class="right" >
           <a href="backend_servers.html" title="Backend servers"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" >Using Varnish</a> &raquo;</li> 
       </ul>
     </div>

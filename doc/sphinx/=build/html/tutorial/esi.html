@@ -7,13 +7,13 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Edge Side Includes &mdash; Varnish version 3.0.2-rc1 documentation</title>
+    <title>Edge Side Includes &mdash; Varnish version 3.0.2 documentation</title>
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2-rc1',
+        VERSION:     '3.0.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,9 +22,9 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2-rc1 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
     <link rel="up" title="Using Varnish" href="index.html" />
-    <link rel="next" title="Advanced Backend configuration" href="advanced_backend_servers.html" />
+    <link rel="next" title="Running inside a virtual machine (VM)" href="virtualised.html" />
     <link rel="prev" title="Purging and banning" href="purging.html" /> 
   </head>
   <body>
@@ -35,12 +35,12 @@
           <a href="../genindex.html" title="General Index"
              accesskey="I">index</a></li>
         <li class="right" >
-          <a href="advanced_backend_servers.html" title="Advanced Backend configuration"
+          <a href="virtualised.html" title="Running inside a virtual machine (VM)"
              accesskey="N">next</a> |</li>
         <li class="right" >
           <a href="purging.html" title="Purging and banning"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">Using Varnish</a> &raquo;</li> 
       </ul>
     </div>  
@@ -59,13 +59,13 @@ over HTTP.</p>
 pages. Regenerating this content for every page view is wasteful and
 ESI tries to address that letting you decide the cache policy for
 each fragment individually.</p>
-<p>In Varnish we&#8217;ve only implemented a small subset of ESI. As of 2.1 we
+<p>In Varnish we've only implemented a small subset of ESI. As of 2.1 we
 have three ESI statements:</p>
 <blockquote>
 <div><ul class="simple">
 <li>esi:include</li>
 <li>esi:remove</li>
-<li>&lt;!&#8211;esi ...&#8211;&gt;</li>
+<li>&lt;!--esi ...--&gt;</li>
 </ul>
 </div></blockquote>
 <p>Content substitution based on variables and cookies is not implemented
@@ -92,9 +92,9 @@ at this very moment.
 <div class="highlight-python"><pre>sub vcl_fetch {
     if (req.url == "/test.html") {
        set beresp.do_esi = true; /* Do ESI processing               */
-       set obj.ttl = 24 h;       /* Sets the TTL on the HTML above  */
+       set beresp.ttl = 24 h;    /* Sets the TTL on the HTML above  */
     } elseif (req.url == "/cgi-bin/date.cgi") {
-       set obj.ttl = 1m;         /* Sets a one minute TTL on        */
+       set beresp.ttl = 1m;      /* Sets a one minute TTL on        */
                                  /*  the included object            */
     }
 }</pre>
@@ -111,10 +111,10 @@ a fall back of sorts, when ESI is not available, like this::</p>
 </div>
 </div>
 <div class="section" id="example-esi">
-<h2>Example: &lt;!&#8211;esi ... &#8211;&gt;<a class="headerlink" href="#example-esi" title="Permalink to this headline">¶</a></h2>
+<h2>Example: &lt;!--esi ... --&gt;<a class="headerlink" href="#example-esi" title="Permalink to this headline">¶</a></h2>
 <p>This is a special construct to allow HTML marked up with ESI to render
-without processing. ESI Processors will remove the start (&#8220;&lt;!&#8211;esi&#8221;)
-and end (&#8220;&#8211;&gt;&#8221;) when the page is processed, while still processing the
+without processing. ESI Processors will remove the start (&quot;&lt;!--esi&quot;)
+and end (&quot;--&gt;&quot;) when the page is processed, while still processing the
 contents. If the page is not processed, it will remain, becoming an
 HTML/XML comment tag. For example:</p>
 <div class="highlight-python"><pre>&lt;!--esi
@@ -137,7 +137,7 @@ of the final HTML if not processed.</p>
 <li><a class="reference internal" href="#">Edge Side Includes</a><ul>
 <li><a class="reference internal" href="#example-esi-include">Example: esi include</a></li>
 <li><a class="reference internal" href="#example-esi-remove">Example: esi remove</a></li>
-<li><a class="reference internal" href="#example-esi">Example: &lt;!&#8211;esi ... &#8211;&gt;</a></li>
+<li><a class="reference internal" href="#example-esi">Example: &lt;!--esi ... --&gt;</a></li>
 </ul>
 </li>
 </ul>
@@ -146,8 +146,8 @@ of the final HTML if not processed.</p>
   <p class="topless"><a href="purging.html"
                         title="previous chapter">Purging and banning</a></p>
   <h4>Next topic</h4>
-  <p class="topless"><a href="advanced_backend_servers.html"
-                        title="next chapter">Advanced Backend configuration</a></p>
+  <p class="topless"><a href="virtualised.html"
+                        title="next chapter">Running inside a virtual machine (VM)</a></p>
   <h3>This Page</h3>
   <ul class="this-page-menu">
     <li><a href="../_sources/tutorial/esi.txt"
@@ -177,12 +177,12 @@ of the final HTML if not processed.</p>
           <a href="../genindex.html" title="General Index"
              >index</a></li>
         <li class="right" >
-          <a href="advanced_backend_servers.html" title="Advanced Backend configuration"
+          <a href="virtualised.html" title="Running inside a virtual machine (VM)"
              >next</a> |</li>
         <li class="right" >
           <a href="purging.html" title="Purging and banning"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" >Using Varnish</a> &raquo;</li> 
       </ul>
     </div>

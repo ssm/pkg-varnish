@@ -7,13 +7,13 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>varnishncsa &mdash; Varnish version 3.0.2-rc1 documentation</title>
+    <title>varnishncsa &mdash; Varnish version 3.0.2 documentation</title>
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2-rc1',
+        VERSION:     '3.0.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +22,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2-rc1 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
     <link rel="up" title="The Varnish Reference Manual" href="index.html" />
     <link rel="next" title="varnishreplay" href="varnishreplay.html" />
     <link rel="prev" title="varnishlog" href="varnishlog.html" /> 
@@ -40,7 +40,7 @@
         <li class="right" >
           <a href="varnishlog.html" title="varnishlog"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>  
@@ -77,7 +77,7 @@
 <div class="section" id="description">
 <h3>DESCRIPTION<a class="headerlink" href="#description" title="Permalink to this headline">¶</a></h3>
 <p>The varnishncsa utility reads varnishd(1) shared memory logs and
-presents them in the Apache / NCSA &#8220;combined&#8221; log format.</p>
+presents them in the Apache / NCSA &quot;combined&quot; log format.</p>
 <p>The following options are available:</p>
 <table class="docutils option-list" frame="void" rules="none">
 <col class="option" />
@@ -115,37 +115,42 @@ the log output.</td></tr>
 <kbd><span class="option">-F <var>format</var></span></kbd></td>
 <td><p class="first">Specify the log format used. If no format is specified the
 default log format is used. Currently it is:</p>
-<p>%h %l %u %t &#8220;%r&#8221; %s %b &#8220;%{Referer}i&#8221; &#8220;%{User-agent}i&#8221;</p>
+<p>%h %l %u %t &quot;%r&quot; %s %b &quot;%{Referer}i&quot; &quot;%{User-agent}i&quot;</p>
 <p>Supported formatters are:</p>
 <blockquote class="last">
 <div><dl class="docutils">
 <dt>%b</dt>
 <dd>Size of response in bytes, excluding HTTP headers.
-In CLF format, i.e. a &#8216;-&#8216; rather than a 0 when no
+In CLF format, i.e. a '-' rather than a 0 when no
 bytes are sent.</dd>
 <dt>%H</dt>
-<dd>The request protocol</dd>
+<dd>The request protocol. Defaults to HTTP/1.0 if not
+known.</dd>
 <dt>%h</dt>
-<dd>Remote host</dd>
+<dd>Remote host. Defaults to '-' if not known.
+Defaults to 127.0.0.1 for backend requests.</dd>
 <dt>%{X}i</dt>
 <dd>The contents of request header line X.</dd>
 <dt>%l</dt>
-<dd>Remote logname (always &#8216;-&#8216;)</dd>
+<dd>Remote logname (always '-')</dd>
 <dt>%m</dt>
-<dd>Request method</dd>
+<dd>Request method. Defaults to '-' if not known.</dd>
 <dt>%q</dt>
-<dd>The query string, if no query string exists, an empty string.</dd>
+<dd>The query string, if no query string exists, an
+empty string.</dd>
 <dt>%{X}o</dt>
 <dd>The contents of response header line X.</dd>
 <dt>%r</dt>
-<dd>The first line of the request</dd>
+<dd>The first line of the request. Synthesized from other
+fields, so it may not be the request verbatim.</dd>
 <dt>%s</dt>
 <dd>Status sent to the client</dd>
 <dt>%t</dt>
 <dd>Time when the request was received, in HTTP date/time
 format.</dd>
 <dt>%U</dt>
-<dd>The request URL without any query string.</dd>
+<dd>The request URL without any query string. Defaults to
+'-' if not known.</dd>
 <dt>%u</dt>
 <dd>Remote user from auth</dd>
 <dt>%{X}x</dt>
@@ -182,7 +187,7 @@ cache hit, miss, pass, pipe or error.</dd>
 from.  If -n is not specified, the host name is used.</td></tr>
 <tr><td class="option-group">
 <kbd><span class="option">-P <var>file</var></span></kbd></td>
-<td>Write the process&#8217;s PID to the specified file.</td></tr>
+<td>Write the process's PID to the specified file.</td></tr>
 <tr><td class="option-group">
 <kbd><span class="option">-r <var>file</var></span></kbd></td>
 <td>Read log entries from file instead of shared memory.</td></tr>
@@ -300,7 +305,7 @@ itself. See LICENCE for details.</p>
         <li class="right" >
           <a href="varnishlog.html" title="varnishlog"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" >The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>

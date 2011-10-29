@@ -7,13 +7,13 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Vary &mdash; Varnish version 3.0.2-rc1 documentation</title>
+    <title>Vary &mdash; Varnish version 3.0.2 documentation</title>
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2-rc1',
+        VERSION:     '3.0.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +22,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2-rc1 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
     <link rel="up" title="Using Varnish" href="index.html" />
     <link rel="next" title="Purging and banning" href="purging.html" />
     <link rel="prev" title="Cookies" href="cookies.html" /> 
@@ -40,7 +40,7 @@
         <li class="right" >
           <a href="cookies.html" title="Cookies"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">Using Varnish</a> &raquo;</li> 
       </ul>
     </div>  
@@ -54,10 +54,10 @@
 <span id="tutorial-vary"></span><h1>Vary<a class="headerlink" href="#vary" title="Permalink to this headline">¶</a></h1>
 <p>The Vary header is sent by the web server to indicate what makes a
 HTTP object Vary. This makes a lot of sense with headers like
-Accept-Encoding. When a server issues a &#8220;Vary: Accept-Encoding&#8221; it
+Accept-Encoding. When a server issues a &quot;Vary: Accept-Encoding&quot; it
 tells Varnish that its needs to cache a separate version for every
 different Accept-Encoding that is coming from the clients. So, if a
-clients only accepts gzip encoding Varnish won&#8217;t serve the version of
+clients only accepts gzip encoding Varnish won't serve the version of
 the page encoded with the deflate encoding.</p>
 <p>The problem is that the Accept-Encoding field contains a lot of
 different encodings. If one browser sends:</p>
@@ -152,7 +152,7 @@ code as a template.</p>
         <li class="right" >
           <a href="cookies.html" title="Cookies"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" >Using Varnish</a> &raquo;</li> 
       </ul>
     </div>

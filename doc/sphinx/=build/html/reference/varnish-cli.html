@@ -7,13 +7,13 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>varnish &mdash; Varnish version 3.0.2-rc1 documentation</title>
+    <title>varnish &mdash; Varnish version 3.0.2 documentation</title>
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2-rc1',
+        VERSION:     '3.0.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +22,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2-rc1 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
     <link rel="up" title="The Varnish Reference Manual" href="index.html" />
     <link rel="next" title="varnishadm" href="varnishadm.html" />
     <link rel="prev" title="VCL" href="vcl.html" /> 
@@ -40,7 +40,7 @@
         <li class="right" >
           <a href="vcl.html" title="VCL"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>  
@@ -107,7 +107,7 @@ is::</p>
      here document
 word</pre>
 </div>
-<p><em>word</em> can be any continuous string choosen to make sure it doesn&#8217;t
+<p><em>word</em> can be any continuous string choosen to make sure it doesn't
 appear naturally in the following <em>here document</em>.</p>
 <p>When using the here document style of input there are no restrictions
 on lenght. When using newline-terminated commands maximum lenght is
@@ -146,7 +146,7 @@ examples.</dd>
 <dt>ban.list</dt>
 <dd><p class="first">All requests for objects from the cache are matched against
 items on the ban list.  If an object in the cache is older than
-a matching ban list item, it is considered &#8220;banned&#8221;, and will be
+a matching ban list item, it is considered &quot;banned&quot;, and will be
 fetched from the backend instead.</p>
 <p>When a ban expression is older than all the objects in the
 cache, it is removed from the list.</p>
@@ -159,9 +159,9 @@ www.myhost.com &amp;&amp; req.url ~ /some/url</p>
 as a high precision timestamp.</p>
 <p>The third field describes many objects point to this ban. When
 an object is compared to a ban the object is marked with a
-reference to the newest ban it was tested against. This isn&#8217;t
-really useful unless you&#8217;re debugging.</p>
-<p>A &#8220;G&#8221; marks that the ban is &#8220;Gone&#8221;. Meaning it has been marked
+reference to the newest ban it was tested against. This isn't
+really useful unless you're debugging.</p>
+<p>A &quot;G&quot; marks that the ban is &quot;Gone&quot;. Meaning it has been marked
 as a duplicate or it is no longer valid. It stays in the list
 for effiency reasons.</p>
 <p class="last">Then follows the actual ban it self.</p>
@@ -196,7 +196,7 @@ specified by vcl, which must be a quoted string.</dd>
 <dt>vcl.list</dt>
 <dd>List available configurations and their respective reference
 counts.  The active configuration is indicated with an asterisk
-(&#8220;*&#8221;).</dd>
+(&quot;*&quot;).</dd>
 <dt>vcl.load configname filename</dt>
 <dd>Create a new configuration named configname with the contents of
 the specified file.</dd>
@@ -212,14 +212,14 @@ configuration was in use when they arrived.</dd>
 <h4>Ban Expressions<a class="headerlink" href="#ban-expressions" title="Permalink to this headline">¶</a></h4>
 <p>A ban expression consists of one or more conditions.  A condition
 consists of a field, an operator, and an argument.  Conditions can be
-ANDed together with &#8220;&amp;&amp;&#8221;.</p>
+ANDed together with &quot;&amp;&amp;&quot;.</p>
 <p>A field can be any of the variables from VCL, for instance req.url,
 req.http.host or obj.set-cookie.</p>
-<p>Operators are &#8220;==&#8221; for direct comparision, &#8220;~&#8221; for a regular
-expression match, and &#8220;&gt;&#8221; or &#8220;&lt;&#8221; for size comparisons.  Prepending
-an operator with &#8221;!&#8221; negates the expression.</p>
+<p>Operators are &quot;==&quot; for direct comparision, &quot;~&quot; for a regular
+expression match, and &quot;&gt;&quot; or &quot;&lt;&quot; for size comparisons.  Prepending
+an operator with &quot;!&quot; negates the expression.</p>
 <p>The argument could be a quoted string, a regexp, or an integer.
-Integers can have &#8220;KB&#8221;, &#8220;MB&#8221;, &#8220;GB&#8221; or &#8220;TB&#8221; appended for size related
+Integers can have &quot;KB&quot;, &quot;MB&quot;, &quot;GB&quot; or &quot;TB&quot; appended for size related
 fields.</p>
 </div>
 <div class="section" id="scripting">
@@ -263,10 +263,10 @@ Type 'start' to launch worker process.</pre>
 </div>
 <p>The CLI status of 107 indicates that authentication is necessary. The
 first 32 characters of the reponse text is the challenge
-&#8220;ixsl...mpg&#8221;. The challenge is randomly generated for each CLI
+&quot;ixsl...mpg&quot;. The challenge is randomly generated for each CLI
 connection, and changes each time a 107 is emitted.</p>
 <p>The most recently emitted challenge must be used for calculating the
-authenticator &#8220;455c...c89a&#8221;.</p>
+authenticator &quot;455c...c89a&quot;.</p>
 <p>The authenticator is calculated by applying the SHA256 function to the
 following byte sequence:</p>
 <ul class="simple">
@@ -307,13 +307,13 @@ secret file, and the challenge string.</p>
 <div class="highlight-python"><div class="highlight"><pre><span class="n">req</span><span class="o">.</span><span class="n">url</span> <span class="o">==</span> <span class="s">&quot;/news&quot;</span>
 </pre></div>
 </div>
-<p>Example: Ban all documents where the name does not end with &#8221;.ogg&#8221;,
+<p>Example: Ban all documents where the name does not end with &quot;.ogg&quot;,
 and where the size of the object is greater than 10 megabytes::</p>
 <div class="highlight-python"><pre>req.url !~ "\.ogg$" &amp;&amp; obj.size &gt; 10MB</pre>
 </div>
-<p>Example: Ban all documents where the serving host is &#8220;example.com&#8221;
-or &#8220;www.example.com&#8221;, and where the Set-Cookie header received from
-the backend contains &#8220;USERID=1663&#8221;::</p>
+<p>Example: Ban all documents where the serving host is &quot;example.com&quot;
+or &quot;www.example.com&quot;, and where the Set-Cookie header received from
+the backend contains &quot;USERID=1663&quot;::</p>
 <div class="highlight-python"><pre>req.http.host ~ "^(?i)(www\.)example.com$" &amp;&amp; obj.set-cookie ~ "USERID=1663"</pre>
 </div>
 </div>
@@ -410,7 +410,7 @@ itself. See LICENCE for details.</p>
         <li class="right" >
           <a href="vcl.html" title="VCL"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" >The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>

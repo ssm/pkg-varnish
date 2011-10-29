@@ -7,13 +7,13 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>varnishd &mdash; Varnish version 3.0.2-rc1 documentation</title>
+    <title>varnishd &mdash; Varnish version 3.0.2 documentation</title>
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2-rc1',
+        VERSION:     '3.0.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +22,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2-rc1 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
     <link rel="up" title="The Varnish Reference Manual" href="index.html" />
     <link rel="next" title="varnishhist" href="varnishhist.html" />
     <link rel="prev" title="varnishadm" href="varnishadm.html" /> 
@@ -40,7 +40,7 @@
         <li class="right" >
           <a href="varnishadm.html" title="varnishadm"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>  
@@ -144,7 +144,7 @@ run-time parameter.</td></tr>
 from VCL</td></tr>
 <tr><td class="option-group">
 <kbd><span class="option">-l <var>shmlogsize</var></span></kbd></td>
-<td>Specify size of shmlog file.  Scaling suffixes like &#8216;k&#8217;, &#8216;m&#8217; can be used up to
+<td>Specify size of shmlog file.  Scaling suffixes like 'k', 'm' can be used up to
 (e)tabytes.  Default is 80 Megabytes.  Specifying less than 8 Megabytes is unwise.</td></tr>
 <tr><td class="option-group">
 <kbd><span class="option">-n <var>name</var></span></kbd></td>
@@ -154,7 +154,7 @@ If the specified name begins with a forward slash, it is interpreted as the abso
 path to the directory which should be used for this purpose.</td></tr>
 <tr><td class="option-group">
 <kbd><span class="option">-P <var>file</var></span></kbd></td>
-<td>Write the process&#8217;s PID to the specified file.</td></tr>
+<td>Write the process's PID to the specified file.</td></tr>
 </tbody>
 </table>
 <dl class="docutils">
@@ -228,7 +228,7 @@ thread_pool_timeout has no effect.</p>
 <dd>A simple doubly-linked list.  Not recommended for production use.</dd>
 <dt>classic[,buckets]</dt>
 <dd>A standard hash table.  This is the default.  The hash key is the
-CRC32 of the object&#8217;s URL modulo the size of the hash table.  Each
+CRC32 of the object's URL modulo the size of the hash table.  Each
 table entry points to a list of elements which share the same hash
 key. The buckets parameter specifies the number of entries in the
 hash table.  The default is 16383.</dd>
@@ -280,7 +280,7 @@ for %.</p>
 manner that will secure the survival of <em>most</em> of the objects in
 the event of a planned or unplanned shutdown of Varnish.</p>
 <p>The path parameter specifies the path to the backing file. If
-the file doesn&#8217;t exist Varnish will create it.</p>
+the file doesn't exist Varnish will create it.</p>
 <p>The size parameter specifies the size of the backing file.  The
 size is assumed to be in bytes, unless followed by one of the
 following suffixes:</p>
@@ -292,13 +292,13 @@ following suffixes:</p>
 the silos in the manner of a circular buffer. Only one silo will
 be kept open at any given point in time. Full silos are
 <em>sealed</em>. When Varnish starts after a shutdown it will discard
-the content of any silo that isn&#8217;t sealed.</p>
+the content of any silo that isn't sealed.</p>
 </div></blockquote>
 </div>
 <div class="section" id="transient-storage">
 <h4>Transient Storage<a class="headerlink" href="#transient-storage" title="Permalink to this headline">¶</a></h4>
 <blockquote>
-<div>If you name any of your storage backend &#8220;Transient&#8221; it will be
+<div>If you name any of your storage backend &quot;Transient&quot; it will be
 used for transient (short lived) objects. By default Varnish
 would use an unlimited malloc backend for this.</div></blockquote>
 </div>
@@ -453,7 +453,7 @@ Objects already cached will not be affected by changes made until they are fetch
 </ul>
 <p class="last">The TTL assigned to objects if neither the backend nor the VCL code assigns one.
 Objects already cached will not be affected by changes made until they are fetched from the backend again.
-To force an immediate effect at the expense of a total flush of the cache use &#8220;ban.url .&#8221;</p>
+To force an immediate effect at the expense of a total flush of the cache use &quot;ban.url .&quot;</p>
 </dd>
 <dt>diag_bitmap</dt>
 <dd><ul class="first simple">
@@ -549,7 +549,7 @@ Memory impact is 1=1k, 2=2k, ... 9=256k.</p>
 <li>Flags: experimental</li>
 </ul>
 <p class="last">Size of stack buffer used for gzip processing.
-The stack buffers are used for in-transit data, for instance gunzip&#8217;ed data being sent to a client.Making this space to small results in more overhead, writes to sockets etc, making it too big is probably just a waste of memory.</p>
+The stack buffers are used for in-transit data, for instance gunzip'ed data being sent to a client.Making this space to small results in more overhead, writes to sockets etc, making it too big is probably just a waste of memory.</p>
 </dd>
 <dt>gzip_tmp_space</dt>
 <dd><ul class="first simple">
@@ -599,7 +599,7 @@ This paramter does not influence storage consumption, objects allocate exact spa
 <dt>http_req_hdr_len</dt>
 <dd><ul class="first simple">
 <li>Units: bytes</li>
-<li>Default: 4096</li>
+<li>Default: 8192</li>
 </ul>
 <p class="last">Maximum length of any HTTP client request header we will allow.  The limit is inclusive its continuation lines.</p>
 </dd>
@@ -614,7 +614,7 @@ The memory for the request is allocated from the session workspace (param: sess_
 <dt>http_resp_hdr_len</dt>
 <dd><ul class="first simple">
 <li>Units: bytes</li>
-<li>Default: 4096</li>
+<li>Default: 8192</li>
 </ul>
 <p class="last">Maximum length of any HTTP backend response header we will allow.  The limit is inclusive its continuation lines.</p>
 </dd>
@@ -678,12 +678,12 @@ Objects are only moved to the front of the LRU list if they have not been moved 
 <li>Default: 4</li>
 </ul>
 <p class="last">Upper limit on how many times a request can restart.
-Be aware that restarts are likely to cause a hit against the backend, so don&#8217;t increase thoughtlessly.</p>
+Be aware that restarts are likely to cause a hit against the backend, so don't increase thoughtlessly.</p>
 </dd>
 <dt>nuke_limit</dt>
 <dd><ul class="first simple">
 <li>Units: allocations</li>
-<li>Default: 10</li>
+<li>Default: 50</li>
 <li>Flags: experimental</li>
 </ul>
 <p class="last">Maximum number of objects we attempt to nuke in orderto make space for a object body.</p>
@@ -743,7 +743,7 @@ NB: Even with the implict delay of delivery, this parameter controls an exponent
 <li>Default: 60</li>
 <li>Flags: delayed</li>
 </ul>
-<p class="last">Send timeout for client connections. If the HTTP response hasn&#8217;t been transmitted in this many
+<p class="last">Send timeout for client connections. If the HTTP response hasn't been transmitted in this many
 seconds the session is closed.
 See setsockopt(2) under SO_SNDTIMEO for more information.</p>
 </dd>
@@ -796,7 +796,7 @@ Maximum is 65535 bytes.</p>
 <li>Flags: delayed</li>
 </ul>
 <p class="last">Bytes of shmlog workspace allocated for worker threads. If too big, it wastes some ram, if too small it causes needless flushes of the SHM workspace.
-These flushes show up in stats as &#8220;SHM flushes due to overflow&#8221;.
+These flushes show up in stats as &quot;SHM flushes due to overflow&quot;.
 Minimum is 4096 bytes.</p>
 </dd>
 <dt>shortlived</dt>
@@ -925,7 +925,7 @@ This parameters defines the maximum number of requests a worker thread may handl
 <li>Default: magic</li>
 <li>Flags: must_restart</li>
 </ul>
-<p class="last">The unprivileged user to run as.  Setting this will also set &#8220;group&#8221; to the specified user&#8217;s primary group.</p>
+<p class="last">The unprivileged user to run as.  Setting this will also set &quot;group&quot; to the specified user's primary group.</p>
 </dd>
 <dt>vcc_err_unref</dt>
 <dd><ul class="first simple">
@@ -1064,7 +1064,7 @@ itself. See LICENCE for details.</p>
         <li class="right" >
           <a href="varnishadm.html" title="varnishadm"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" >The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>

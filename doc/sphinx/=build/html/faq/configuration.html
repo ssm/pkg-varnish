@@ -7,13 +7,13 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Configuration &mdash; Varnish version 3.0.2-rc1 documentation</title>
+    <title>Configuration &mdash; Varnish version 3.0.2 documentation</title>
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2-rc1',
+        VERSION:     '3.0.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +22,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2-rc1 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
     <link rel="up" title="Frequently asked questions" href="index.html" />
     <link rel="next" title="Logging" href="logging.html" />
     <link rel="prev" title="HTTP" href="http.html" /> 
@@ -40,7 +40,7 @@
         <li class="right" >
           <a href="http.html" title="HTTP"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">Frequently asked questions</a> &raquo;</li> 
       </ul>
     </div>  
@@ -63,14 +63,14 @@ the <a class="reference external" href="http://varnish-cache.org/wiki/VCLExample
 <ul class="simple">
 <li>Place the VCL file on the server</li>
 <li>Telnet into the managment port.</li>
-<li>do a &#8220;vcl.load &lt;configname&gt; &lt;filename&gt;&#8221; in managment interface. &lt;configname&gt; is whatever you would like to call your new configuration.</li>
-<li>do a &#8220;vcl.use &lt;configname&gt;&#8221; to start using your new config.</li>
+<li>do a &quot;vcl.load &lt;configname&gt; &lt;filename&gt;&quot; in managment interface. &lt;configname&gt; is whatever you would like to call your new configuration.</li>
+<li>do a &quot;vcl.use &lt;configname&gt;&quot; to start using your new config.</li>
 </ul>
-<p><strong>Should I use &#8216;&#8217;pipe&#8217;&#8217; or &#8216;&#8217;pass&#8217;&#8217; in my VCL code? What is the difference?</strong></p>
+<p><strong>Should I use ''pipe'' or ''pass'' in my VCL code? What is the difference?</strong></p>
 <p>When varnish does a <tt class="docutils literal"><span class="pre">pass</span></tt> it acts like a normal HTTP proxy. It
 reads the request and pushes it onto the backend. The next HTTP
 request can then be handled like any other.</p>
-<p><tt class="docutils literal"><span class="pre">pipe</span></tt> is only used when Varnish for some reason can&#8217;t handle the
+<p><tt class="docutils literal"><span class="pre">pipe</span></tt> is only used when Varnish for some reason can't handle the
 <tt class="docutils literal"><span class="pre">pass</span></tt>. <tt class="docutils literal"><span class="pre">pipe</span></tt> reads the request, pushes in onty the backend
 _only_ pushes bytes back and forth, with no other actions taken.</p>
 <p>Since most HTTP clients do pipeline several requests into one
@@ -83,7 +83,7 @@ with <tt class="docutils literal"><span class="pre">pass</span></tt> mode, so in
 correct handling.</p>
 <p>In 2.0 and later, <tt class="docutils literal"><span class="pre">pass</span></tt> will handle the request body correctly.</p>
 <p>If you get 503 errors when making a request which is <tt class="docutils literal"><span class="pre">pass</span></tt> ed, make sure
-that you&#8217;re specifying the backend before returning from vcl_recv with <tt class="docutils literal"><span class="pre">pass</span></tt>.</p>
+that you're specifying the backend before returning from vcl_recv with <tt class="docutils literal"><span class="pre">pass</span></tt>.</p>
 </div>
 </div>
 
@@ -141,7 +141,7 @@ that you&#8217;re specifying the backend before returning from vcl_recv with <tt
         <li class="right" >
           <a href="http.html" title="HTTP"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" >Frequently asked questions</a> &raquo;</li> 
       </ul>
     </div>

@@ -7,13 +7,13 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Troubleshooting Varnish &mdash; Varnish version 3.0.2-rc1 documentation</title>
+    <title>Troubleshooting Varnish &mdash; Varnish version 3.0.2 documentation</title>
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2-rc1',
+        VERSION:     '3.0.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +22,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2-rc1 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
     <link rel="up" title="Using Varnish" href="index.html" />
     <link rel="next" title="The Varnish Reference Manual" href="../reference/index.html" />
     <link rel="prev" title="Advanced topics" href="advanced_topics.html" /> 
@@ -40,7 +40,7 @@
         <li class="right" >
           <a href="advanced_topics.html" title="Advanced topics"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">Using Varnish</a> &raquo;</li> 
       </ul>
     </div>  
@@ -57,9 +57,9 @@ going on there are a couple of places you can check. varnishlog,
 /var/log/syslog, /var/log/messages are all places where varnish might
 leave clues of whats going on.</p>
 <div class="section" id="when-varnish-won-t-start">
-<h2>When Varnish won&#8217;t start<a class="headerlink" href="#when-varnish-won-t-start" title="Permalink to this headline">¶</a></h2>
+<h2>When Varnish won't start<a class="headerlink" href="#when-varnish-won-t-start" title="Permalink to this headline">¶</a></h2>
 <p>Sometimes Varnish wont start. There is a plethora of reasons why
-Varnish wont start on your machine. We&#8217;ve seen everything from wrong
+Varnish wont start on your machine. We've seen everything from wrong
 permissions on /dev/null to other processes blocking the ports.</p>
 <p>Starting Varnish in debug mode to see what is going on.</p>
 <p>Try to start varnish by:</p>
@@ -82,15 +82,15 @@ Type 'quit' to close CLI session.
 Type 'start' to launch worker process.</pre>
 </div>
 <p>Now Varnish is running. Only the master process is running, in debug
-mode the cache does not start. Now you&#8217;re on the console. You can
-instruct the master process to start the cache by issuing &#8220;start&#8221;.:</p>
+mode the cache does not start. Now you're on the console. You can
+instruct the master process to start the cache by issuing &quot;start&quot;.:</p>
 <div class="highlight-python"><pre>start
 bind(): Address already in use
 300 22
 Could not open sockets</pre>
 </div>
 <p>And here we have our problem. Something else is bound to the HTTP port
-of Varnish. If this doesn&#8217;t help try strace or truss or come find us
+of Varnish. If this doesn't help try strace or truss or come find us
 on IRC.</p>
 </div>
 <div class="section" id="varnish-is-crashing">
@@ -104,7 +104,7 @@ Mar  8 13:23:43 smoke varnishd[15670]: Child (15671) died signal=3
 Mar  8 13:23:43 smoke varnishd[15670]: Child cleanup complete
 Mar  8 13:23:43 smoke varnishd[15670]: child (15697) Started</pre>
 </div>
-<p>Specifically if you see the &#8220;Error in munmap&#8221; error on Linux you might
+<p>Specifically if you see the &quot;Error in munmap&quot; error on Linux you might
 want to increase the amount of maps available. Linux is limited to a
 maximum of 64k maps. Setting vm.max_max_count i sysctl.conf will
 enable you to increase this limit. You can inspect the number of maps
@@ -129,7 +129,7 @@ whole shared memory log just add the -d option::</p>
 filtering capabilities and explanation of the various options.</p>
 </div>
 <div class="section" id="varnish-doesn-t-cache">
-<h2>Varnish doesn&#8217;t cache<a class="headerlink" href="#varnish-doesn-t-cache" title="Permalink to this headline">¶</a></h2>
+<h2>Varnish doesn't cache<a class="headerlink" href="#varnish-doesn-t-cache" title="Permalink to this headline">¶</a></h2>
 <p>See <a class="reference internal" href="increasing_your_hitrate.html#tutorial-increasing-your-hitrate"><em>Achieving a high hitrate</em></a>.</p>
 </div>
 </div>
@@ -143,10 +143,10 @@ filtering capabilities and explanation of the various options.</p>
   <h3><a href="../index.html">Table Of Contents</a></h3>
   <ul>
 <li><a class="reference internal" href="#">Troubleshooting Varnish</a><ul>
-<li><a class="reference internal" href="#when-varnish-won-t-start">When Varnish won&#8217;t start</a></li>
+<li><a class="reference internal" href="#when-varnish-won-t-start">When Varnish won't start</a></li>
 <li><a class="reference internal" href="#varnish-is-crashing">Varnish is crashing</a></li>
 <li><a class="reference internal" href="#varnish-gives-me-guru-meditation">Varnish gives me Guru meditation</a></li>
-<li><a class="reference internal" href="#varnish-doesn-t-cache">Varnish doesn&#8217;t cache</a></li>
+<li><a class="reference internal" href="#varnish-doesn-t-cache">Varnish doesn't cache</a></li>
 </ul>
 </li>
 </ul>
@@ -191,7 +191,7 @@ filtering capabilities and explanation of the various options.</p>
         <li class="right" >
           <a href="advanced_topics.html" title="Advanced topics"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" >Using Varnish</a> &raquo;</li> 
       </ul>
     </div>

@@ -7,13 +7,13 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Reporting bugs &mdash; Varnish version 3.0.2-rc1 documentation</title>
+    <title>Reporting bugs &mdash; Varnish version 3.0.2 documentation</title>
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2-rc1',
+        VERSION:     '3.0.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +22,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2-rc1 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
     <link rel="up" title="Varnish Installation" href="index.html" />
     <link rel="next" title="Upgrading from Varnish 2.1 to 3.0" href="upgrade.html" />
     <link rel="prev" title="Getting hold of us" href="help.html" /> 
@@ -40,7 +40,7 @@
         <li class="right" >
           <a href="help.html" title="Getting hold of us"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">Varnish Installation</a> &raquo;</li> 
       </ul>
     </div>  
@@ -55,15 +55,15 @@
 <p>Varnish can be a tricky beast to debug, having potentially thousands
 of threads crowding into a few data structures makes for <em>interesting</em>
 core dumps.</p>
-<p>Actually, let me rephrase that without irony:  You tire of the &#8220;no,
-not thread 438 either, lets look at 439 then...&#8221; routine really fast.</p>
+<p>Actually, let me rephrase that without irony:  You tire of the &quot;no,
+not thread 438 either, lets look at 439 then...&quot; routine really fast.</p>
 <p>So if you run into a bug, it is important that you spend a little bit
 of time collecting the right information, to help us fix the bug.</p>
 <p>The most valuable information you can give us, is <strong>always</strong> how
 to trigger and reproduce the problem.  If you can tell us that, we
 rarely need anything else to solve it.  The caveat being, that we
 do not have a way to simulate high levels of real-life web-traffic,
-so telling us to &#8220;have 10.000 clients hit at once&#8221; does not really
+so telling us to &quot;have 10.000 clients hit at once&quot; does not really
 allow us to reproduce.</p>
 <p>Roughly we have three clases of bugs with Varnish, and the information
 we need to debug them depends on the kind of bug.</p>
@@ -104,20 +104,20 @@ a lot.</p>
 <p>There will be a lot more information than this, and before sending
 it all to us, you should obscure any sensitive/secret
 data/cookies/passwords/ip# etc.  Please make sure to keep context
-when you do so, ie: do not change all the IP# to &#8220;X.X.X.X&#8221;, but
+when you do so, ie: do not change all the IP# to &quot;X.X.X.X&quot;, but
 change each IP# to something unique, otherwise we are likely to be
 more confused than informed.</p>
-<p>The most important line is the &#8220;Panic Message&#8221;, which comes in two
+<p>The most important line is the &quot;Panic Message&quot;, which comes in two
 general forms:</p>
 <dl class="docutils">
-<dt>&#8220;Missing errorhandling code in ...&#8221;</dt>
+<dt>&quot;Missing errorhandling code in ...&quot;</dt>
 <dd><p class="first">This is a place where we can conceive ending up, and have not
 (yet) written the padded-box error handling code for.</p>
 <p>The most likely cause here, is that you need a larger workspace
 for HTTP headers and Cookies. (XXX: which params to tweak)</p>
 <p class="last">Please try that before reporting a bug.</p>
 </dd>
-<dt>&#8220;Assert error in ...&#8221;</dt>
+<dt>&quot;Assert error in ...&quot;</dt>
 <dd>This is something bad that should never happen, and a bug
 report is almost certainly in order.  As always, if in doubt
 ask us on IRC before opening the ticket.</dd>
@@ -133,12 +133,12 @@ automatic when <tt class="docutils literal"><span class="pre">-d</span></tt> is 
 <div class="section" id="varnish-goes-on-vacation">
 <h2>Varnish goes on vacation<a class="headerlink" href="#varnish-goes-on-vacation" title="Permalink to this headline">¶</a></h2>
 <p>This kind of bug is nasty to debug, because usually people tend to
-kill the process and send us an email saying &#8220;Varnish hung, I
-restarted it&#8221; which gives us only about 1.01 bit of usable debug
+kill the process and send us an email saying &quot;Varnish hung, I
+restarted it&quot; which gives us only about 1.01 bit of usable debug
 information to work with.</p>
 <p>What we need here is all the information can you squeeze out of
 your operating system <strong>before</strong> you kill the Varnish process.</p>
-<p>One of the most valuable bits of information, is if all Varnish&#8217;
+<p>One of the most valuable bits of information, is if all Varnish'
 threads are waiting for something or if one of them is spinning
 furiously on some futile condition.</p>
 <p>Commands like <tt class="docutils literal"><span class="pre">top</span> <span class="pre">-H</span></tt> or <tt class="docutils literal"><span class="pre">ps</span> <span class="pre">-Haxlw</span></tt> or <tt class="docutils literal"><span class="pre">ps</span> <span class="pre">-efH</span></tt> should be
@@ -226,7 +226,7 @@ executed in your VCL program.</p>
         <li class="right" >
           <a href="help.html" title="Getting hold of us"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" >Varnish Installation</a> &raquo;</li> 
       </ul>
     </div>

@@ -40,28 +40,23 @@ The CLI can be used for the following tasks:
 .INDENT 0.0
 .TP
 .B configuration
-.
 You can upload, change and delete VCL files from the CLI.
 .TP
 .B parameters
-.
 You can inspect and change the various parameters Varnish has
 available through the CLI. The individual parameters are
 documented in the varnishd(1) man page.
 .TP
 .B statistics
-.
 Statistic counters are available from the CLI.
 .TP
 .B bans
-.
 Bans are filters that are applied to keep Varnish from serving
 stale content. When you issue a ban Varnish will not serve any
 \fIbanned\fP object from cache, but rather re\-fetch it from its
 backend servers.
 .TP
 .B process management
-.
 You can stop and start the cache (child) process though the
 CLI. You can also retrieve the lastst stack trace if the child
 process has crashed.
@@ -105,18 +100,15 @@ be entered with the \exnn syntax.
 .INDENT 0.0
 .TP
 .B help [command]
-.
 Display a list of available commands.
 .sp
 If the command is specified, display help for this command.
 .TP
 .B param.set param value
-.
 Set the parameter specified by param to the specified value.
 See Run\-Time Parameters for a list of parame‐ ters.
 .TP
 .B param.show [\-l] [param]
-.
 Display a list if run\-time parameters and their values.
 .sp
 If the \-l option is specified, the list includes a brief
@@ -126,17 +118,14 @@ If a param is specified, display only the value and explanation
 for this parameter.
 .TP
 .B ping  [timestamp]
-.
 Ping the Varnish cache process, keeping the connection alive.
 .TP
 .B ban   \fIfield operator argument\fP [&& field operator argument [...]]
-.sp
 Immediately invalidate all documents matching the ban
 expression.  See \fIBan Expressions\fP for more documentation and
 examples.
 .TP
 .B ban.list
-.
 All requests for objects from the cache are matched against
 items on the ban list.  If an object in the cache is older than
 a matching ban list item, it is considered "banned", and will be
@@ -168,7 +157,6 @@ for effiency reasons.
 Then follows the actual ban it self.
 .TP
 .B ban.url regexp
-.
 Immediately invalidate all documents whose URL matches the
 specified regular expression. Please note that the Host part of
 the URL is ignored, so if you have several virtual hosts all of
@@ -176,15 +164,12 @@ them will be banned. Use \fIban\fP to specify a complete ban if you
 need to narrow it down.
 .TP
 .B quit
-.
 Close the connection to the varnish admin port.
 .TP
 .B start
-.
 Start the Varnish cache process if it is not already running.
 .TP
 .B stats
-.
 Show summary statistics.
 .sp
 All the numbers presented are totals since server startup; for a
@@ -192,41 +177,33 @@ better idea of the current situation, use the varnishstat(1)
 utility.
 .TP
 .B status
-.
 Check the status of the Varnish cache process.
 .TP
 .B stop
-.
 Stop the Varnish cache process.
 .TP
 .B vcl.discard configname
-.
 Discard the configuration specified by configname.  This will
 have no effect if the specified configuration has a non\-zero
 reference count.
 .TP
 .B vcl.inline configname vcl
-.
 Create a new configuration named configname with the VCL code
 specified by vcl, which must be a quoted string.
 .TP
 .B vcl.list
-.
 List available configurations and their respective reference
 counts.  The active configuration is indicated with an asterisk
 ("*").
 .TP
 .B vcl.load configname filename
-.
 Create a new configuration named configname with the contents of
 the specified file.
 .TP
 .B vcl.show configname
-.
 Display the source code for the specified configuration.
 .TP
 .B vcl.use configname
-.
 Start using the configuration specified by configname for all
 new requests.  Existing requests will con‐ tinue using whichever
 configuration was in use when they arrived.
@@ -307,19 +284,14 @@ The authenticator is calculated by applying the SHA256 function to the
 following byte sequence:
 .INDENT 0.0
 .IP \(bu 2
-.
 Challenge string
 .IP \(bu 2
-.
 Newline (0x0a) character.
 .IP \(bu 2
-.
 Contents of the secret file
 .IP \(bu 2
-.
 Challenge string
 .IP \(bu 2
-.
 Newline (0x0a) character.
 .UNINDENT
 .sp
@@ -383,13 +355,10 @@ req.http.host ~ "^(?i)(www\e.)example.com$" && obj.set\-cookie ~ "USERID=1663"
 .SH SEE ALSO
 .INDENT 0.0
 .IP \(bu 2
-.
 varnishd(1)
 .IP \(bu 2
-.
 vanrishadm(1)
 .IP \(bu 2
-.
 vcl(7)
 .UNINDENT
 .SH HISTORY
@@ -403,7 +372,6 @@ This document is licensed under the same licence as Varnish
 itself. See LICENCE for details.
 .INDENT 0.0
 .IP \(bu 2
-.
 Copyright (c) 2011 Varnish Software AS
 .UNINDENT
 .SH AUTHOR

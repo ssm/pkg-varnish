@@ -7,13 +7,13 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Varnish Configuration Language - VCL &mdash; Varnish version 3.0.2-rc1 documentation</title>
+    <title>Varnish Configuration Language - VCL &mdash; Varnish version 3.0.2 documentation</title>
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2-rc1',
+        VERSION:     '3.0.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +22,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2-rc1 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
     <link rel="up" title="Using Varnish" href="index.html" />
     <link rel="next" title="Statistics" href="statistics.html" />
     <link rel="prev" title="Put Varnish on port 80" href="putting_varnish_on_port_80.html" /> 
@@ -40,7 +40,7 @@
         <li class="right" >
           <a href="putting_varnish_on_port_80.html" title="Put Varnish on port 80"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">Using Varnish</a> &raquo;</li> 
       </ul>
     </div>  
@@ -63,16 +63,16 @@ are executed at different times. One is executed when we get the
 request, another when files are fetched from the backend server.</p>
 <p>Varnish will execute these subroutines of code at different stages of
 its work. Because it is code it is execute line by line precedence
-isn&#8217;t a problem. At some point you call an action in this subroutine
+isn't a problem. At some point you call an action in this subroutine
 and then the execution of the subroutine stops.</p>
-<p>If you don&#8217;t call an action in your subroutine and it reaches the end
+<p>If you don't call an action in your subroutine and it reaches the end
 Varnish will execute some built in VCL code. You will see this VCL
 code commented out in default.vcl.</p>
-<p>99% of all the changes you&#8217;ll need to do will be done in two of these
+<p>99% of all the changes you'll need to do will be done in two of these
 subroutines. <em>vcl_recv</em> and <em>vcl_fetch</em>.</p>
 <div class="section" id="vcl-recv">
 <h2>vcl_recv<a class="headerlink" href="#vcl-recv" title="Permalink to this headline">¶</a></h2>
-<p>vcl_recv (yes, we&#8217;re skimpy with characters, it&#8217;s Unix) is called at
+<p>vcl_recv (yes, we're skimpy with characters, it's Unix) is called at
 the beginning of a request, after the complete request has been
 received and parsed.  Its purpose is to decide whether or not to serve
 the request, how to do it, and, if applicable, which backend to use.</p>
@@ -96,7 +96,7 @@ headers from the backend.</p>
 <dl class="docutils">
 <dt><em>pass</em></dt>
 <dd>When you return pass the request and subsequent response will be passed to
-and from the backend server. It won&#8217;t be cached. pass can be returned from
+and from the backend server. It won't be cached. pass can be returned from
 vcl_recv</dd>
 <dt><em>hit_for_pass</em></dt>
 <dd>Similar to pass, but accessible from vcl_fetch. Unlike pass, hit_for_pass
@@ -108,14 +108,14 @@ queueing for an object takes place.</dd>
 <dt><em>lookup</em></dt>
 <dd>When you return lookup from vcl_recv you tell Varnish to deliver content
 from cache even if the request othervise indicates that the request
-should be passed. You can&#8217;t return lookup from vcl_fetch.</dd>
+should be passed. You can't return lookup from vcl_fetch.</dd>
 <dt><em>pipe</em></dt>
 <dd>Pipe can be returned from vcl_recv as well. Pipe short circuits the
 client and the backend connections and Varnish will just sit there
 and shuffle bytes back and forth. Varnish will not look at the data being
 send back and forth - so your logs will be incomplete.
 Beware that with HTTP 1.1 a client can send several requests on the same
-connection and so you should instruct Varnish to add a &#8220;Connection: close&#8221;
+connection and so you should instruct Varnish to add a &quot;Connection: close&quot;
 header before actually returning pipe.</dd>
 <dt><em>deliver</em></dt>
 <dd>Deliver the cached object to the client.  Usually returned from vcl_fetch.</dd>
@@ -294,7 +294,7 @@ sub vcl_miss {
         <li class="right" >
           <a href="putting_varnish_on_port_80.html" title="Put Varnish on port 80"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" >Using Varnish</a> &raquo;</li> 
       </ul>
     </div>

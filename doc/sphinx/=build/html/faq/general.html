@@ -7,13 +7,13 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>General questions &mdash; Varnish version 3.0.2-rc1 documentation</title>
+    <title>General questions &mdash; Varnish version 3.0.2 documentation</title>
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2-rc1',
+        VERSION:     '3.0.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +22,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2-rc1 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
     <link rel="up" title="Frequently asked questions" href="index.html" />
     <link rel="next" title="HTTP" href="http.html" />
     <link rel="prev" title="Frequently asked questions" href="index.html" /> 
@@ -40,7 +40,7 @@
         <li class="right" >
           <a href="index.html" title="Frequently asked questions"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">Frequently asked questions</a> &raquo;</li> 
       </ul>
     </div>  
@@ -62,7 +62,7 @@
 <li>Load balancing with health checking of backends</li>
 <li>Partial support for ESI</li>
 <li>URL rewriting</li>
-<li>Graceful handling of &#8220;dead&#8221; backends</li>
+<li>Graceful handling of &quot;dead&quot; backends</li>
 </ul>
 <p>Features to come (Experimental):</p>
 <ul class="simple">
@@ -116,7 +116,7 @@ as its argument. Hence the <tt class="docutils literal"><span class="pre">^</spa
 </li>
 </ol>
 <p><strong>How can I debug the requests of a single client?</strong></p>
-<p>The &#8220;varnishlog&#8221; utility may produce a horrendous amount of output.  To be able debug our own traffic can be useful.</p>
+<p>The &quot;varnishlog&quot; utility may produce a horrendous amount of output.  To be able debug our own traffic can be useful.</p>
 <p>The ReqStart token will include the client IP address.  To see log entries matching this, type:</p>
 <div class="highlight-python"><pre>$ varnishlog -c -m ReqStart:192.0.2.123</pre>
 </div>
@@ -125,19 +125,19 @@ as its argument. Hence the <tt class="docutils literal"><span class="pre">^</spa
 <div class="highlight-python"><pre>$ varnishlog -b -m TxHeader:192.0.2.123</pre>
 </div>
 <p><strong>How can I rewrite URLS before they are sent to the backend?</strong></p>
-<p>You can use the <tt class="docutils literal"><span class="pre">regsub()</span></tt> function to do this.  Here&#8217;s an example for zope, to rewrite URLs for the virtualhostmonster:</p>
+<p>You can use the <tt class="docutils literal"><span class="pre">regsub()</span></tt> function to do this.  Here's an example for zope, to rewrite URLs for the virtualhostmonster:</p>
 <div class="highlight-python"><pre>if (req.http.host ~ "^(www.)?example.com") {
   set req.url = regsub(req.url, "^", "/VirtualHostBase/http/example.com:80/Sites/example.com/VirtualHostRoot");
 }</pre>
 </div>
 <p><strong>I have a site with many host names, how do I keep them from multiplying the cache?</strong></p>
-<p>You can do this by normalizing the <tt class="docutils literal"><span class="pre">Host</span></tt> header for all your host names.  Here&#8217;s a VCL example:</p>
+<p>You can do this by normalizing the <tt class="docutils literal"><span class="pre">Host</span></tt> header for all your host names.  Here's a VCL example:</p>
 <div class="highlight-python"><pre>if (req.http.host ~ "^(www.)?example.com") {
   set req.http.host = "example.com";
 }</pre>
 </div>
 <p><strong>How do I do to alter the request going to the backend?</strong>
-You can use the <tt class="docutils literal"><span class="pre">bereq</span></tt> object for altering requests going to the backend, but you can only &#8216;set&#8217; values to it. Therefore use req.url to build the request:</p>
+You can use the <tt class="docutils literal"><span class="pre">bereq</span></tt> object for altering requests going to the backend, but you can only 'set' values to it. Therefore use req.url to build the request:</p>
 <div class="highlight-python"><pre>sub vcl_miss {
         set bereq.url = regsub(req.url,"stream/","/");
         return(fetch);
@@ -244,7 +244,7 @@ HTTPS proxy such as nginx or pound.</p>
 <dl class="docutils">
 <dt>There are 2 common reasons for this:</dt>
 <dd><ol class="first last arabic">
-<li><p class="first">The object&#8217;s <tt class="docutils literal"><span class="pre">ttl</span> <span class="pre">expired</span></tt>. A common situation is that the backend does not set an expiry time on the requested image/file/webpage, so Varnish uses the default TTL (normally 120s).</p>
+<li><p class="first">The object's <tt class="docutils literal"><span class="pre">ttl</span> <span class="pre">expired</span></tt>. A common situation is that the backend does not set an expiry time on the requested image/file/webpage, so Varnish uses the default TTL (normally 120s).</p>
 </li>
 <li><dl class="first docutils">
 <dt>Your site uses <tt class="docutils literal"><span class="pre">cookies</span></tt>:</dt>
@@ -262,7 +262,7 @@ HTTPS proxy such as nginx or pound.</p>
 <p>Some HTTP headers, such as <tt class="docutils literal"><span class="pre">Host:</span></tt> and <tt class="docutils literal"><span class="pre">Location:</span></tt> contain fully
 qualified domain names, which by definition is not case-sensitive.
 Other HTTP headers are case-sensitive, most notably the URLs.
-Therefore a &#8220;one size fits all&#8221; solution is not possible.</p>
+Therefore a &quot;one size fits all&quot; solution is not possible.</p>
 <p>In previous releases, we used the POSIX regular expressions
 supplied with the operating system, and decided, because the
 most common use of regexps were on <tt class="docutils literal"><span class="pre">`Host:`</span></tt> headers, that
@@ -284,10 +284,10 @@ probably confuse people if we made the default case-insensitive.
 <p>See the <a class="reference external" href="http://www.pcre.org/pcre.txt">PCRE man pages</a> for more information.</p>
 <p><strong>Why does the ``Via:`` header say 1.1 in Varnish 2.1.x?</strong></p>
 <p>The number in the <tt class="docutils literal"><span class="pre">Via:</span></tt> header is the HTTP protocol version
-supported/applied, not the software&#8217;s version number.</p>
+supported/applied, not the software's version number.</p>
 <p><strong>Why did you call it *Varnish*?</strong></p>
 <p>Long story, but basically the instigator of Varnish spent a long
-time staring at an art-poster with the word &#8220;Vernisage&#8221; and ended
+time staring at an art-poster with the word &quot;Vernisage&quot; and ended
 up checking it in a dictionary, which gives the following three
 meanings of the word:</p>
 <p>r.v. var·nished, var·nish·ing, var·nish·es</p>
@@ -302,13 +302,13 @@ meanings of the word:</p>
 put Varnish in front of it.</p>
 <p><strong>Why does Varnish require the system to have a C compiler?</strong></p>
 <p>The <a class="reference internal" href="configuration.html#faq-vcl"><em>VCL</em></a> compiler generates C source as output (your config file), and uses the systems C-compiler to compile that into a shared library.  If there is no C compiler, Varnish will not work.</p>
-<p><strong>Isn&#8217;t that security problem?</strong></p>
+<p><strong>Isn't that security problem?</strong></p>
 <p>The days when you could prevent people from running non-approved programs by removing the C compiler from your system ended roughly with the VAX 11/780 computer.</p>
 </div>
 <div class="section" id="troubleshooting">
 <h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permalink to this headline">¶</a></h2>
 <p><strong>Why am I getting a cache hit, but a request is still going to my backend?</strong></p>
-<p>Varnish has a feature called <strong>hit for pass</strong>, which is used when Varnish gets a response from the backend and finds out it cannot be cached. In such cases, Varnish will create a cache object that records that fact, so that the next request goes directly to &#8220;pass&#8221;.</p>
+<p>Varnish has a feature called <strong>hit for pass</strong>, which is used when Varnish gets a response from the backend and finds out it cannot be cached. In such cases, Varnish will create a cache object that records that fact, so that the next request goes directly to &quot;pass&quot;.</p>
 <blockquote>
 <div><dl class="docutils">
 <dt>Since Varnish bundles multiple requests for the same URL to the backend, a common case where a client will get a <strong>hit for pass</strong> is:</dt>
@@ -395,7 +395,7 @@ The <strong class="command">varnishstat</strong> can tell you how many <strong>h
         <li class="right" >
           <a href="index.html" title="Frequently asked questions"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" >Frequently asked questions</a> &raquo;</li> 
       </ul>
     </div>

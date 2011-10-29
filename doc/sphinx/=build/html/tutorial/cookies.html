@@ -7,13 +7,13 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Cookies &mdash; Varnish version 3.0.2-rc1 documentation</title>
+    <title>Cookies &mdash; Varnish version 3.0.2 documentation</title>
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2-rc1',
+        VERSION:     '3.0.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +22,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2-rc1 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
     <link rel="up" title="Using Varnish" href="index.html" />
     <link rel="next" title="Vary" href="vary.html" />
     <link rel="prev" title="Achieving a high hitrate" href="increasing_your_hitrate.html" /> 
@@ -40,7 +40,7 @@
         <li class="right" >
           <a href="increasing_your_hitrate.html" title="Achieving a high hitrate"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">Using Varnish</a> &raquo;</li> 
       </ul>
     </div>  
@@ -69,15 +69,15 @@ accessing /admin/:</p>
 </div>
 <p>Quite simple. If, however, you need to do something more complicated,
 like removing one out of several cookies, things get
-difficult. Unfortunately Varnish doesn&#8217;t have good tools for
+difficult. Unfortunately Varnish doesn't have good tools for
 manipulating the Cookies. We have to use regular expressions to do the
-work. If you are familiar with regular expressions you&#8217;ll understand
-whats going on. If you don&#8217;t I suggest you either pick up a book on
+work. If you are familiar with regular expressions you'll understand
+whats going on. If you don't I suggest you either pick up a book on
 the subject, read through the <em>pcrepattern</em> man page or read through
 one of many online guides.</p>
 <p>Let me show you what Varnish Software uses. We use some cookies for
 Google Analytics tracking and similar tools. The cookies are all set
-and used by Javascript. Varnish and Drupal doesn&#8217;t need to see those
+and used by Javascript. Varnish and Drupal doesn't need to see those
 cookies and since Varnish will cease caching of pages when the client
 sends cookies we will discard these unnecessary cookies in VCL.</p>
 <p>In the following VCL we discard all cookies that start with a
@@ -152,7 +152,7 @@ scary examples of what can be done i VCL.</p>
         <li class="right" >
           <a href="increasing_your_hitrate.html" title="Achieving a high hitrate"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" >Using Varnish</a> &raquo;</li> 
       </ul>
     </div>

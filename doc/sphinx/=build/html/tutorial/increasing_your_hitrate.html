@@ -7,13 +7,13 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Achieving a high hitrate &mdash; Varnish version 3.0.2-rc1 documentation</title>
+    <title>Achieving a high hitrate &mdash; Varnish version 3.0.2 documentation</title>
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2-rc1',
+        VERSION:     '3.0.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +22,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2-rc1 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
     <link rel="up" title="Using Varnish" href="index.html" />
     <link rel="next" title="Cookies" href="cookies.html" />
     <link rel="prev" title="Statistics" href="statistics.html" /> 
@@ -40,7 +40,7 @@
         <li class="right" >
           <a href="statistics.html" title="Statistics"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">Using Varnish</a> &raquo;</li> 
       </ul>
     </div>  
@@ -54,12 +54,12 @@
 <span id="tutorial-increasing-your-hitrate"></span><h1>Achieving a high hitrate<a class="headerlink" href="#achieving-a-high-hitrate" title="Permalink to this headline">¶</a></h1>
 <p>Now that Varnish is up and running, and you can access your web
 application through Varnish. Unless your application is specifically
-written to work behind a web accelerator you&#8217;ll probably need to do
+written to work behind a web accelerator you'll probably need to do
 some changes to either the configuration or the application in order
 to get a high hit rate in Varnish.</p>
-<p>Varnish will not cache your data unless it&#8217;s absolutely sure it is
+<p>Varnish will not cache your data unless it's absolutely sure it is
 safe to do so. So, for you to understand how Varnish decides if and
-how to cache a page, I&#8217;ll guide you through a couple of tools that you
+how to cache a page, I'll guide you through a couple of tools that you
 will find useful.</p>
 <p>Note that you need a tool to see what HTTP headers fly between you and
 the web server. On the Varnish server, the easiest is to use
@@ -82,12 +82,12 @@ from the client (-c) matching /foo/bar.</p>
 </div>
 <div class="section" id="tool-lwp-request">
 <h2>Tool: lwp-request<a class="headerlink" href="#tool-lwp-request" title="Permalink to this headline">¶</a></h2>
-<p>lwp-request is part of The World-Wide Web library for Perl. It&#8217;s a
+<p>lwp-request is part of The World-Wide Web library for Perl. It's a
 couple of really basic programs that can execute an HTTP request and
 give you the result. I mostly use two programs, GET and HEAD.</p>
 <p>vg.no was the first site to use Varnish and the people running Varnish
-there are quite clueful. So it&#8217;s interesting to look at their HTTP
-Headers. Let&#8217;s send a GET request for their home page:</p>
+there are quite clueful. So it's interesting to look at their HTTP
+Headers. Let's send a GET request for their home page:</p>
 <div class="highlight-python"><pre>$ GET -H 'Host: www.vg.no' -Used http://vg.no/
 GET http://vg.no/
 Host: www.vg.no
@@ -108,7 +108,7 @@ X-VG-WebServer: leon</pre>
 <p>OK. Let me explain what it does. GET usually sends off HTTP 0.9
 requests, which lack the Host header. So I add a Host header with the
 -H option. -U print request headers, -s prints response status, -e
-prints response headers and -d discards the actual content. We don&#8217;t
+prints response headers and -d discards the actual content. We don't
 really care about the content, only the headers.</p>
 <p>As you can see, VG adds quite a bit of information in their
 headers. Some of the headers, like the X-Rick-Would-Never are specific
@@ -123,7 +123,7 @@ X-VG-Webcache are for debugging purposes.</p>
 <p>There is also a plugin for Firefox. <em>Live HTTP Headers</em> can show you
 what headers are being sent and recieved. Live HTTP Headers can be
 found at <a class="reference external" href="https://addons.mozilla.org/en-US/firefox/addon/3829/">https://addons.mozilla.org/en-US/firefox/addon/3829/</a> or by
-googling &#8220;Live HTTP Headers&#8221;.</p>
+googling &quot;Live HTTP Headers&quot;.</p>
 </div>
 <div class="section" id="the-role-of-http-headers">
 <h2>The role of HTTP Headers<a class="headerlink" href="#the-role-of-http-headers" title="Permalink to this headline">¶</a></h2>
@@ -137,17 +137,17 @@ that both are under your control.</p>
 <p>The term <em>surrogate origin cache</em> is not really well defined by the
 IETF so RFC 2616 so the various ways Varnish works might differ from
 your expectations.</p>
-<p>Let&#8217;s take a look at the important headers you should be aware of:</p>
+<p>Let's take a look at the important headers you should be aware of:</p>
 </div>
 <div class="section" id="cache-control">
 <h2>Cache-Control<a class="headerlink" href="#cache-control" title="Permalink to this headline">¶</a></h2>
 <p>The Cache-Control instructs caches how to handle the content. Varnish
 cares about the <em>max-age</em> parameter and uses it to calculate the TTL
 for an object.</p>
-<p>&#8220;Cache-Control: nocache&#8221; is ignored but if you need this you can
+<p>&quot;Cache-Control: nocache&quot; is ignored but if you need this you can
 easily add support for it.</p>
 <p>So make sure you issue a Cache-Control header with a max-age
-header. You can have a look at what Varnish Software&#8217;s drupal server
+header. You can have a look at what Varnish Software's drupal server
 issues:</p>
 <div class="highlight-python"><pre>$ GET -Used http://www.varnish-software.com/|grep ^Cache-Control
 Cache-Control: public, max-age=600</pre>
@@ -162,7 +162,7 @@ kept inside Varnish. You can grep out Age from varnishlog like this:</p>
 </div>
 <div class="section" id="pragma">
 <h2>Pragma<a class="headerlink" href="#pragma" title="Permalink to this headline">¶</a></h2>
-<p>An HTTP 1.0 server might send &#8220;Pragma: nocache&#8221;. Varnish ignores this
+<p>An HTTP 1.0 server might send &quot;Pragma: nocache&quot;. Varnish ignores this
 header. You could easily add support for this header in VCL.</p>
 <p>In vcl_fetch:</p>
 <div class="highlight-python"><pre>if (beresp.http.Pragma ~ "nocache") {
@@ -193,18 +193,18 @@ your site.</p>
 </div>
 <div class="section" id="forcing-caching-for-certain-requests-and-certain-responses">
 <h2>Forcing caching for certain requests and certain responses<a class="headerlink" href="#forcing-caching-for-certain-requests-and-certain-responses" title="Permalink to this headline">¶</a></h2>
-<p>Since you still have this cumbersome backend that isn&#8217;t very friendly
+<p>Since you still have this cumbersome backend that isn't very friendly
 to work with you might want to override more stuff in Varnish. We
 recommend that you rely as much as you can on the default caching
 rules. It is perfectly easy to force Varnish to lookup an object in
-the cache but it isn&#8217;t really recommended.</p>
+the cache but it isn't really recommended.</p>
 </div>
 <div class="section" id="normalizing-your-namespace">
 <h2>Normalizing your namespace<a class="headerlink" href="#normalizing-your-namespace" title="Permalink to this headline">¶</a></h2>
 <p>Some sites are accessed via lots of
 hostnames. <a class="reference external" href="http://www.varnish-software.com/">http://www.varnish-software.com/</a>,
 <a class="reference external" href="http://varnish-software.com/">http://varnish-software.com/</a> and <a class="reference external" href="http://varnishsoftware.com/">http://varnishsoftware.com/</a> all point
-at the same site. Since Varnish doesn&#8217;t know they are different,
+at the same site. Since Varnish doesn't know they are different,
 Varnish will cache different versions of every page for every
 hostname. You can mitigate this in your web server configuration by
 setting up redirects or by using the following VCL:</p>
@@ -294,7 +294,7 @@ your hitrate, especially the chapter on Cookies.</p>
         <li class="right" >
           <a href="statistics.html" title="Statistics"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2-rc1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
           <li><a href="index.html" >Using Varnish</a> &raquo;</li> 
       </ul>
     </div>
