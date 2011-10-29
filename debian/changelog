@@ -1,3 +1,9 @@
+varnish (3.0.2-1) UNRELEASED; urgency=low
+
+  * New upstream release
+
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Sat, 29 Oct 2011 12:39:16 +0000
+
 varnish (3.0.1-2) unstable; urgency=low
 
   [ Tollef Fog Heen ]
