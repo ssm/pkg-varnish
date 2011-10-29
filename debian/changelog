@@ -1,8 +1,10 @@
-varnish (3.0.2-1) UNRELEASED; urgency=low
+varnish (3.0.2-1) unstable; urgency=low
 
   * New upstream release
+  * Build from upstream tarball instead of git tag
+  * debian/watch: more specific regular expression
 
- -- Stig Sandbeck Mathisen <ssm@debian.org>  Sat, 29 Oct 2011 12:39:16 +0000
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Sat, 29 Oct 2011 15:23:24 +0200
 
 varnish (3.0.1-2) unstable; urgency=low
 
