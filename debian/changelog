@@ -1,3 +1,19 @@
+varnish (3.0.2-2) unstable; urgency=low
+
+  [ Knut Arne Bjørndal ]
+  * Fix exit code from reload-vcl (Closes: #664857)
+
+  [ Stig Sandbeck Mathisen ]
+  * Do not run build tests by default (Closes: #663667)
+  * Use debhelper compat level 9 (Closes: #663064)
+    This gives us multiarch and hardening flags
+  * Remove /etc/varnish/secret on purge (Closes: #656220)
+  * Bump standards-version (no changes)
+  * Add systemd services
+  * Remove vcs_version.h patch
+
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Tue, 01 May 2012 16:20:31 +0200
+
 varnish (3.0.2-1) unstable; urgency=low
 
   * New upstream release
