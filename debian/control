@@ -11,7 +11,7 @@ Build-Depends:
  autoconf,
  automake,
  autotools-dev,
- debhelper (>= 9),
+ debhelper (>= 7.0.50~),
  groff-base,
  libedit-dev,
  libncurses-dev,
@@ -59,7 +59,6 @@ Section: libs
 Architecture: any
 Provides: libvarnish1
 Conflicts: libvarnish1
-Pre-Depends: multiarch-support
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: shared libraries for Varnish
  Shared libraries for the Varnish HTTP accelerator.
