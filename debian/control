@@ -2,9 +2,11 @@ Source: varnish
 Section: web
 Priority: optional
 Maintainer: Varnish Package Maintainers <pkg-varnish-devel@lists.alioth.debian.org>
-Uploaders: Stig Sandbeck Mathisen <ssm@debian.org>,
+Uploaders:
+ Jan Wagner <waja@cyconet.org>,
  Lars Bahner <bahner@debian.org>,
- Tollef Fog Heen <tfheen@debian.org>
+ Stig Sandbeck Mathisen <ssm@debian.org>,
+ Tollef Fog Heen <tfheen@debian.org>,
 Build-Depends:
  autoconf,
  automake,
