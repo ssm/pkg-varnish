@@ -1,3 +1,11 @@
+varnish (3.0.2-2~bpo60+1) squeeze-backports; urgency=low
+
+  * Rebuild for squeeze-backports.
+  * Add Jan Wagner to the team (and sort the uploader list)
+  * Revert "Use debhelper compat level 9", for backport
+
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Tue, 15 May 2012 23:29:11 +0200
+
 varnish (3.0.2-2) unstable; urgency=low
 
   [ Knut Arne Bjørndal ]
