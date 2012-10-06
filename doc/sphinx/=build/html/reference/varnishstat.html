@@ -3,17 +3,20 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
+
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>varnishstat &mdash; Varnish version 3.0.2 documentation</title>
+    <title>varnishstat &mdash; Varnish version 3.0.3 documentation</title>
+    
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2',
+        VERSION:     '3.0.3',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +25,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.3 documentation" href="../index.html" />
     <link rel="up" title="The Varnish Reference Manual" href="index.html" />
     <link rel="next" title="varnishtest" href="varnishtest.html" />
     <link rel="prev" title="varnishsizes" href="varnishsizes.html" /> 
@@ -40,7 +43,7 @@
         <li class="right" >
           <a href="varnishsizes.html" title="varnishsizes"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>  
@@ -58,21 +61,23 @@
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field"><th class="field-name">Author:</th><td class="field-body">Dag-Erling Smørgrav</td>
+<tr class="field-odd field"><th class="field-name">Author:</th><td class="field-body">Dag-Erling Smørgrav</td>
 </tr>
-<tr class="field"><th class="field-name">Author:</th><td class="field-body">Per Buer</td>
+<tr class="field-even field"><th class="field-name">Author:</th><td class="field-body">Per Buer</td>
 </tr>
-<tr class="field"><th class="field-name">Date:</th><td class="field-body">2010-06-1</td>
+<tr class="field-odd field"><th class="field-name">Author:</th><td class="field-body">Lasse Karstensen</td>
 </tr>
-<tr class="field"><th class="field-name">Version:</th><td class="field-body">1.0</td>
+<tr class="field-even field"><th class="field-name">Date:</th><td class="field-body">2011-11-07</td>
 </tr>
-<tr class="field"><th class="field-name">Manual section:</th><td class="field-body">1</td>
+<tr class="field-odd field"><th class="field-name">Version:</th><td class="field-body">1.1</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Manual section:</th><td class="field-body">1</td>
 </tr>
 </tbody>
 </table>
 <div class="section" id="synopsis">
 <h3>SYNOPSIS<a class="headerlink" href="#synopsis" title="Permalink to this headline">¶</a></h3>
-<p>varnishstat [-1] [-x] [-f field_list] [-l] [-n varnish_name] [-V] [-w delay]</p>
+<p>varnishstat [-1] [-x] [-j] [-f field_list] [-l] [-n varnish_name] [-V] [-w delay]</p>
 </div>
 <div class="section" id="description">
 <h3>DESCRIPTION<a class="headerlink" href="#description" title="Permalink to this headline">¶</a></h3>
@@ -84,7 +89,7 @@
 <tbody valign="top">
 <tr><td class="option-group">
 <kbd><span class="option">-1</span></kbd></td>
-<td>Instead of presenting of a continuously updated display, print the statistics once and exit.</td></tr>
+<td>Instead of presenting of a continuously updated display, print the statistics to stdout.</td></tr>
 <tr><td class="option-group">
 <kbd><span class="option">-f</span></kbd></td>
 <td>A comma separated list of the fields to display.  If it starts with '^' it is used as an exclusion
@@ -101,10 +106,13 @@ is used.</td></tr>
 <td>Display the version number and exit.</td></tr>
 <tr><td class="option-group">
 <kbd><span class="option">-w <var>delay</var></span></kbd></td>
-<td>Wait delay seconds between updates.  The default is 1.</td></tr>
+<td>Wait delay seconds between updates.  The default is 1. Can also be used with -1, -x or -j for repeated output.</td></tr>
 <tr><td class="option-group">
 <kbd><span class="option">-x</span></kbd></td>
-<td>Displays the result as XML once.</td></tr>
+<td>Displays the result as XML.</td></tr>
+<tr><td class="option-group">
+<kbd><span class="option">-j</span></kbd></td>
+<td>Displays the result as JSON.</td></tr>
 </tbody>
 </table>
 <p>The columns in the main display are, from left to right:</p>
@@ -128,6 +136,26 @@ is used.</td></tr>
   &lt;description&gt;FIELD DESCRIPTION&lt;/description&gt;
 &lt;/stat&gt;</pre>
 </div>
+<p>With -j the output format is:</p>
+<div class="highlight-python"><pre>{
+  "timestamp": "YYYY-MM-DDTHH:mm:SS",
+  "client_conn": {
+      "value": 0, "flag": "a",
+      "description": "Client connections accepted"
+  },
+  "client_drop": {
+      "value": 0, "flag": "a",
+      "description": "Connection dropped, no sess/wrk"
+  },
+  "LCK.backend.creat": {
+      "type": "LCK", "ident": "backend", "value": 1,
+      "flag": "a", "description": "Created locks"
+  },
+  [..]
+}</pre>
+</div>
+<p>Timestamp is the time when the report was generated by varnishstat.</p>
+<p>Repeated output with -1, -x or -j will have a single empty line (\n) between each block of output.</p>
 </div>
 <div class="section" id="see-also">
 <h3>SEE ALSO<a class="headerlink" href="#see-also" title="Permalink to this headline">¶</a></h3>
@@ -153,7 +181,7 @@ and Per Buer.</p>
 itself. See LICENCE for details.</p>
 <ul class="simple">
 <li>Copyright (c) 2006 Verdens Gang AS</li>
-<li>Copyright (c) 2006-2008 Varnish Software AS</li>
+<li>Copyright (c) 2006-2011 Varnish Software AS</li>
 </ul>
 </div>
 </div>
@@ -194,7 +222,7 @@ itself. See LICENCE for details.</p>
 <div id="searchbox" style="display: none">
   <h3>Quick search</h3>
     <form class="search" action="../search.html" method="get">
-      <input type="text" name="q" size="18" />
+      <input type="text" name="q" />
       <input type="submit" value="Go" />
       <input type="hidden" name="check_keywords" value="yes" />
       <input type="hidden" name="area" value="default" />
@@ -220,13 +248,13 @@ itself. See LICENCE for details.</p>
         <li class="right" >
           <a href="varnishsizes.html" title="varnishsizes"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
           <li><a href="index.html" >The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2010, Varnish Project.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>
 </html>

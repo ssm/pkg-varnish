@@ -3,17 +3,20 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
+
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Advanced Backend configuration &mdash; Varnish version 3.0.2 documentation</title>
+    <title>Advanced Backend configuration &mdash; Varnish version 3.0.3 documentation</title>
+    
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2',
+        VERSION:     '3.0.3',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,10 +25,10 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.3 documentation" href="../index.html" />
     <link rel="up" title="Using Varnish" href="index.html" />
     <link rel="next" title="Misbehaving servers" href="handling_misbehaving_servers.html" />
-    <link rel="prev" title="Running inside a virtual machine (VM)" href="virtualised.html" /> 
+    <link rel="prev" title="Device detection" href="devicedetection.html" /> 
   </head>
   <body>
     <div class="related">
@@ -38,9 +41,9 @@
           <a href="handling_misbehaving_servers.html" title="Misbehaving servers"
              accesskey="N">next</a> |</li>
         <li class="right" >
-          <a href="virtualised.html" title="Running inside a virtual machine (VM)"
+          <a href="devicedetection.html" title="Device detection"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">Using Varnish</a> &raquo;</li> 
       </ul>
     </div>  
@@ -87,7 +90,7 @@ backend? No problem. if (req.User-agent ~ /mobile/) .... should do the
 trick.</p>
 </div>
 <div class="section" id="directors">
-<h1>Directors<a class="headerlink" href="#directors" title="Permalink to this headline">¶</a></h1>
+<span id="tutorial-advanced-backend-servers-directors"></span><h1>Directors<a class="headerlink" href="#directors" title="Permalink to this headline">¶</a></h1>
 <p>You can also group several backend into a group of backends. These
 groups are called directors. This will give you increased performance
 and resilience. You can define several backends and group them
@@ -199,8 +202,8 @@ loading. Unloading the VCL will discard the probes.</p>
 </ul>
 
   <h4>Previous topic</h4>
-  <p class="topless"><a href="virtualised.html"
-                        title="previous chapter">Running inside a virtual machine (VM)</a></p>
+  <p class="topless"><a href="devicedetection.html"
+                        title="previous chapter">Device detection</a></p>
   <h4>Next topic</h4>
   <p class="topless"><a href="handling_misbehaving_servers.html"
                         title="next chapter">Misbehaving servers</a></p>
@@ -212,7 +215,7 @@ loading. Unloading the VCL will discard the probes.</p>
 <div id="searchbox" style="display: none">
   <h3>Quick search</h3>
     <form class="search" action="../search.html" method="get">
-      <input type="text" name="q" size="18" />
+      <input type="text" name="q" />
       <input type="submit" value="Go" />
       <input type="hidden" name="check_keywords" value="yes" />
       <input type="hidden" name="area" value="default" />
@@ -236,15 +239,15 @@ loading. Unloading the VCL will discard the probes.</p>
           <a href="handling_misbehaving_servers.html" title="Misbehaving servers"
              >next</a> |</li>
         <li class="right" >
-          <a href="virtualised.html" title="Running inside a virtual machine (VM)"
+          <a href="devicedetection.html" title="Device detection"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
           <li><a href="index.html" >Using Varnish</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2010, Varnish Project.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>
 </html>

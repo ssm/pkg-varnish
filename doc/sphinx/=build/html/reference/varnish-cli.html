@@ -3,17 +3,20 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
+
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>varnish &mdash; Varnish version 3.0.2 documentation</title>
+    <title>varnish &mdash; Varnish version 3.0.3 documentation</title>
+    
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2',
+        VERSION:     '3.0.3',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +25,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.3 documentation" href="../index.html" />
     <link rel="up" title="The Varnish Reference Manual" href="index.html" />
     <link rel="next" title="varnishadm" href="varnishadm.html" />
     <link rel="prev" title="VCL" href="vcl.html" /> 
@@ -40,7 +43,7 @@
         <li class="right" >
           <a href="vcl.html" title="VCL"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>  
@@ -58,13 +61,13 @@
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field"><th class="field-name">Author:</th><td class="field-body">Per Buer</td>
+<tr class="field-odd field"><th class="field-name">Author:</th><td class="field-body">Per Buer</td>
 </tr>
-<tr class="field"><th class="field-name">Date:</th><td class="field-body">2011-03-23</td>
+<tr class="field-even field"><th class="field-name">Date:</th><td class="field-body">2011-03-23</td>
 </tr>
-<tr class="field"><th class="field-name">Version:</th><td class="field-body">0.1</td>
+<tr class="field-odd field"><th class="field-name">Version:</th><td class="field-body">0.1</td>
 </tr>
-<tr class="field"><th class="field-name">Manual section:</th><td class="field-body">7</td>
+<tr class="field-even field"><th class="field-name">Manual section:</th><td class="field-body">7</td>
 </tr>
 </tbody>
 </table>
@@ -102,7 +105,7 @@ that service. Please see varnishd(1) for details.</p>
 <h4>Syntax<a class="headerlink" href="#syntax" title="Permalink to this headline">¶</a></h4>
 <p>Commands are usually terminated with a newline. Long command can be
 entered using sh style <em>here documents</em>. The format of here-documents
-is::</p>
+is:</p>
 <div class="highlight-python"><pre>&lt;&lt; word
      here document
 word</pre>
@@ -214,7 +217,7 @@ configuration was in use when they arrived.</dd>
 consists of a field, an operator, and an argument.  Conditions can be
 ANDed together with &quot;&amp;&amp;&quot;.</p>
 <p>A field can be any of the variables from VCL, for instance req.url,
-req.http.host or obj.set-cookie.</p>
+req.http.host or obj.http.set-cookie.</p>
 <p>Operators are &quot;==&quot; for direct comparision, &quot;~&quot; for a regular
 expression match, and &quot;&gt;&quot; or &quot;&lt;&quot; for size comparisons.  Prepending
 an operator with &quot;!&quot; negates the expression.</p>
@@ -241,7 +244,7 @@ of that file.</p>
 contents is not cached in varnishd, so it is possible to update the
 file on the fly.</p>
 <p>Use the unix file permissions to control access to the file.</p>
-<p>An authenticated session looks like this::</p>
+<p>An authenticated session looks like this:</p>
 <div class="highlight-python"><pre>critter phk&gt; telnet localhost 1234
 Trying ::1...
 Trying 127.0.0.1...
@@ -277,7 +280,7 @@ following byte sequence:</p>
 <li>Newline (0x0a) character.</li>
 </ul>
 <p>and dumping the resulting digest in lower-case hex.</p>
-<p>In the above example, the secret file contained foon and thus::</p>
+<p>In the above example, the secret file contained foon and thus:</p>
 <div class="highlight-python"><pre>critter phk&gt; cat &gt; _
 ixslvvxrgkjptxmcgnnsdxsvdmvfympg
 foo
@@ -303,17 +306,17 @@ secret file, and the challenge string.</p>
 <div class="section" id="examples">
 <h3>EXAMPLES<a class="headerlink" href="#examples" title="Permalink to this headline">¶</a></h3>
 <p>Simple example: All requests where req.url exactly matches the string
-/news are banned from the cache::</p>
+/news are banned from the cache:</p>
 <div class="highlight-python"><div class="highlight"><pre><span class="n">req</span><span class="o">.</span><span class="n">url</span> <span class="o">==</span> <span class="s">&quot;/news&quot;</span>
 </pre></div>
 </div>
 <p>Example: Ban all documents where the name does not end with &quot;.ogg&quot;,
-and where the size of the object is greater than 10 megabytes::</p>
+and where the size of the object is greater than 10 megabytes:</p>
 <div class="highlight-python"><pre>req.url !~ "\.ogg$" &amp;&amp; obj.size &gt; 10MB</pre>
 </div>
 <p>Example: Ban all documents where the serving host is &quot;example.com&quot;
 or &quot;www.example.com&quot;, and where the Set-Cookie header received from
-the backend contains &quot;USERID=1663&quot;::</p>
+the backend contains &quot;USERID=1663&quot;:</p>
 <div class="highlight-python"><pre>req.http.host ~ "^(?i)(www\.)example.com$" &amp;&amp; obj.set-cookie ~ "USERID=1663"</pre>
 </div>
 </div>
@@ -384,7 +387,7 @@ itself. See LICENCE for details.</p>
 <div id="searchbox" style="display: none">
   <h3>Quick search</h3>
     <form class="search" action="../search.html" method="get">
-      <input type="text" name="q" size="18" />
+      <input type="text" name="q" />
       <input type="submit" value="Go" />
       <input type="hidden" name="check_keywords" value="yes" />
       <input type="hidden" name="area" value="default" />
@@ -410,13 +413,13 @@ itself. See LICENCE for details.</p>
         <li class="right" >
           <a href="vcl.html" title="VCL"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
           <li><a href="index.html" >The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2010, Varnish Project.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>
 </html>

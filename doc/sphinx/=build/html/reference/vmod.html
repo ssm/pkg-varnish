@@ -3,17 +3,20 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
+
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>VMOD - Varnish Modules &mdash; Varnish version 3.0.2 documentation</title>
+    <title>VMOD - Varnish Modules &mdash; Varnish version 3.0.3 documentation</title>
+    
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2',
+        VERSION:     '3.0.3',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +25,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.3 documentation" href="../index.html" />
     <link rel="up" title="The Varnish Reference Manual" href="index.html" />
     <link rel="next" title="vmod_std" href="vmod_std.html" />
     <link rel="prev" title="Shared Memory Logging and Statistics" href="shmem.html" /> 
@@ -40,7 +43,7 @@
         <li class="right" >
           <a href="shmem.html" title="Shared Memory Logging and Statistics"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>  
@@ -69,7 +72,7 @@ sub vcl_deliver {
 <p>The &quot;std&quot; vmod is one you get with Varnish, it will always be there
 and we will put &quot;boutique&quot; functions in it, such as the &quot;toupper&quot;
 function shown above.  The full contents of the &quot;std&quot; module is
-documented in XXX:TBW.</p>
+documented in vmod_std(7).</p>
 <p>This part of the manual is about how you go about writing your own
 VMOD, how the language interface between C and VCC works etc.  This
 explanation will use the &quot;std&quot; VMOD as example, having a varnish
@@ -199,7 +202,11 @@ and make sure your sess_workspace param is big enough.</p>
 <p class="last">Can only be used for return-value, which makes the function a VCL
 procedure.</p>
 </dd>
-<dt>IP, BOOL, HEADER</dt>
+<dt>HEADER</dt>
+<dd><p class="first">C-type: <tt class="docutils literal"><span class="pre">enum</span> <span class="pre">gethdr_e,</span> <span class="pre">const</span> <span class="pre">char</span> <span class="pre">*</span></tt></p>
+<p class="last">XXX: explain me</p>
+</dd>
+<dt>IP, BOOL</dt>
 <dd>XXX: these types are not released for use in vmods yet.</dd>
 </dl>
 </div>
@@ -270,7 +277,7 @@ last one inspected.</p>
 <div id="searchbox" style="display: none">
   <h3>Quick search</h3>
     <form class="search" action="../search.html" method="get">
-      <input type="text" name="q" size="18" />
+      <input type="text" name="q" />
       <input type="submit" value="Go" />
       <input type="hidden" name="check_keywords" value="yes" />
       <input type="hidden" name="area" value="default" />
@@ -296,13 +303,13 @@ last one inspected.</p>
         <li class="right" >
           <a href="shmem.html" title="Shared Memory Logging and Statistics"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
           <li><a href="index.html" >The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2010, Varnish Project.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>
 </html>

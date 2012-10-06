@@ -1,6 +1,6 @@
 .\" Man page generated from reStructeredText.
 .
-.TH VARNISHTEST 1 "2010-05-31" "1.0" ""
+.TH VARNISHTEST 1 "2011-11-15" "1.1" ""
 .SH NAME
 varnishtest \- Test program for Varnish
 .
@@ -33,8 +33,7 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .SH SYNOPSIS
 .INDENT 0.0
 .INDENT 3.5
-.sp
-varnishtest [\-n iter] [\-q] [\-v] file [file ...]
+varnishtest [\-iklLqv] [\-n iter] [\-D name=val] [\-j jobs] [\-t duration] file [file ...]
 .UNINDENT
 .UNINDENT
 .SH DESCRIPTION
@@ -44,212 +43,136 @@ Varnish Cache.
 .sp
 The varnishtest program, when started and given one or more script
 files, can create a number of threads representing backends, some
-threads representing clients, and a varnishd process.
+threads representing clients, and a varnishd process. This is then used to
+simulate a transaction to provoke a specific behavior.
 .sp
 The following options are available:
+.sp
+\-D name=val      Define macro for use in scripts
 .INDENT 0.0
 .TP
-.BI \-n \ iter
-.
-Run iter number of iterations.
+.B \-i
+Find varnishd in build tree
+.TP
+.BI \-j \ jobs
+Run this many tests in parallel
+.TP
+.B \-k
+Continue on test failure
+.TP
+.B \-l
+Leave /tmp/vtc.* if test fails
+.TP
+.B \-L
+Always leave /tmp/vtc.*
+.TP
+.BI \-n \ iterations
+Run tests this many times
 .TP
 .B \-q
-.
-Be quiet.
+Quiet mode: report only failures
+.TP
+.BI \-t \ duration
+Time tests out after this long
 .TP
 .B \-v
-.
-Be verbose.
+Verbose mode: always report test log
 .TP
-.B \-t
-.
-Dunno.
+.B \-h
+Show help
 .UNINDENT
 .sp
-file        File to use as a script
+file             File to use as a script
+.sp
+Macro definitions that can be overridden.
+.sp
+varnishd         Path to varnishd to use [varnishd]
 .SH SCRIPTS
-.SS Example script
+.sp
+The script language used for Varnishtest is not a strictly defined
+language. The best reference for writing scripts is the varnishtest program
+itself. In the Varnish source code repository, under
+\fIbin/varnishtest/tests/\fP, all the regression tests for Varnish are kept.
+.sp
+An example:
 .sp
 .nf
 .ft C
-# Start a varnish instance called "v1"
-varnish v1 \-arg "\-b localhost:9080" \-start
+varnishtest "#1029"
 
-# Create a server thread called "s1"
 server s1 {
-    # Receive a request
-    rxreq
-    # Send a standard response
-    txresp \-hdr "Connection: close" \-body "012345\en"
-}
+        rxreq
+        expect req.url == "/bar"
+        txresp \-gzipbody {[bar]}
 
-# Start the server thread
-server s1 \-start
+        rxreq
+        expect req.url == "/foo"
+        txresp \-body {<h1>FOO<esi:include src="/bar"/>BARF</h1>}
 
-# Create a client thread called "c1"
+} \-start
+
+varnish v1 \-vcl+backend {
+        sub vcl_fetch {
+                set beresp.do_esi = true;
+                if (req.url == "/foo") {
+                        set beresp.ttl = 0s;
+                } else {
+                        set beresp.ttl = 10m;
+                }
+        }
+} \-start
+
 client c1 {
-    # Send a request
-    txreq \-url "/"
-    # Wait for a response
-    rxresp
-# Insist that it be a success
-expect resp.status == 200
-}
+        txreq \-url "/bar" \-hdr "Accept\-Encoding: gzip"
+        rxresp
+        gunzip
+        expect resp.bodylen == 5
 
-# Run the client
-client c1 \-run
-
-# Wait for the server to die
-server s1 \-wait
-
-# (Forcefully) Stop the varnish instance.
-varnish v1 \-stop
-.ft P
-.fi
-.SS Example script output
-.sp
-The output, running this script looks as follows. The "bargraph" at
-the beginning of the line is an indication of the level of detail in
-the line. The second field where the message comes from. The rest of
-the line is anyones guess :\-)
-.sp
-.nf
-.ft C
-#  TEST tests/b00000.vtc starting
-### v1  CMD: cd ../varnishd && ./varnishd \-d \-d \-n v1 \-a :9081 \-T :9001 \-b localhost:9080
-### v1  opening CLI connection
-#### v1  debug| NB: Storage size limited to 2GB on 32 bit architecture,\en
-#### v1  debug| NB: otherwise we could run out of address space.\en
-#### v1  debug| storage_file: filename: ./varnish.Shkoq5 (unlinked) size 2047 MB.\en
-### v1  CLI connection fd = 3
-#### v1  CLI TX| start
-#### v1  debug| Using old SHMFILE\en
-#### v1  debug| Notice: locking SHMFILE in core failed: Operation not permitted\en
-#### v1  debug| bind(): Address already in use\en
-#### v1  debug| rolling(1)...
-#### v1  debug| \en
-#### v1  debug| rolling(2)...\en
-#### v1  debug| Debugging mode, enter "start" to start child\en
-### v1  CLI 200 <start>
-##  s1  Starting server
-### s1  listen on :9080 (fd 6)
-##  c1  Starting client
-##  c1  Waiting for client
-##  s1  started on :9080
-##  c1  started
-### c1  connect to :9081
-### c1  connected to :9081 fd is 8
-#### c1  | GET / HTTP/1.1\er\en
-#### c1  | \er\en
-### c1  rxresp
-#### s1  Accepted socket 7
-### s1  rxreq
-#### s1  | GET / HTTP/1.1\er\en
-#### s1  | X\-Varnish: 422080121\er\en
-#### s1  | X\-Forwarded\-For: 127.0.0.1\er\en
-#### s1  | Host: localhost\er\en
-#### s1  | \er\en
-#### s1  http[ 0] | GET
-#### s1  http[ 1] | /
-#### s1  http[ 2] | HTTP/1.1
-#### s1  http[ 3] | X\-Varnish: 422080121
-#### s1  http[ 4] | X\-Forwarded\-For: 127.0.0.1
-#### s1  http[ 5] | Host: localhost
-#### s1  | HTTP/1.1 200 Ok\er\en
-#### s1  | Connection: close\er\en
-#### s1  | \er\en
-#### s1  | 012345\en
-#### s1  | \er\en
-##  s1  ending
-#### c1  | HTTP/1.1 200 Ok\er\en
-#### c1  | Content\-Length: 9\er\en
-#### c1  | Date: Mon, 16 Jun 2008 22:16:55 GMT\er\en
-#### c1  | X\-Varnish: 422080121\er\en
-#### c1  | Age: 0\er\en
-#### c1  | Via: 1.1 varnish\er\en
-#### c1  | Connection: keep\-alive\er\en
-#### c1  | \er\en
-#### c1  http[ 0] | HTTP/1.1
-#### c1  http[ 1] | 200
-#### c1  http[ 2] | Ok
-#### c1  http[ 3] | Content\-Length: 9
-#### c1  http[ 4] | Date: Mon, 16 Jun 2008 22:16:55 GMT
-#### c1  http[ 5] | X\-Varnish: 422080121
-#### c1  http[ 6] | Age: 0
-#### c1  http[ 7] | Via: 1.1 varnish
-#### c1  http[ 8] | Connection: keep\-alive
-#### c1  EXPECT resp.status (200) == 200 (200) match
-##  c1  ending
-##  s1  Waiting for server
-#### v1  CLI TX| stop
-### v1  CLI 200 <stop>
-#  TEST tests/b00000.vtc completed
+        txreq \-url "/foo" \-hdr "Accept\-Encoding: gzip"
+        rxresp
+        expect resp.bodylen == 21
+} \-run
 .ft P
 .fi
 .sp
-If instead of 200 we had expected 201 with the line::
-.sp
-.nf
-.ft C
-expect resp.status == 201
-.ft P
-.fi
-.sp
-The output would have ended with::
-.sp
-.nf
-.ft C
-#### c1  http[ 0] | HTTP/1.1
-#### c1  http[ 1] | 200
-#### c1  http[ 2] | Ok
-#### c1  http[ 3] | Content\-Length: 9
-#### c1  http[ 4] | Date: Mon, 16 Jun 2008 22:26:35 GMT
-#### c1  http[ 5] | X\-Varnish: 648043653 648043652
-#### c1  http[ 6] | Age: 6
-#### c1  http[ 7] | Via: 1.1 varnish
-#### c1  http[ 8] | Connection: keep\-alive
-\-\-\-\- c1  EXPECT resp.status (200) == 201 (201) failed
-.ft P
-.fi
+When run, the above script will simulate a server (s1) that expects two
+different requests. It will start a varnish server (v1) and add the backend
+definition to the VCL specified (\-vcl+backend). Finally it starts the
+c1\-client, which is a single client sending two requests.
 .SH SEE ALSO
 .INDENT 0.0
 .IP \(bu 2
-.
+varnishtest source code repository with tests
+.IP \(bu 2
 varnishhist(1)
 .IP \(bu 2
-.
 varnishlog(1)
 .IP \(bu 2
-.
 varnishncsa(1)
 .IP \(bu 2
-.
 varnishstat(1)
 .IP \(bu 2
-.
 varnishtop(1)
 .IP \(bu 2
-.
 vcl(7)
 .UNINDENT
 .SH HISTORY
 .sp
 The varnishtest program was developed by Poul\-Henning Kamp
 ⟨phk@phk.freebsd.dk⟩ in cooperation with Varnish Software AS.
-This manual page
-was written by Stig Sandbeck Mathisen ⟨ssm@linpro.no⟩ using examples
-by Poul\-Henning Kamp ⟨phk@phk.freebsd.dk⟩.
+This manual page was originally written by Stig Sandbeck Mathisen
+⟨ssm@linpro.no⟩ and updated by Kristian Lyngstøl
+(\fI\%kristian@varnish\-cache.org\fP).
 .SH COPYRIGHT
 .sp
 This document is licensed under the same licence as Varnish
 itself. See LICENCE for details.
 .INDENT 0.0
 .IP \(bu 2
-.
-Copyright (c) 2007\-2008 Varnish Software AS
+Copyright (c) 2007\-2011 Varnish Software AS
 .UNINDENT
 .SH AUTHOR
-Stig Sandbeck Mathisen
+Stig Sandbeck Mathisen, Kristian Lyngstøl
 .\" Generated by docutils manpage writer.
 .\" 
 .

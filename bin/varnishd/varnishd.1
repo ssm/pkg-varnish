@@ -34,7 +34,6 @@ level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
 .INDENT 0.0
 .TP
 .B varnishd [\-a address[:port]] [\-b host[:port]] [\-d] [\-F] [\-f config]
-.
 [\-g group] [\-h type[,options]] [\-i identity]
 [\-l shmlogsize] [\-n name] [\-P file] [\-p param=value]
 [\-s type[,options]] [\-T address[:port]] [\-t ttl]
@@ -48,7 +47,6 @@ returned documents to better satisfy future requests for the same document.
 .INDENT 0.0
 .TP
 .B \-a address[:port][,address[:port][...]
-.
 Listen for client requests on the specified address and port.  The address can be a host
 name (“localhost”), an IPv4 dotted\-quad (“127.0.0.1”), or an IPv6 address enclosed in
 square brackets (“[::1]”).  If address is not specified, varnishd will listen on all
@@ -57,36 +55,30 @@ listed in /etc/services is used.  Multiple listening addresses and ports can be 
 fied as a whitespace\- or comma\-separated list.
 .TP
 .B \-b host[:port]
-.
 Use the specified host as backend server.  If port is not specified,
 the default is 8080.
 .UNINDENT
 .INDENT 0.0
 .TP
 .B \-C
-.
 Print VCL code compiled to C language and exit. Specify the VCL file
 to compile with the \-f option.
 .TP
 .B \-d
-.
 Enables debugging mode: The parent process runs in the foreground with a CLI connection
 on stdin/stdout, and the child process must be started explicitly with a CLI command.
 Terminating the parent process will also terminate the child.
 .TP
 .B \-F
-.
 Run in the foreground.
 .TP
 .BI \-f \ config
-.
 Use the specified VCL configuration file instead of the
 builtin default.  See vcl(7) for details on VCL
 syntax. When no configuration is supplied varnishd will
 not start the cache process.
 .TP
 .BI \-g \ group
-.
 Specifies the name of an unprivileged group to which the child process should switch
 before it starts accepting connections.  This is a shortcut for specifying the group
 run\-time parameter.
@@ -94,36 +86,30 @@ run\-time parameter.
 .INDENT 0.0
 .TP
 .B \-h type[,options]
-.
 Specifies the hash algorithm.  See Hash Algorithms for a list of supported algorithms.
 .UNINDENT
 .INDENT 0.0
 .TP
 .BI \-i \ identity
-.
 Specify the identity of the varnish server.  This can be accessed using server.identity
 from VCL
 .TP
 .BI \-l \ shmlogsize
-.
 Specify size of shmlog file.  Scaling suffixes like \(aqk\(aq, \(aqm\(aq can be used up to
 (e)tabytes.  Default is 80 Megabytes.  Specifying less than 8 Megabytes is unwise.
 .TP
 .BI \-n \ name
-.
 Specify a name for this instance.  Amonst other things, this name is used to construct
 the name of the directory in which varnishd keeps temporary files and persistent state.
 If the specified name begins with a forward slash, it is interpreted as the absolute
 path to the directory which should be used for this purpose.
 .TP
 .BI \-P \ file
-.
 Write the process\(aqs PID to the specified file.
 .UNINDENT
 .INDENT 0.0
 .TP
 .B \-p param=value
-.
 Set the parameter specified by param to the specified value.  See Run\-Time
 Parameters for a list of parameters. This option can be used multiple
 times to specify multiple parameters.
@@ -131,25 +117,21 @@ times to specify multiple parameters.
 .INDENT 0.0
 .TP
 .BI \-S \ file
-.
 Path to a file containing a secret used for authorizing access to the management port.
 .UNINDENT
 .INDENT 0.0
 .TP
 .B \-s [name=]type[,options]
-.
 Use the specified storage backend.  See Storage Types for a list of supported storage
 types.  This option can be used multiple times to specify multiple storage files. You
 can name the different backends. Varnish will then reference that backend with the
 given name in logs, statistics, etc.
 .TP
 .B \-T address[:port]
-.
 Offer a management interface on the specified address and port.  See Management
 Interface for a list of management commands.
 .TP
 .B \-M address:port
-.
 Connect to this port and offer the command line
 interface. Think of it as a reverse shell. When running with
 \-M and there is no backend defined the child process (the cache)
@@ -158,13 +140,11 @@ will not start initially.
 .INDENT 0.0
 .TP
 .BI \-t \ ttl
-.
 Specifies a hard minimum time to live for cached
 documents.  This is a shortcut for specifying the
 default_ttl run\-time parameter.
 .TP
 .BI \-u \ user
-.
 Specifies the name of an unprivileged user to which the child
 process should switch before it starts accepting
 connections.  This is a shortcut for specifying the user
@@ -174,14 +154,12 @@ If specifying both a user and a group, the user should be
 specified first.
 .TP
 .B \-V
-.
 Display the version number and exit.
 .UNINDENT
 .sp
 \-w min[,max[,timeout]]
 .INDENT 0.0
 .INDENT 3.5
-.sp
 Start at least min but no more than max worker threads
 with the specified idle timeout.  This is a shortcut for
 specifying the thread_pool_min, thread_pool_max and
@@ -198,11 +176,9 @@ The following hash algorithms are available:
 .INDENT 0.0
 .TP
 .B simple_list
-.
 A simple doubly\-linked list.  Not recommended for production use.
 .TP
 .B classic[,buckets]
-.
 A standard hash table.  This is the default.  The hash key is the
 CRC32 of the object\(aqs URL modulo the size of the hash table.  Each
 table entry points to a list of elements which share the same hash
@@ -210,7 +186,6 @@ key. The buckets parameter specifies the number of entries in the
 hash table.  The default is 16383.
 .TP
 .B critbit
-.
 A self\-scaling tree structure. The default hash algorithm in 2.1. In
 comparison to a more traditional B tree the critbit tree is almost
 completely lockless.
@@ -221,7 +196,6 @@ The following storage types are available:
 .INDENT 0.0
 .TP
 .B malloc[,size]
-.
 Storage for each object is allocated with malloc(3).
 .sp
 The size parameter specifies the maximum amount of memory varnishd will allocate.  The size is assumed to
@@ -238,7 +212,6 @@ T, t    The size is expressed in tebibytes.
 The default size is unlimited.
 .TP
 .B file[,path[,size[,granularity]]]
-.
 Storage for each object is allocated from an arena backed by a file.  This is the default.
 .sp
 The path parameter specifies either the path to the backing file or the path to a directory in which
@@ -275,7 +248,6 @@ The default size is the VM page size.  The size should be reduced if you have ma
 persistent,path,size {experimental}
 .INDENT 0.0
 .INDENT 3.5
-.sp
 Persistent storage. Varnish will store objects in a file in a
 manner that will secure the survival of \fImost\fP of the objects in
 the event of a planned or unplanned shutdown of Varnish.
@@ -305,7 +277,6 @@ the content of any silo that isn\(aqt sealed.
 .SS Transient Storage
 .INDENT 0.0
 .INDENT 3.5
-.sp
 If you name any of your storage backend "Transient" it will be
 used for transient (short lived) objects. By default Varnish
 would use an unlimited malloc backend for this.
@@ -324,20 +295,16 @@ below.  The meaning of the flags are:
 .INDENT 0.0
 .TP
 .B experimental
-.
 We have no solid information about good/bad/optimal values for this parameter.  Feedback with experience
 and observations are most welcome.
 .TP
 .B delayed
-.
 This parameter can be changed on the fly, but will not take effect immediately.
 .TP
 .B restart
-.
 The worker process must be stopped and restarted, before this parameter takes effect.
 .TP
 .B reload
-.
 The VCL programs must be reloaded for this parameter to take effect.
 .UNINDENT
 .sp
@@ -352,10 +319,8 @@ Be aware that on 32 bit systems, certain default values, such as sess_workspace 
 .B acceptor_sleep_decay
 .INDENT 7.0
 .IP \(bu 2
-.
 Default: 0.900
 .IP \(bu 2
-.
 Flags: experimental
 .UNINDENT
 .sp
@@ -365,13 +330,10 @@ This parameter (multiplicatively) reduce the sleep duration for each succesfull 
 .B acceptor_sleep_incr
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: s
 .IP \(bu 2
-.
 Default: 0.001
 .IP \(bu 2
-.
 Flags: experimental
 .UNINDENT
 .sp
@@ -381,13 +343,10 @@ This parameter control how much longer we sleep, each time we fail to accept a n
 .B acceptor_sleep_max
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: s
 .IP \(bu 2
-.
 Default: 0.050
 .IP \(bu 2
-.
 Flags: experimental
 .UNINDENT
 .sp
@@ -397,10 +356,8 @@ This parameter limits how long it can sleep between attempts to accept new conne
 .B auto_restart
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: bool
 .IP \(bu 2
-.
 Default: on
 .UNINDENT
 .sp
@@ -409,10 +366,8 @@ Restart child process automatically if it dies.
 .B ban_dups
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: bool
 .IP \(bu 2
-.
 Default: on
 .UNINDENT
 .sp
@@ -421,10 +376,8 @@ Detect and eliminate duplicate bans.
 .B ban_lurker_sleep
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: s
 .IP \(bu 2
-.
 Default: 0.01
 .UNINDENT
 .sp
@@ -434,10 +387,8 @@ A value of zero disables the ban lurker.
 .B between_bytes_timeout
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: s
 .IP \(bu 2
-.
 Default: 60
 .UNINDENT
 .sp
@@ -446,10 +397,8 @@ Default timeout between bytes when receiving data from backend. We only wait for
 .B cc_command
 .INDENT 7.0
 .IP \(bu 2
-.
 Default: exec gcc \-std=gnu99  \-pthread \-fpic \-shared \-Wl,\-x \-o %o %s
 .IP \(bu 2
-.
 Flags: must_reload
 .UNINDENT
 .sp
@@ -458,10 +407,8 @@ Command used for compiling the C source code to a dlopen(3) loadable object.  An
 .B cli_buffer
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: bytes
 .IP \(bu 2
-.
 Default: 8192
 .UNINDENT
 .sp
@@ -472,10 +419,8 @@ NB: Must be specified with \-p to have effect.
 .B cli_timeout
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: seconds
 .IP \(bu 2
-.
 Default: 10
 .UNINDENT
 .sp
@@ -484,10 +429,8 @@ Timeout for the childs replies to CLI requests from the master.
 .B clock_skew
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: s
 .IP \(bu 2
-.
 Default: 10
 .UNINDENT
 .sp
@@ -496,10 +439,8 @@ How much clockskew we are willing to accept between the backend and our own cloc
 .B connect_timeout
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: s
 .IP \(bu 2
-.
 Default: 0.7
 .UNINDENT
 .sp
@@ -508,13 +449,10 @@ Default connection timeout for backend connections. We only try to connect to th
 .B critbit_cooloff
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: s
 .IP \(bu 2
-.
 Default: 180.0
 .IP \(bu 2
-.
 Flags:
 .UNINDENT
 .sp
@@ -523,13 +461,10 @@ How long time the critbit hasher keeps deleted objheads on the cooloff list.
 .B default_grace
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: seconds
 .IP \(bu 2
-.
 Default: 10
 .IP \(bu 2
-.
 Flags: delayed
 .UNINDENT
 .sp
@@ -539,13 +474,10 @@ Objects already cached will not be affected by changes made until they are fetch
 .B default_keep
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: seconds
 .IP \(bu 2
-.
 Default: 0
 .IP \(bu 2
-.
 Flags: delayed
 .UNINDENT
 .sp
@@ -554,10 +486,8 @@ Default keep period.  We will keep a useless object around this long, making it 
 .B default_ttl
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: seconds
 .IP \(bu 2
-.
 Default: 120
 .UNINDENT
 .sp
@@ -568,10 +498,8 @@ To force an immediate effect at the expense of a total flush of the cache use "b
 .B diag_bitmap
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: bitmap
 .IP \(bu 2
-.
 Default: 0
 .UNINDENT
 .sp
@@ -592,11 +520,11 @@ Bitmap controlling diagnostics code:
 0x00010000 \- synchronize shmlog.
 0x00020000 \- synchronous start of persistence.
 0x00040000 \- release VCL early.
+0x00080000 \- ban\-lurker debugging.
 0x80000000 \- do edge\-detection on digest.
 .ft P
 .fi
-.IP "System Message: WARNING/2 (../../doc/sphinx/reference/params.rst:, line 131)"
-.
+.IP "System Message: WARNING/2 (../../doc/sphinx/reference/params.rst:, line 132)"
 Literal block ends without a blank line; unexpected unindent.
 .sp
 Use 0x notation and do the bitor in your head :\-)
@@ -604,10 +532,8 @@ Use 0x notation and do the bitor in your head :\-)
 .B esi_syntax
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: bitmap
 .IP \(bu 2
-.
 Default: 0
 .UNINDENT
 .sp
@@ -621,8 +547,7 @@ Bitmap controlling ESI parsing code:
 0x00000008 \- Force\-split parser input (debugging)
 .ft P
 .fi
-.IP "System Message: WARNING/2 (../../doc/sphinx/reference/params.rst:, line 143)"
-.
+.IP "System Message: WARNING/2 (../../doc/sphinx/reference/params.rst:, line 144)"
 Literal block ends without a blank line; unexpected unindent.
 .sp
 Use 0x notation and do the bitor in your head :\-)
@@ -630,10 +555,8 @@ Use 0x notation and do the bitor in your head :\-)
 .B expiry_sleep
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: seconds
 .IP \(bu 2
-.
 Default: 1
 .UNINDENT
 .sp
@@ -642,13 +565,10 @@ How long the expiry thread sleeps when there is nothing for it to do.
 .B fetch_chunksize
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: kilobytes
 .IP \(bu 2
-.
 Default: 128
 .IP \(bu 2
-.
 Flags: experimental
 .UNINDENT
 .sp
@@ -658,13 +578,10 @@ Internal limits in the storage_file module makes increases above 128kb a dubious
 .B fetch_maxchunksize
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: kilobytes
 .IP \(bu 2
-.
 Default: 262144
 .IP \(bu 2
-.
 Flags: experimental
 .UNINDENT
 .sp
@@ -673,10 +590,8 @@ The maximum chunksize we attempt to allocate from storage. Making this too large
 .B first_byte_timeout
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: s
 .IP \(bu 2
-.
 Default: 60
 .UNINDENT
 .sp
@@ -685,10 +600,8 @@ Default timeout for receiving first byte from backend. We only wait for this man
 .B group
 .INDENT 7.0
 .IP \(bu 2
-.
 Default: magic
 .IP \(bu 2
-.
 Flags: must_restart
 .UNINDENT
 .sp
@@ -697,7 +610,6 @@ The unprivileged group to run as.
 .B gzip_level
 .INDENT 7.0
 .IP \(bu 2
-.
 Default: 6
 .UNINDENT
 .sp
@@ -706,7 +618,6 @@ Gzip compression level: 0=debug, 1=fast, 9=best
 .B gzip_memlevel
 .INDENT 7.0
 .IP \(bu 2
-.
 Default: 8
 .UNINDENT
 .sp
@@ -716,13 +627,10 @@ Memory impact is 1=1k, 2=2k, ... 9=256k.
 .B gzip_stack_buffer
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: Bytes
 .IP \(bu 2
-.
 Default: 32768
 .IP \(bu 2
-.
 Flags: experimental
 .UNINDENT
 .sp
@@ -732,10 +640,8 @@ The stack buffers are used for in\-transit data, for instance gunzip\(aqed data 
 .B gzip_tmp_space
 .INDENT 7.0
 .IP \(bu 2
-.
 Default: 0
 .IP \(bu 2
-.
 Flags: experimental
 .UNINDENT
 .sp
@@ -748,8 +654,7 @@ Where temporary space for gzip/gunzip is allocated:
 2 \- thread workspace
 .ft P
 .fi
-.IP "System Message: WARNING/2 (../../doc/sphinx/reference/params.rst:, line 206)"
-.
+.IP "System Message: WARNING/2 (../../doc/sphinx/reference/params.rst:, line 207)"
 Literal block ends without a blank line; unexpected unindent.
 .sp
 If you have much gzip/gunzip activity, it may be an advantage to use workspace for these allocations to reduce malloc activity.  Be aware that gzip needs 256+KB and gunzip needs 32+KB of workspace (64+KB if ESI processing).
@@ -757,7 +662,6 @@ If you have much gzip/gunzip activity, it may be an advantage to use workspace f
 .B gzip_window
 .INDENT 7.0
 .IP \(bu 2
-.
 Default: 15
 .UNINDENT
 .sp
@@ -767,19 +671,15 @@ Memory impact is 8=1k, 9=2k, ... 15=128k.
 .B http_gzip_support
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: bool
 .IP \(bu 2
-.
 Default: on
 .IP \(bu 2
-.
 Flags: experimental
 .UNINDENT
 .sp
 Enable gzip support. When enabled Varnish will compress uncompressed objects before they are stored in the cache. If a client does not support gzip encoding Varnish will uncompress compressed objects on demand. Varnish will also rewrite the Accept\-Encoding header of clients indicating support for gzip to:
-.IP "System Message: WARNING/2 (../../doc/sphinx/reference/params.rst:, line 221)"
-.
+.IP "System Message: WARNING/2 (../../doc/sphinx/reference/params.rst:, line 222)"
 Literal block expected; none found.
 .sp
 Accept\-Encoding: gzip
@@ -789,10 +689,8 @@ Clients that do not support gzip will have their Accept\-Encoding header removed
 .B http_max_hdr
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: header lines
 .IP \(bu 2
-.
 Default: 64
 .UNINDENT
 .sp
@@ -802,14 +700,9 @@ This paramter does not influence storage consumption, objects allocate exact spa
 .B http_range_support
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: bool
 .IP \(bu 2
-.
 Default: on
-.IP \(bu 2
-.
-Flags: experimental
 .UNINDENT
 .sp
 Enable support for HTTP Range headers.
@@ -817,11 +710,9 @@ Enable support for HTTP Range headers.
 .B http_req_hdr_len
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: bytes
 .IP \(bu 2
-.
-Default: 4096
+Default: 8192
 .UNINDENT
 .sp
 Maximum length of any HTTP client request header we will allow.  The limit is inclusive its continuation lines.
@@ -829,10 +720,8 @@ Maximum length of any HTTP client request header we will allow.  The limit is in
 .B http_req_size
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: bytes
 .IP \(bu 2
-.
 Default: 32768
 .UNINDENT
 .sp
@@ -842,11 +731,9 @@ The memory for the request is allocated from the session workspace (param: sess_
 .B http_resp_hdr_len
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: bytes
 .IP \(bu 2
-.
-Default: 4096
+Default: 8192
 .UNINDENT
 .sp
 Maximum length of any HTTP backend response header we will allow.  The limit is inclusive its continuation lines.
@@ -854,23 +741,33 @@ Maximum length of any HTTP backend response header we will allow.  The limit is 
 .B http_resp_size
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: bytes
 .IP \(bu 2
-.
 Default: 32768
 .UNINDENT
 .sp
 Maximum number of bytes of HTTP backend resonse we will deal with.  This is a limit on all bytes up to the double blank line which ends the HTTP request.
 The memory for the request is allocated from the worker workspace (param: sess_workspace) and this parameter limits how much of that the request is allowed to take up.
 .TP
+.B idle_send_timeout
+.INDENT 7.0
+.IP \(bu 2
+Units: seconds
+.IP \(bu 2
+Default: 60
+.IP \(bu 2
+Flags: delayed
+.UNINDENT
+.sp
+Time to wait with no data sent. If no data has been transmitted in this many
+seconds the session is closed.
+See setsockopt(2) under SO_SNDTIMEO for more information.
+.TP
 .B listen_address
 .INDENT 7.0
 .IP \(bu 2
-.
 Default: :80
 .IP \(bu 2
-.
 Flags: must_restart
 .UNINDENT
 .sp
@@ -880,13 +777,10 @@ Possible formats: host, host:port, :port
 .B listen_depth
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: connections
 .IP \(bu 2
-.
 Default: 1024
 .IP \(bu 2
-.
 Flags: must_restart
 .UNINDENT
 .sp
@@ -895,10 +789,8 @@ Listen queue depth.
 .B log_hashstring
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: bool
 .IP \(bu 2
-.
 Default: on
 .UNINDENT
 .sp
@@ -907,10 +799,8 @@ Log the hash string components to shared memory log.
 .B log_local_address
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: bool
 .IP \(bu 2
-.
 Default: off
 .UNINDENT
 .sp
@@ -919,13 +809,10 @@ Log the local address on the TCP connection in the SessionOpen shared memory rec
 .B lru_interval
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: seconds
 .IP \(bu 2
-.
 Default: 2
 .IP \(bu 2
-.
 Flags: experimental
 .UNINDENT
 .sp
@@ -935,10 +822,8 @@ Objects are only moved to the front of the LRU list if they have not been moved 
 .B max_esi_depth
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: levels
 .IP \(bu 2
-.
 Default: 5
 .UNINDENT
 .sp
@@ -947,10 +832,8 @@ Maximum depth of esi:include processing.
 .B max_restarts
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: restarts
 .IP \(bu 2
-.
 Default: 4
 .UNINDENT
 .sp
@@ -960,28 +843,38 @@ Be aware that restarts are likely to cause a hit against the backend, so don\(aq
 .B nuke_limit
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: allocations
 .IP \(bu 2
-.
-Default: 10
+Default: 50
 .IP \(bu 2
-.
 Flags: experimental
 .UNINDENT
 .sp
 Maximum number of objects we attempt to nuke in orderto make space for a object body.
 .TP
+.B pcre_match_limit
+.INDENT 7.0
+.IP \(bu 2
+Default: 10000
+.UNINDENT
+.sp
+The limit for the  number of internal matching function calls in a pcre_exec() execution.
+.TP
+.B pcre_match_limit_recursion
+.INDENT 7.0
+.IP \(bu 2
+Default: 10000
+.UNINDENT
+.sp
+The limit for the  number of internal matching function recursions in a pcre_exec() execution.
+.TP
 .B ping_interval
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: seconds
 .IP \(bu 2
-.
 Default: 3
 .IP \(bu 2
-.
 Flags: must_restart
 .UNINDENT
 .sp
@@ -991,10 +884,8 @@ Zero will disable pinging entirely, which makes it possible to attach a debugger
 .B pipe_timeout
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: seconds
 .IP \(bu 2
-.
 Default: 60
 .UNINDENT
 .sp
@@ -1003,10 +894,8 @@ Idle timeout for PIPE sessions. If nothing have been received in either directio
 .B prefer_ipv6
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: bool
 .IP \(bu 2
-.
 Default: off
 .UNINDENT
 .sp
@@ -1015,13 +904,10 @@ Prefer IPv6 address when connecting to backends which have both IPv4 and IPv6 ad
 .B queue_max
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: %
 .IP \(bu 2
-.
 Default: 100
 .IP \(bu 2
-.
 Flags: experimental
 .UNINDENT
 .sp
@@ -1032,13 +918,10 @@ This sets the ratio of queued requests to worker threads, above which sessions w
 .B rush_exponent
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: requests per request
 .IP \(bu 2
-.
 Default: 3
 .IP \(bu 2
-.
 Flags: experimental
 .UNINDENT
 .sp
@@ -1048,13 +931,10 @@ NB: Even with the implict delay of delivery, this parameter controls an exponent
 .B saintmode_threshold
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: objects
 .IP \(bu 2
-.
 Default: 10
 .IP \(bu 2
-.
 Flags: experimental
 .UNINDENT
 .sp
@@ -1063,13 +943,10 @@ The maximum number of objects held off by saint mode before no further will be m
 .B send_timeout
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: seconds
 .IP \(bu 2
-.
-Default: 60
+Default: 600
 .IP \(bu 2
-.
 Flags: delayed
 .UNINDENT
 .sp
@@ -1080,10 +957,8 @@ See setsockopt(2) under SO_SNDTIMEO for more information.
 .B sess_timeout
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: seconds
 .IP \(bu 2
-.
 Default: 5
 .UNINDENT
 .sp
@@ -1092,13 +967,10 @@ Idle timeout for persistent sessions. If a HTTP request has not been received in
 .B sess_workspace
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: bytes
 .IP \(bu 2
-.
 Default: 65536
 .IP \(bu 2
-.
 Flags: delayed
 .UNINDENT
 .sp
@@ -1108,13 +980,10 @@ Minimum is 1024 bytes.
 .B session_linger
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: ms
 .IP \(bu 2
-.
 Default: 50
 .IP \(bu 2
-.
 Flags: experimental
 .UNINDENT
 .sp
@@ -1125,10 +994,8 @@ Setting this too high results in worker threads not doing anything for their kee
 .B session_max
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: sessions
 .IP \(bu 2
-.
 Default: 100000
 .UNINDENT
 .sp
@@ -1138,10 +1005,8 @@ This is mostly an anti\-DoS measure, and setting it plenty high should not hurt,
 .B shm_reclen
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: bytes
 .IP \(bu 2
-.
 Default: 255
 .UNINDENT
 .sp
@@ -1151,13 +1016,10 @@ Maximum is 65535 bytes.
 .B shm_workspace
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: bytes
 .IP \(bu 2
-.
 Default: 8192
 .IP \(bu 2
-.
 Flags: delayed
 .UNINDENT
 .sp
@@ -1168,10 +1030,8 @@ Minimum is 4096 bytes.
 .B shortlived
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: s
 .IP \(bu 2
-.
 Default: 10.0
 .UNINDENT
 .sp
@@ -1180,10 +1040,8 @@ Objects created with TTL shorter than this are always put in transient storage.
 .B syslog_cli_traffic
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: bool
 .IP \(bu 2
-.
 Default: on
 .UNINDENT
 .sp
@@ -1192,10 +1050,8 @@ Log all CLI traffic to syslog(LOG_INFO).
 .B thread_pool_add_delay
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: milliseconds
 .IP \(bu 2
-.
 Default: 2
 .UNINDENT
 .sp
@@ -1208,13 +1064,10 @@ Setting this too short increases the risk of worker thread pile\-up.
 .B thread_pool_add_threshold
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: requests
 .IP \(bu 2
-.
 Default: 2
 .IP \(bu 2
-.
 Flags: experimental
 .UNINDENT
 .sp
@@ -1227,13 +1080,10 @@ Setting it too high results in insuffient worker threads.
 .B thread_pool_fail_delay
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: milliseconds
 .IP \(bu 2
-.
 Default: 200
 .IP \(bu 2
-.
 Flags: experimental
 .UNINDENT
 .sp
@@ -1249,13 +1099,10 @@ It may also help to increase thread_pool_timeout and thread_pool_min, to reduce 
 .B thread_pool_max
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: threads
 .IP \(bu 2
-.
 Default: 500
 .IP \(bu 2
-.
 Flags: delayed, experimental
 .UNINDENT
 .sp
@@ -1266,13 +1113,10 @@ Do not set this higher than you have to, since excess worker threads soak up RAM
 .B thread_pool_min
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: threads
 .IP \(bu 2
-.
 Default: 5
 .IP \(bu 2
-.
 Flags: delayed, experimental
 .UNINDENT
 .sp
@@ -1285,13 +1129,10 @@ Minimum is 2 threads.
 .B thread_pool_purge_delay
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: milliseconds
 .IP \(bu 2
-.
 Default: 1000
 .IP \(bu 2
-.
 Flags: delayed, experimental
 .UNINDENT
 .sp
@@ -1304,13 +1145,10 @@ Minimum is 100 milliseconds.
 .B thread_pool_stack
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: bytes
 .IP \(bu 2
-.
 Default: \-1
 .IP \(bu 2
-.
 Flags: experimental
 .UNINDENT
 .sp
@@ -1320,13 +1158,10 @@ On 32bit systems you may need to tweak this down to fit many threads into the li
 .B thread_pool_timeout
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: seconds
 .IP \(bu 2
-.
 Default: 300
 .IP \(bu 2
-.
 Flags: delayed, experimental
 .UNINDENT
 .sp
@@ -1339,13 +1174,10 @@ Minimum is 1 second.
 .B thread_pool_workspace
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: bytes
 .IP \(bu 2
-.
 Default: 65536
 .IP \(bu 2
-.
 Flags: delayed
 .UNINDENT
 .sp
@@ -1354,13 +1186,10 @@ Bytes of HTTP protocol workspace allocated for worker threads. This space must b
 .B thread_pools
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: pools
 .IP \(bu 2
-.
 Default: 2
 .IP \(bu 2
-.
 Flags: delayed, experimental
 .UNINDENT
 .sp
@@ -1375,13 +1204,10 @@ Can be increased on the fly, but decreases require a restart to take effect.
 .B thread_stats_rate
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: requests
 .IP \(bu 2
-.
 Default: 10
 .IP \(bu 2
-.
 Flags: experimental
 .UNINDENT
 .sp
@@ -1391,10 +1217,8 @@ This parameters defines the maximum number of requests a worker thread may handl
 .B user
 .INDENT 7.0
 .IP \(bu 2
-.
 Default: magic
 .IP \(bu 2
-.
 Flags: must_restart
 .UNINDENT
 .sp
@@ -1403,10 +1227,8 @@ The unprivileged user to run as.  Setting this will also set "group" to the spec
 .B vcc_err_unref
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: bool
 .IP \(bu 2
-.
 Default: on
 .UNINDENT
 .sp
@@ -1415,7 +1237,6 @@ Unreferenced VCL objects result in error.
 .B vcl_dir
 .INDENT 7.0
 .IP \(bu 2
-.
 Default: /usr/local/etc/varnish
 .UNINDENT
 .sp
@@ -1424,10 +1245,8 @@ Directory from which relative VCL filenames (vcl.load and include) are opened.
 .B vcl_trace
 .INDENT 7.0
 .IP \(bu 2
-.
 Units: bool
 .IP \(bu 2
-.
 Default: off
 .UNINDENT
 .sp
@@ -1438,7 +1257,6 @@ This generates a lot of logrecords so it is off by default.
 .B vmod_dir
 .INDENT 7.0
 .IP \(bu 2
-.
 Default: /usr/local/lib/varnish/vmods
 .UNINDENT
 .sp
@@ -1447,10 +1265,8 @@ Directory where VCL modules are to be found.
 .B waiter
 .INDENT 7.0
 .IP \(bu 2
-.
 Default: default
 .IP \(bu 2
-.
 Flags: must_restart, experimental
 .UNINDENT
 .sp
@@ -1459,25 +1275,18 @@ Select the waiter kernel interface.
 .SH SEE ALSO
 .INDENT 0.0
 .IP \(bu 2
-.
 varnish\-cli(7)
 .IP \(bu 2
-.
 varnishlog(1)
 .IP \(bu 2
-.
 varnishhist(1)
 .IP \(bu 2
-.
 varnishncsa(1)
 .IP \(bu 2
-.
 varnishstat(1)
 .IP \(bu 2
-.
 varnishtop(1)
 .IP \(bu 2
-.
 vcl(7)
 .UNINDENT
 .SH HISTORY
@@ -1493,7 +1302,6 @@ This document is licensed under the same licence as Varnish
 itself. See LICENCE for details.
 .INDENT 0.0
 .IP \(bu 2
-.
 Copyright (c) 2007\-2011 Varnish Software AS
 .UNINDENT
 .SH AUTHOR

@@ -3,17 +3,20 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
+
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>VCL &mdash; Varnish version 3.0.2 documentation</title>
+    <title>VCL &mdash; Varnish version 3.0.3 documentation</title>
+    
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2',
+        VERSION:     '3.0.3',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +25,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.3 documentation" href="../index.html" />
     <link rel="up" title="The Varnish Reference Manual" href="index.html" />
     <link rel="next" title="varnish" href="varnish-cli.html" />
     <link rel="prev" title="The Varnish Reference Manual" href="index.html" /> 
@@ -40,7 +43,7 @@
         <li class="right" >
           <a href="index.html" title="The Varnish Reference Manual"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>  
@@ -58,19 +61,19 @@
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field"><th class="field-name">Author:</th><td class="field-body">Dag-Erling Smørgrav</td>
+<tr class="field-odd field"><th class="field-name">Author:</th><td class="field-body">Dag-Erling Smørgrav</td>
 </tr>
-<tr class="field"><th class="field-name">Author:</th><td class="field-body">Poul-Henning Kamp</td>
+<tr class="field-even field"><th class="field-name">Author:</th><td class="field-body">Poul-Henning Kamp</td>
 </tr>
-<tr class="field"><th class="field-name">Author:</th><td class="field-body">Kristian Lyngstøl</td>
+<tr class="field-odd field"><th class="field-name">Author:</th><td class="field-body">Kristian Lyngstøl</td>
 </tr>
-<tr class="field"><th class="field-name">Author:</th><td class="field-body">Per Buer</td>
+<tr class="field-even field"><th class="field-name">Author:</th><td class="field-body">Per Buer</td>
 </tr>
-<tr class="field"><th class="field-name">Date:</th><td class="field-body">2010-06-02</td>
+<tr class="field-odd field"><th class="field-name">Date:</th><td class="field-body">2010-06-02</td>
 </tr>
-<tr class="field"><th class="field-name">Version:</th><td class="field-body">1.0</td>
+<tr class="field-even field"><th class="field-name">Version:</th><td class="field-body">1.0</td>
 </tr>
-<tr class="field"><th class="field-name">Manual section:</th><td class="field-body">7</td>
+<tr class="field-odd field"><th class="field-name">Manual section:</th><td class="field-body">7</td>
 </tr>
 </tbody>
 </table>
@@ -136,13 +139,13 @@ code by using the <em>include</em> keyword followed by the name of the other
 file as a quoted string.</p>
 <div class="section" id="backend-declarations">
 <h4>Backend declarations<a class="headerlink" href="#backend-declarations" title="Permalink to this headline">¶</a></h4>
-<p>A backend declaration creates and initializes a named backend object::</p>
+<p>A backend declaration creates and initializes a named backend object:</p>
 <div class="highlight-python"><pre>backend www {
   .host = "www.example.com";
   .port = "http";
 }</pre>
 </div>
-<p>The backend object can later be used to select a backend at request time::</p>
+<p>The backend object can later be used to select a backend at request time:</p>
 <div class="highlight-python"><pre>if (req.http.host ~ "(?i)^(www.)?example.com$") {
   set req.backend = www;
 }</pre>
@@ -154,7 +157,7 @@ The timeout parameters are .connect_timeout for the time to wait for a
 backend connection, .first_byte_timeout for the time to wait for the
 first byte from the backend and .between_bytes_timeout for time to
 wait between each received byte.</p>
-<p>These can be set in the declaration like this::</p>
+<p>These can be set in the declaration like this:</p>
 <div class="highlight-python"><pre>backend www {
   .host = "www.example.com";
   .port = "http";
@@ -177,7 +180,7 @@ choose a backend server amongst several so if one is down another can
 be used.</p>
 <p>There are several types of directors. The different director types
 use different algorithms to choose which backend to use.</p>
-<p>Configuring a director may look like this::</p>
+<p>Configuring a director may look like this:</p>
 <div class="highlight-python"><pre>director b2 random {
   .retries = 5;
   {
@@ -321,7 +324,7 @@ Default is every 5 seconds.</dd>
 Default is 2 seconds.</dd>
 </dl>
 <p>A backend with a probe can be defined like this, together with the
-backend or director::</p>
+backend or director:</p>
 <div class="highlight-python"><pre>backend www {
   .host = "www.example.com";
   .port = "http";
@@ -334,7 +337,7 @@ backend or director::</p>
   }
 }</pre>
 </div>
-<p>Or it can be defined separately and then referenced::</p>
+<p>Or it can be defined separately and then referenced:</p>
 <div class="highlight-python"><pre>probe healthcheck {
    .url = "/status.cgi";
    .interval = 60s;
@@ -365,7 +368,7 @@ backend www {
 <div class="section" id="acls">
 <h4>ACLs<a class="headerlink" href="#acls" title="Permalink to this headline">¶</a></h4>
 <p>An ACL declaration creates and initializes a named access control list
-which can later be used to match client addresses::</p>
+which can later be used to match client addresses:</p>
 <div class="highlight-python"><pre>acl local {
   "localhost";         // myself
   "192.0.2.0"/24;      // and everyone on the local network
@@ -377,7 +380,7 @@ resolve, it will match any address it is com‐ pared to.  Consequently,
 if it is preceded by a negation mark, it will reject any address it is
 compared to, which may not be what you intended.  If the entry is
 enclosed in parentheses, however, it will simply be ignored.</p>
-<p>To match an IP address against an ACL, simply use the match operator::</p>
+<p>To match an IP address against an ACL, simply use the match operator:</p>
 <div class="highlight-python"><pre>if (client.ip ~ local) {
   return (pipe);
 }</pre>
@@ -390,7 +393,7 @@ regular expressions. For a complete description of PCRE please see the
 PCRE(3) man page.</p>
 <p>To send flags to the PCRE engine, such as to turn on <em>case
 insensitivity</em> add the flag within parens following a question mark,
-like this::</p>
+like this:</p>
 <div class="highlight-python"><pre>if (req.http.host ~ "(?i)example.com$") {
         ...
 }</pre>
@@ -405,9 +408,9 @@ like this::</p>
 called on the host and URL of the <em>request</em>.</dd>
 <dt>regsub(str, regex, sub)</dt>
 <dd>Returns a copy of str with the first occurrence of the regular
-expression regex replaced with sub. Within sub, 0 (which can
-also be spelled &amp;) is replaced with the entire matched string,
-and n is replaced with the contents of subgroup n in the
+expression regex replaced with sub. Within sub, \0 (which can
+also be spelled \&amp;) is replaced with the entire matched string,
+and \n is replaced with the contents of subgroup n in the
 matched string.</dd>
 <dt>regsuball(str, regex, sub)</dt>
 <dd>As regsuball() but this replaces all occurrences.</dd>
@@ -419,7 +422,7 @@ matched string.</dd>
 </dl>
 <div class="section" id="subroutines">
 <h5>Subroutines<a class="headerlink" href="#subroutines" title="Permalink to this headline">¶</a></h5>
-<p>A subroutine is used to group code for legibility or reusability::</p>
+<p>A subroutine is used to group code for legibility or reusability:</p>
 <div class="highlight-python"><pre>sub pipe_if_local {
   if (client.ip ~ local) {
     return (pipe);
@@ -484,7 +487,7 @@ the following keywords:</p>
 on to the backend, and the backend's response is passed on to the
 client, but is not entered into the cache.  Subsequent requests sub‐
 mitted over the same client connection are handled normally.</p>
-<p>The vcl_recv subroutine may terminate with calling return() with one of
+<p>The vcl_pass subroutine may terminate with calling return() with one of
 the following keywords:</p>
 <dl class="last docutils">
 <dt>error code [reason]</dt>
@@ -608,9 +611,12 @@ default code.</p>
 </div>
 <div class="section" id="multiple-subroutines">
 <h5>Multiple subroutines<a class="headerlink" href="#multiple-subroutines" title="Permalink to this headline">¶</a></h5>
-<p>If multiple subroutines with the same name are defined, they are
-concatenated in the order in which the appear in the source.</p>
-<p>Example::</p>
+<p>If multiple subroutines with the the name of one of the builtin
+ones are defined, they are concatenated in the order in which they
+appear in the source.
+The default versions distributed with Varnish will be implicitly
+concatenated as a last resort at the end.</p>
+<p>Example:</p>
 <div class="highlight-python"><pre># in file "main.vcl"
 include "backends.vcl";
 include "ban.vcl";
@@ -633,7 +639,6 @@ sub vcl_recv {
   }
 }</pre>
 </div>
-<p>The builtin default subroutines are implicitly appended in this way.</p>
 </div>
 <div class="section" id="variables">
 <h5>Variables<a class="headerlink" href="#variables" title="Permalink to this headline">¶</a></h5>
@@ -642,7 +647,8 @@ made available to the handler subroutines through global variables.</p>
 <p>The following variables are always available:</p>
 <dl class="docutils">
 <dt>now</dt>
-<dd>The current time, in seconds since the epoch.</dd>
+<dd>The current time, in seconds since the epoch. When used in string context
+it returns a formatted string.</dd>
 </dl>
 <p>The following variables are available in backend declarations:</p>
 <dl class="docutils">
@@ -765,7 +771,8 @@ backend.</dd>
 </dl>
 <p>After the object is entered into the cache, the following (mostly
 read-only) variables are available when the object has been located in
-cache, typically in vcl_hit and vcl_deliver.</p>
+cache, typically in vcl_hit, or when constructing a synthetic reply in
+vcl_error:</p>
 <dl class="docutils">
 <dt>obj.proto</dt>
 <dd>The HTTP protocol version used when the object was retrieved.</dd>
@@ -777,10 +784,11 @@ cache, typically in vcl_hit and vcl_deliver.</p>
 <dd>The object's remaining time to live, in seconds. obj.ttl is writable.</dd>
 <dt>obj.lastuse</dt>
 <dd>The approximate time elapsed since the object was last requests, in
-seconds.</dd>
+seconds. This variable is also available in vcl_deliver.</dd>
 <dt>obj.hits</dt>
 <dd>The approximate number of times the object has been delivered. A value
-of 0 indicates a cache miss.</dd>
+of 0 indicates a cache miss. This variable is also available in
+vcl_deliver.</dd>
 <dt>obj.grace</dt>
 <dd>The object's grace period in seconds. obj.grace is writable.</dd>
 <dt>obj.http.header</dt>
@@ -804,7 +812,7 @@ both reading from and writing to the cache.</dd>
 <dt>resp.http.header</dt>
 <dd>The corresponding HTTP header.</dd>
 </dl>
-<p>Values may be assigned to variables using the set keyword::</p>
+<p>Values may be assigned to variables using the set keyword:</p>
 <div class="highlight-python"><pre>sub vcl_recv {
   # Normalize the Host: header
   if (req.http.host ~ "(?i)^(www.)?example.com$") {
@@ -812,7 +820,7 @@ both reading from and writing to the cache.</dd>
   }
 }</pre>
 </div>
-<p>HTTP headers can be removed entirely using the remove keyword::</p>
+<p>HTTP headers can be removed entirely using the remove keyword:</p>
 <div class="highlight-python"><pre>sub vcl_fetch {
   # Don't cache cookies
   remove beresp.http.Set-Cookie;
@@ -828,7 +836,7 @@ This allows varnish to serve an expired version of the object while a
 fresh object is being generated by the backend.</p>
 <p>The following vcl code will make Varnish serve expired objects.  All
 object will be kept up to two minutes past their expiration time or a
-fresh object is generated.:</p>
+fresh object is generated.</p>
 <div class="highlight-python"><pre>sub vcl_recv {
   set req.grace = 2m;
 }
@@ -851,7 +859,7 @@ Varnish will serve the object, even if it is stale.</p>
 <h3>EXAMPLES<a class="headerlink" href="#examples" title="Permalink to this headline">¶</a></h3>
 <p>The following code is the equivalent of the default configuration with
 the backend address set to &quot;backend.example.com&quot; and no backend port
-specified::</p>
+specified:</p>
 <div class="highlight-python"><pre>backend default {
  .host = "backend.example.com";
  .port = "http";
@@ -1011,7 +1019,7 @@ sub vcl_fini {
 </pre>
 <p>The following example shows how to support multiple sites running on
 separate backends in the same Varnish instance, by selecting backends
-based on the request URL::</p>
+based on the request URL:</p>
 <div class="highlight-python"><pre>backend www {
   .host = "www.example.com";
   .port = "80";
@@ -1031,14 +1039,13 @@ sub vcl_recv {
   } else {
     error 404 "Unknown virtual host";
   }
-}
-
-The following snippet demonstrates how to force a minimum TTL for
+}</pre>
+</div>
+<p>The following snippet demonstrates how to force a minimum TTL for
 all documents.  Note that this is not the same as setting the
 default_ttl run-time parameter, as that only affects document for
-which the backend did not specify a TTL:::
-
-import std; # needed for std.log
+which the backend did not specify a TTL:</p>
+<div class="highlight-python"><pre>import std; # needed for std.log
 
 sub vcl_fetch {
   if (beresp.ttl &lt; 120s) {
@@ -1048,7 +1055,7 @@ sub vcl_fetch {
 }</pre>
 </div>
 <p>The following snippet demonstrates how to force Varnish to cache
-documents even when cookies are present::</p>
+documents even when cookies are present:</p>
 <div class="highlight-python"><pre>sub vcl_recv {
   if (req.request == "GET" &amp;&amp; req.http.cookie) {
      return(lookup);
@@ -1062,7 +1069,7 @@ sub vcl_fetch {
 }</pre>
 </div>
 <p>The following code implements the HTTP PURGE method as used by Squid
-for object invalidation::</p>
+for object invalidation:</p>
 <div class="highlight-python"><pre>acl purge {
   "localhost";
   "192.0.2.1"/24;
@@ -1179,7 +1186,7 @@ itself. See LICENSE for details.</p>
 <div id="searchbox" style="display: none">
   <h3>Quick search</h3>
     <form class="search" action="../search.html" method="get">
-      <input type="text" name="q" size="18" />
+      <input type="text" name="q" />
       <input type="submit" value="Go" />
       <input type="hidden" name="check_keywords" value="yes" />
       <input type="hidden" name="area" value="default" />
@@ -1205,13 +1212,13 @@ itself. See LICENSE for details.</p>
         <li class="right" >
           <a href="index.html" title="The Varnish Reference Manual"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
           <li><a href="index.html" >The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2010, Varnish Project.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>
 </html>
