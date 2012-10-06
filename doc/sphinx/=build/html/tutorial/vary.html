@@ -3,17 +3,20 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
+
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Vary &mdash; Varnish version 3.0.2 documentation</title>
+    <title>Vary &mdash; Varnish version 3.0.3 documentation</title>
+    
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2',
+        VERSION:     '3.0.3',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +25,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.3 documentation" href="../index.html" />
     <link rel="up" title="Using Varnish" href="index.html" />
     <link rel="next" title="Purging and banning" href="purging.html" />
     <link rel="prev" title="Cookies" href="cookies.html" /> 
@@ -40,7 +43,7 @@
         <li class="right" >
           <a href="cookies.html" title="Cookies"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">Using Varnish</a> &raquo;</li> 
       </ul>
     </div>  
@@ -61,15 +64,15 @@ clients only accepts gzip encoding Varnish won't serve the version of
 the page encoded with the deflate encoding.</p>
 <p>The problem is that the Accept-Encoding field contains a lot of
 different encodings. If one browser sends:</p>
-<div class="highlight-python"><pre>Accept-Encodign: gzip,deflate</pre>
+<div class="highlight-python"><pre>Accept-Encoding: gzip,deflate</pre>
 </div>
 <p>And another one sends:</p>
-<div class="highlight-python"><pre>Accept-Encoding:: deflate,gzip</pre>
+<div class="highlight-python"><pre>Accept-Encoding: deflate,gzip</pre>
 </div>
 <p>Varnish will keep two variants of the page requested due to the
 different Accept-Encoding headers. Normalizing the accept-encoding
 header will sure that you have as few variants as possible. The
-following VCL code will normalize the Accept-Encoding headers.:</p>
+following VCL code will normalize the Accept-Encoding headers:</p>
 <div class="highlight-python"><pre>if (req.http.Accept-Encoding) {
     if (req.url ~ "\.(jpg|png|gif|gz|tgz|bz2|tbz|mp3|ogg)$") {
         # No point in compressing these
@@ -79,7 +82,7 @@ following VCL code will normalize the Accept-Encoding headers.:</p>
     } elsif (req.http.Accept-Encoding ~ "deflate") {
         set req.http.Accept-Encoding = "deflate";
     } else {
-        # unkown algorithm
+        # unknown algorithm
         remove req.http.Accept-Encoding;
     }
 }</pre>
@@ -126,7 +129,7 @@ code as a template.</p>
 <div id="searchbox" style="display: none">
   <h3>Quick search</h3>
     <form class="search" action="../search.html" method="get">
-      <input type="text" name="q" size="18" />
+      <input type="text" name="q" />
       <input type="submit" value="Go" />
       <input type="hidden" name="check_keywords" value="yes" />
       <input type="hidden" name="area" value="default" />
@@ -152,13 +155,13 @@ code as a template.</p>
         <li class="right" >
           <a href="cookies.html" title="Cookies"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
           <li><a href="index.html" >Using Varnish</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2010, Varnish Project.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>
 </html>

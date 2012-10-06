@@ -3,17 +3,20 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
+
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>varnishncsa &mdash; Varnish version 3.0.2 documentation</title>
+    <title>varnishncsa &mdash; Varnish version 3.0.3 documentation</title>
+    
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2',
+        VERSION:     '3.0.3',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +25,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.3 documentation" href="../index.html" />
     <link rel="up" title="The Varnish Reference Manual" href="index.html" />
     <link rel="next" title="varnishreplay" href="varnishreplay.html" />
     <link rel="prev" title="varnishlog" href="varnishlog.html" /> 
@@ -40,7 +43,7 @@
         <li class="right" >
           <a href="varnishlog.html" title="varnishlog"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>  
@@ -58,19 +61,19 @@
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field"><th class="field-name">Author:</th><td class="field-body">Dag-Erling Smørgrav</td>
+<tr class="field-odd field"><th class="field-name">Author:</th><td class="field-body">Dag-Erling Smørgrav</td>
 </tr>
-<tr class="field"><th class="field-name">Date:</th><td class="field-body">2010-05-31</td>
+<tr class="field-even field"><th class="field-name">Date:</th><td class="field-body">2010-05-31</td>
 </tr>
-<tr class="field"><th class="field-name">Version:</th><td class="field-body">1.0</td>
+<tr class="field-odd field"><th class="field-name">Version:</th><td class="field-body">1.0</td>
 </tr>
-<tr class="field"><th class="field-name">Manual section:</th><td class="field-body">1</td>
+<tr class="field-even field"><th class="field-name">Manual section:</th><td class="field-body">1</td>
 </tr>
 </tbody>
 </table>
 <div class="section" id="synopsis">
 <h3>SYNOPSIS<a class="headerlink" href="#synopsis" title="Permalink to this headline">¶</a></h3>
-<p>varnishncsa [-a] [-b] [-C] [-c] [-D] [-d] [-f] [-F format] [-I regex]
+<p>varnishncsa [-a] [-C] [-D] [-d] [-f] [-F format] [-I regex]
 [-i tag] [-n varnish_name] [-m <a class="reference external" href="tag:regex">tag:regex</a> ...] [-P file] [-r file] [-V] [-w file]
 [-X regex] [-x tag]</p>
 </div>
@@ -87,18 +90,8 @@ presents them in the Apache / NCSA &quot;combined&quot; log format.</p>
 <kbd><span class="option">-a</span></kbd></td>
 <td>When writing to a file, append to it rather than overwrite it.</td></tr>
 <tr><td class="option-group">
-<kbd><span class="option">-b</span></kbd></td>
-<td>Include log entries which result from communication with a
-backend server.  If neither -b nor -c is
-specified, varnishncsa acts as if they both were.</td></tr>
-<tr><td class="option-group">
 <kbd><span class="option">-C</span></kbd></td>
 <td>Ignore case when matching regular expressions.</td></tr>
-<tr><td class="option-group">
-<kbd><span class="option">-c</span></kbd></td>
-<td>Include log entries which result from communication
-with a client.  If neither -b nor -c is specified,
-varnishncsa acts as if they both were.</td></tr>
 <tr><td class="option-group">
 <kbd><span class="option">-D</span></kbd></td>
 <td>Daemonize.</td></tr>
@@ -116,6 +109,7 @@ the log output.</td></tr>
 <td><p class="first">Specify the log format used. If no format is specified the
 default log format is used. Currently it is:</p>
 <p>%h %l %u %t &quot;%r&quot; %s %b &quot;%{Referer}i&quot; &quot;%{User-agent}i&quot;</p>
+<p>Escape sequences \n and \t are supported.</p>
 <p>Supported formatters are:</p>
 <blockquote class="last">
 <div><dl class="docutils">
@@ -130,7 +124,7 @@ known.</dd>
 <dd>Remote host. Defaults to '-' if not known.
 Defaults to 127.0.0.1 for backend requests.</dd>
 <dt>%{X}i</dt>
-<dd>The contents of request header line X.</dd>
+<dd>The contents of request header X.</dd>
 <dt>%l</dt>
 <dd>Remote logname (always '-')</dd>
 <dt>%m</dt>
@@ -139,7 +133,7 @@ Defaults to 127.0.0.1 for backend requests.</dd>
 <dd>The query string, if no query string exists, an
 empty string.</dd>
 <dt>%{X}o</dt>
-<dd>The contents of response header line X.</dd>
+<dd>The contents of response header X.</dd>
 <dt>%r</dt>
 <dd>The first line of the request. Synthesized from other
 fields, so it may not be the request verbatim.</dd>
@@ -148,6 +142,10 @@ fields, so it may not be the request verbatim.</dd>
 <dt>%t</dt>
 <dd>Time when the request was received, in HTTP date/time
 format.</dd>
+<dt>%{X}t</dt>
+<dd>Time when the request was received, in the format
+specified by X.  The time specification format is the
+same as for strftime(3).</dd>
 <dt>%U</dt>
 <dd>The request URL without any query string. Defaults to
 '-' if not known.</dd>
@@ -165,6 +163,8 @@ and pass are considered misses.</dd>
 <dt>Varnish:handling</dt>
 <dd>How the request was handled, whether it was a
 cache hit, miss, pass, pipe or error.</dd>
+<dt>VCL_Log:key</dt>
+<dd>Output value set by std.log(&quot;key:value&quot;) in VCL.</dd>
 </dl>
 </div></blockquote>
 </dd>
@@ -279,7 +279,7 @@ itself. See LICENCE for details.</p>
 <div id="searchbox" style="display: none">
   <h3>Quick search</h3>
     <form class="search" action="../search.html" method="get">
-      <input type="text" name="q" size="18" />
+      <input type="text" name="q" />
       <input type="submit" value="Go" />
       <input type="hidden" name="check_keywords" value="yes" />
       <input type="hidden" name="area" value="default" />
@@ -305,13 +305,13 @@ itself. See LICENCE for details.</p>
         <li class="right" >
           <a href="varnishlog.html" title="varnishlog"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
           <li><a href="index.html" >The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2010, Varnish Project.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>
 </html>

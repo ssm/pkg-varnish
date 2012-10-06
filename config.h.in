@@ -28,6 +28,9 @@
 /* Define to 1 if you don't have `vprintf' but do have `_doprnt.' */
 #undef HAVE_DOPRNT
 
+/* Define to 1 if you have the <edit/readline/readline.h> header file. */
+#undef HAVE_EDIT_READLINE_READLINE_H
+
 /* Define to 1 if you have the <endian.h> header file. */
 #undef HAVE_ENDIAN_H
 
@@ -102,6 +105,9 @@
 
 /* Define to 1 if you have the `pthread_timedjoin_np' function. */
 #undef HAVE_PTHREAD_TIMEDJOIN_NP
+
+/* Define to 1 if you have the <readline/readline.h> header file. */
+#undef HAVE_READLINE_READLINE_H
 
 /* Define to 1 if you have the `setppriv' function. */
 #undef HAVE_SETPPRIV

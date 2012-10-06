@@ -3,17 +3,20 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
+
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>vmod_std &mdash; Varnish version 3.0.2 documentation</title>
+    <title>vmod_std &mdash; Varnish version 3.0.3 documentation</title>
+    
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2',
+        VERSION:     '3.0.3',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +25,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.3 documentation" href="../index.html" />
     <link rel="up" title="The Varnish Reference Manual" href="index.html" />
     <link rel="next" title="Shared Memory Logging" href="vsl.html" />
     <link rel="prev" title="VMOD - Varnish Modules" href="vmod.html" /> 
@@ -40,7 +43,7 @@
         <li class="right" >
           <a href="vmod.html" title="VMOD - Varnish Modules"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>  
@@ -58,13 +61,13 @@
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field"><th class="field-name">Author:</th><td class="field-body">Per Buer</td>
+<tr class="field-odd field"><th class="field-name">Author:</th><td class="field-body">Per Buer</td>
 </tr>
-<tr class="field"><th class="field-name">Date:</th><td class="field-body">2011-05-19</td>
+<tr class="field-even field"><th class="field-name">Date:</th><td class="field-body">2011-05-19</td>
 </tr>
-<tr class="field"><th class="field-name">Version:</th><td class="field-body">1.0</td>
+<tr class="field-odd field"><th class="field-name">Version:</th><td class="field-body">1.0</td>
 </tr>
-<tr class="field"><th class="field-name">Manual section:</th><td class="field-body">3</td>
+<tr class="field-even field"><th class="field-name">Manual section:</th><td class="field-body">3</td>
 </tr>
 </tbody>
 </table>
@@ -84,11 +87,11 @@ to a broad audience.</p>
 <h4>toupper<a class="headerlink" href="#toupper" title="Permalink to this headline">¶</a></h4>
 <dl class="docutils">
 <dt>Prototype</dt>
-<dd>toupper(STRING S)</dd>
+<dd>toupper(STRING s)</dd>
 <dt>Return value</dt>
 <dd>String</dd>
 <dt>Description</dt>
-<dd>Converts the STRING S to upper case.</dd>
+<dd>Converts the string <em>s</em> to upper case.</dd>
 <dt>Example</dt>
 <dd>set beresp.http.x-scream = std.toupper(&quot;yes!&quot;);</dd>
 </dl>
@@ -97,20 +100,20 @@ to a broad audience.</p>
 <h4>tolower<a class="headerlink" href="#tolower" title="Permalink to this headline">¶</a></h4>
 <dl class="docutils">
 <dt>Prototype</dt>
-<dd>tolower(STRING S)</dd>
+<dd>tolower(STRING s)</dd>
 <dt>Return value</dt>
 <dd>String</dd>
 <dt>Description</dt>
-<dd>Converts the STRING to lower case.</dd>
+<dd>Converts the string <em>s</em> to lower case.</dd>
 <dt>Example</dt>
 <dd>set beresp.http.x-nice = std.tolower(&quot;VerY&quot;);</dd>
 </dl>
 </div>
-<div class="section" id="set-up-tos">
-<h4>set_up_tos<a class="headerlink" href="#set-up-tos" title="Permalink to this headline">¶</a></h4>
+<div class="section" id="set-ip-tos">
+<h4>set_ip_tos<a class="headerlink" href="#set-ip-tos" title="Permalink to this headline">¶</a></h4>
 <dl class="docutils">
 <dt>Prototype</dt>
-<dd>set_ip_tos(INT I)</dd>
+<dd>set_ip_tos(INT i)</dd>
 <dt>Return value</dt>
 <dd>Void</dd>
 <dt>Description</dt>
@@ -150,7 +153,7 @@ utilize it.</dd>
 <dt>Return value</dt>
 <dd>Void</dd>
 <dt>Description</dt>
-<dd>Logs string to the shared memory log.</dd>
+<dd>Logs <em>string</em> to the shared memory log.</dd>
 <dt>Example</dt>
 <dd>std.log(&quot;Something fishy is going on with the vhost &quot; + req.host);</dd>
 </dl>
@@ -192,12 +195,11 @@ account. Also, files are not re-read.</dd>
 <dt>Return value</dt>
 <dd>Duration</dd>
 <dt>Description</dt>
-<dd>Converts the string s to seconds. s can be quantified with the
-usual s (seconds), m (minutes), h (hours), d (days) and w
-(weeks) units. If it fails to parse the string <em>fallback</em>
-will be used</dd>
+<dd>Converts the string <em>s</em> to seconds. <em>s</em> can be quantified with
+the usual s (seconds), m (minutes), h (hours), d (days) and w
+(weeks) units. If <em>s</em> fails to parse, <em>fallback</em> will be used.</dd>
 <dt>Example</dt>
-<dd>set beresp.ttl = std.duration(&quot;1w&quot;, 3600);</dd>
+<dd>set beresp.ttl = std.duration(&quot;1w&quot;, 3600s);</dd>
 </dl>
 </div>
 <div class="section" id="integer">
@@ -208,10 +210,10 @@ will be used</dd>
 <dt>Return value</dt>
 <dd>Int</dd>
 <dt>Description</dt>
-<dd>Converts the string s to an integer.  If it fails to parse the
-string <em>fallback</em> will be used</dd>
+<dd>Converts the string <em>s</em> to an integer.  If <em>s</em> fails to parse,
+<em>fallback</em> will be used</dd>
 <dt>Example</dt>
-<dd>if (std.integer(beresp.http.x-foo, 0) &gt; 5) { … }</dd>
+<dd>if (std.integer(beresp.http.x-foo, 0) &gt; 5) { ... }</dd>
 </dl>
 </div>
 <div class="section" id="collect">
@@ -269,7 +271,7 @@ itself. See LICENCE for details.</p>
 <li><a class="reference internal" href="#functions">FUNCTIONS</a><ul>
 <li><a class="reference internal" href="#toupper">toupper</a></li>
 <li><a class="reference internal" href="#tolower">tolower</a></li>
-<li><a class="reference internal" href="#set-up-tos">set_up_tos</a></li>
+<li><a class="reference internal" href="#set-ip-tos">set_ip_tos</a></li>
 <li><a class="reference internal" href="#random">random</a></li>
 <li><a class="reference internal" href="#log">log</a></li>
 <li><a class="reference internal" href="#syslog">syslog</a></li>
@@ -302,7 +304,7 @@ itself. See LICENCE for details.</p>
 <div id="searchbox" style="display: none">
   <h3>Quick search</h3>
     <form class="search" action="../search.html" method="get">
-      <input type="text" name="q" size="18" />
+      <input type="text" name="q" />
       <input type="submit" value="Go" />
       <input type="hidden" name="check_keywords" value="yes" />
       <input type="hidden" name="area" value="default" />
@@ -328,13 +330,13 @@ itself. See LICENCE for details.</p>
         <li class="right" >
           <a href="vmod.html" title="VMOD - Varnish Modules"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
           <li><a href="index.html" >The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2010, Varnish Project.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>
 </html>

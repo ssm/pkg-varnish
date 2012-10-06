@@ -43,53 +43,42 @@ to a broad audience.
 .INDENT 0.0
 .TP
 .B Prototype
-.
-toupper(STRING S)
+toupper(STRING s)
 .TP
 .B Return value
-.
 String
 .TP
 .B Description
-.
-Converts the STRING S to upper case.
+Converts the string \fIs\fP to upper case.
 .TP
 .B Example
-.
 set beresp.http.x\-scream = std.toupper("yes!");
 .UNINDENT
 .SS tolower
 .INDENT 0.0
 .TP
 .B Prototype
-.
-tolower(STRING S)
+tolower(STRING s)
 .TP
 .B Return value
-.
 String
 .TP
 .B Description
-.
-Converts the STRING to lower case.
+Converts the string \fIs\fP to lower case.
 .TP
 .B Example
-.
 set beresp.http.x\-nice = std.tolower("VerY");
 .UNINDENT
-.SS set_up_tos
+.SS set_ip_tos
 .INDENT 0.0
 .TP
 .B Prototype
-.
-set_ip_tos(INT I)
+set_ip_tos(INT i)
 .TP
 .B Return value
-.
 Void
 .TP
 .B Description
-.
 Sets the Type\-of\-Service flag for the current session. Please
 note that the TOS flag is not removed by the end of the
 request so probably want to set it on every request should you
@@ -109,140 +98,111 @@ std.set_up_tos(0x0);
 .INDENT 0.0
 .TP
 .B Prototype
-.
 random(REAL a, REAL b)
 .TP
 .B Return value
-.
 Real
 .TP
 .B Description
-.
 Returns a random REAL number between \fIa\fP and \fIb\fP.
 .TP
 .B Example
-.
 set beresp.http.x\-random\-number = std.random(1, 100);
 .UNINDENT
 .SS log
 .INDENT 0.0
 .TP
 .B Prototype
-.
 log(STRING string)
 .TP
 .B Return value
-.
 Void
 .TP
 .B Description
-.
-Logs string to the shared memory log.
+Logs \fIstring\fP to the shared memory log.
 .TP
 .B Example
-.
 std.log("Something fishy is going on with the vhost " + req.host);
 .UNINDENT
 .SS syslog
 .INDENT 0.0
 .TP
 .B Prototype
-.
 syslog(INT priority, STRING string)
 .TP
 .B Return value
-.
 Void
 .TP
 .B Description
-.
 Logs \fIstring\fP to syslog marked with \fIpriority\fP.
 .TP
 .B Example
-.
 std.syslog( LOG_USER|LOG_ALERT, "There is serious troble");
 .UNINDENT
 .SS fileread
 .INDENT 0.0
 .TP
 .B Prototype
-.
 fileread(STRING filename)
 .TP
 .B Return value
-.
 String
 .TP
 .B Description
-.
 Reads a file and returns a string with the content. Please
 note that it is not recommended to send variables to this
 function the caching in the function doesn\(aqt take this into
 account. Also, files are not re\-read.
 .TP
 .B Example
-.
 set beresp.http.x\-served\-by = std.fileread("/etc/hostname");
 .UNINDENT
 .SS duration
 .INDENT 0.0
 .TP
 .B Prototype
-.
 duration(STRING s, DURATION fallback)
 .TP
 .B Return value
-.
 Duration
 .TP
 .B Description
-.
-Converts the string s to seconds. s can be quantified with the
-usual s (seconds), m (minutes), h (hours), d (days) and w
-(weeks) units. If it fails to parse the string \fIfallback\fP
-will be used
+Converts the string \fIs\fP to seconds. \fIs\fP can be quantified with
+the usual s (seconds), m (minutes), h (hours), d (days) and w
+(weeks) units. If \fIs\fP fails to parse, \fIfallback\fP will be used.
 .TP
 .B Example
-.
-set beresp.ttl = std.duration("1w", 3600);
+set beresp.ttl = std.duration("1w", 3600s);
 .UNINDENT
 .SS integer
 .INDENT 0.0
 .TP
 .B Prototype
-.
 integer(STRING s, INT fallback)
 .TP
 .B Return value
-.
 Int
 .TP
 .B Description
-.
-Converts the string s to an integer.  If it fails to parse the
-string \fIfallback\fP will be used
+Converts the string \fIs\fP to an integer.  If \fIs\fP fails to parse,
+\fIfallback\fP will be used
 .TP
 .B Example
-.
-if (std.integer(beresp.http.x\-foo, 0) > 5) { … }
+if (std.integer(beresp.http.x\-foo, 0) > 5) { ... }
 .UNINDENT
 .SS collect
 .INDENT 0.0
 .TP
 .B Prototype
-.
 collect(HEADER header)
 .TP
 .B Return value
-.
 Void
 .TP
 .B Description
-.
 Collapses the header, joining the headers into one.
 .TP
 .B Example
-.
 std.collect(req.http.cookie);
 This will collapse several Cookie: headers into one, long
 cookie header.
@@ -250,10 +210,8 @@ cookie header.
 .SH SEE ALSO
 .INDENT 0.0
 .IP \(bu 2
-.
 vcl(7)
 .IP \(bu 2
-.
 varnishd(1)
 .UNINDENT
 .SH HISTORY
@@ -267,7 +225,6 @@ This document is licensed under the same licence as Varnish
 itself. See LICENCE for details.
 .INDENT 0.0
 .IP \(bu 2
-.
 Copyright (c) 2011 Varnish Software
 .UNINDENT
 .SH AUTHOR

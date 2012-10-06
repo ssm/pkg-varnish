@@ -3,17 +3,20 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
+
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>varnishd &mdash; Varnish version 3.0.2 documentation</title>
+    <title>varnishd &mdash; Varnish version 3.0.3 documentation</title>
+    
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.2',
+        VERSION:     '3.0.3',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +25,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.2 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.3 documentation" href="../index.html" />
     <link rel="up" title="The Varnish Reference Manual" href="index.html" />
     <link rel="next" title="varnishhist" href="varnishhist.html" />
     <link rel="prev" title="varnishadm" href="varnishadm.html" /> 
@@ -40,7 +43,7 @@
         <li class="right" >
           <a href="varnishadm.html" title="varnishadm"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>  
@@ -51,24 +54,24 @@
           <div class="body">
             
   <div class="section" id="varnishd">
-<h1>varnishd<a class="headerlink" href="#varnishd" title="Permalink to this headline">¶</a></h1>
+<span id="ref-varnishd"></span><h1>varnishd<a class="headerlink" href="#varnishd" title="Permalink to this headline">¶</a></h1>
 <div class="section" id="http-accelerator-daemon">
 <h2>HTTP accelerator daemon<a class="headerlink" href="#http-accelerator-daemon" title="Permalink to this headline">¶</a></h2>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field"><th class="field-name">Author:</th><td class="field-body">Dag-Erling Smørgrav</td>
+<tr class="field-odd field"><th class="field-name">Author:</th><td class="field-body">Dag-Erling Smørgrav</td>
 </tr>
-<tr class="field"><th class="field-name">Author:</th><td class="field-body">Stig Sandbeck Mathisen</td>
+<tr class="field-even field"><th class="field-name">Author:</th><td class="field-body">Stig Sandbeck Mathisen</td>
 </tr>
-<tr class="field"><th class="field-name">Author:</th><td class="field-body">Per Buer</td>
+<tr class="field-odd field"><th class="field-name">Author:</th><td class="field-body">Per Buer</td>
 </tr>
-<tr class="field"><th class="field-name">Date:</th><td class="field-body">2010-05-31</td>
+<tr class="field-even field"><th class="field-name">Date:</th><td class="field-body">2010-05-31</td>
 </tr>
-<tr class="field"><th class="field-name">Version:</th><td class="field-body">1.0</td>
+<tr class="field-odd field"><th class="field-name">Version:</th><td class="field-body">1.0</td>
 </tr>
-<tr class="field"><th class="field-name">Manual section:</th><td class="field-body">1</td>
+<tr class="field-even field"><th class="field-name">Manual section:</th><td class="field-body">1</td>
 </tr>
 </tbody>
 </table>
@@ -474,6 +477,7 @@ To force an immediate effect at the expense of a total flush of the cache use &q
 0x00010000 - synchronize shmlog.
 0x00020000 - synchronous start of persistence.
 0x00040000 - release VCL early.
+0x00080000 - ban-lurker debugging.
 0x80000000 - do edge-detection on digest.</pre>
 </div>
 <p class="last">Use 0x notation and do the bitor in your head :-)</p>
@@ -592,7 +596,6 @@ This paramter does not influence storage consumption, objects allocate exact spa
 <dd><ul class="first simple">
 <li>Units: bool</li>
 <li>Default: on</li>
-<li>Flags: experimental</li>
 </ul>
 <p class="last">Enable support for HTTP Range headers.</p>
 </dd>
@@ -625,6 +628,16 @@ The memory for the request is allocated from the session workspace (param: sess_
 </ul>
 <p class="last">Maximum number of bytes of HTTP backend resonse we will deal with.  This is a limit on all bytes up to the double blank line which ends the HTTP request.
 The memory for the request is allocated from the worker workspace (param: sess_workspace) and this parameter limits how much of that the request is allowed to take up.</p>
+</dd>
+<dt>idle_send_timeout</dt>
+<dd><ul class="first simple">
+<li>Units: seconds</li>
+<li>Default: 60</li>
+<li>Flags: delayed</li>
+</ul>
+<p class="last">Time to wait with no data sent. If no data has been transmitted in this many
+seconds the session is closed.
+See setsockopt(2) under SO_SNDTIMEO for more information.</p>
 </dd>
 <dt>listen_address</dt>
 <dd><ul class="first simple">
@@ -688,6 +701,18 @@ Be aware that restarts are likely to cause a hit against the backend, so don't i
 </ul>
 <p class="last">Maximum number of objects we attempt to nuke in orderto make space for a object body.</p>
 </dd>
+<dt>pcre_match_limit</dt>
+<dd><ul class="first simple">
+<li>Default: 10000</li>
+</ul>
+<p class="last">The limit for the  number of internal matching function calls in a pcre_exec() execution.</p>
+</dd>
+<dt>pcre_match_limit_recursion</dt>
+<dd><ul class="first simple">
+<li>Default: 10000</li>
+</ul>
+<p class="last">The limit for the  number of internal matching function recursions in a pcre_exec() execution.</p>
+</dd>
 <dt>ping_interval</dt>
 <dd><ul class="first simple">
 <li>Units: seconds</li>
@@ -740,7 +765,7 @@ NB: Even with the implict delay of delivery, this parameter controls an exponent
 <dt>send_timeout</dt>
 <dd><ul class="first simple">
 <li>Units: seconds</li>
-<li>Default: 60</li>
+<li>Default: 600</li>
 <li>Flags: delayed</li>
 </ul>
 <p class="last">Send timeout for client connections. If the HTTP response hasn't been transmitted in this many
@@ -1038,7 +1063,7 @@ itself. See LICENCE for details.</p>
 <div id="searchbox" style="display: none">
   <h3>Quick search</h3>
     <form class="search" action="../search.html" method="get">
-      <input type="text" name="q" size="18" />
+      <input type="text" name="q" />
       <input type="submit" value="Go" />
       <input type="hidden" name="check_keywords" value="yes" />
       <input type="hidden" name="area" value="default" />
@@ -1064,13 +1089,13 @@ itself. See LICENCE for details.</p>
         <li class="right" >
           <a href="varnishadm.html" title="varnishadm"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.2 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
           <li><a href="index.html" >The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2010, Varnish Project.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>
 </html>

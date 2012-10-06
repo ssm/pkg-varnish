@@ -371,6 +371,13 @@ exp_timer(struct sess *sp, void *priv)
 			continue;
 		}
 
+		/* If the object is busy, we have to wait for it */
+		if (oc->flags & OC_F_BUSY) {
+			Lck_Unlock(&exp_mtx);
+			oc = NULL;
+			continue;
+		}
+
 		/*
 		 * It's time...
 		 * Technically we should drop the exp_mtx, get the lru->mtx
@@ -417,7 +424,7 @@ exp_timer(struct sess *sp, void *priv)
  */
 
 int
-EXP_NukeOne(const struct sess *sp, struct lru *lru)
+EXP_NukeOne(struct worker *w, struct lru *lru)
 {
 	struct objcore *oc;
 	struct object *o;
@@ -431,9 +438,10 @@ EXP_NukeOne(const struct sess *sp, struct lru *lru)
 		/*
 		 * It wont release any space if we cannot release the last
 		 * reference, besides, if somebody else has a reference,
-		 * it's a bad idea to nuke this object anyway.
+		 * it's a bad idea to nuke this object anyway. Also do not
+		 * touch busy objects.
 		 */
-		if (oc->refcnt == 1)
+		if (oc->refcnt == 1 && !(oc->flags & OC_F_BUSY))
 			break;
 	}
 	if (oc != NULL) {
@@ -449,9 +457,9 @@ EXP_NukeOne(const struct sess *sp, struct lru *lru)
 		return (-1);
 
 	/* XXX: bad idea for -spersistent */
-	o = oc_getobj(sp->wrk, oc);
-	WSL(sp->wrk, SLT_ExpKill, 0, "%u LRU", o->xid);
-	(void)HSH_Deref(sp->wrk, NULL, &o);
+	o = oc_getobj(w, oc);
+	WSL(w, SLT_ExpKill, 0, "%u LRU", o->xid);
+	(void)HSH_Deref(w, NULL, &o);
 	return (1);
 }
 
