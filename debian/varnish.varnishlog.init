@@ -74,6 +74,7 @@ reload_varnishlog(){
 
 status_varnishlog(){
     status_of_proc -p "${PIDFILE}" "${DAEMON}" "${NAME}"
+    exit $?
 }
 
 create_pid_directory() {

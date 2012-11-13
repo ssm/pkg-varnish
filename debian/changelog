@@ -1,8 +1,14 @@
 varnish (3.0.3-1) UNRELEASED; urgency=low
 
+  [ Stig Sandbeck Mathisen ]
   * New upstream release
 
- -- Stig Sandbeck Mathisen <ssm@debian.org>  Sat, 06 Oct 2012 13:31:38 +0200
+  [ Tollef Fog Heen ]
+  * Make varnishlog's and varnishncsa's init script exit with the exit
+    status of status_of_proc to make them useful.  Fixes upstream trac
+    #1226.
+
+ -- Tollef Fog Heen <tfheen@debian.org>  Tue, 13 Nov 2012 08:09:41 +0100
 
 varnish (3.0.2-2) unstable; urgency=low
 

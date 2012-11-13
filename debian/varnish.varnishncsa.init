@@ -74,6 +74,7 @@ reload_varnishncsa(){
 
 status_varnishncsa(){
     status_of_proc -p "${PIDFILE}" "${DAEMON}" "${NAME}"
+    exit $?
 }
 
 create_pid_directory() {
