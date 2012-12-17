@@ -43,8 +43,7 @@ MEMLOCK=82000
 ## Alternative 2, Configuration with VCL
 #
 # Listen on port 6081, administration on localhost:6082, and forward to
-# one content server selected by the vcl file, based on the request.  Use a 1GB
-# fixed-size cache file.
+# one content server selected by the vcl file, based on the request.
 #
 DAEMON_OPTS="-a :6081 \
              -T localhost:6082 \
