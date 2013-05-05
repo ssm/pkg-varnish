@@ -49,12 +49,6 @@ upgrade_change_log_permissions() {
     chown -Rhf ${log_user}: ${log_dir}
 }
 
-# varnish version 2.1.3-1 and older started varnishd at boot, we keep
-# this default for upgrading clients
-upgrade_enable_varnishd() {
-    sed -i '/^START=/s/no/yes/g' /etc/default/varnish
-}
-
 case ${1:-} in
     configure)
 
@@ -68,7 +62,6 @@ case ${1:-} in
 
         if dpkg --compare-versions "2.1.3-2" "gt-nl" "${2:-}" ; then
             upgrade_change_log_permissions
-            upgrade_enable_varnishd
         fi
         ;;
 esac
