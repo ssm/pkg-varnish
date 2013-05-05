@@ -1,5 +1,6 @@
-This package uses quilt to manage all modifications to the upstream
-source.  Changes are stored in the source package as diffs in
-debian/patches and applied during the build.
+Changes to the upstream source should be committed to the git tree as a branch
+rebased against the upstream/$version tag.
 
-See /usr/share/doc/quilt/README.source for more information.
+
+Build the package with "gitpkg", using the quilt-patches-deb-export-hook hook
+to automatically create quilt patches when packaging.
