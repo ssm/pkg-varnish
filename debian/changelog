@@ -1,4 +1,4 @@
-varnish (3.0.3-1) UNRELEASED; urgency=low
+varnish (3.0.3-1) unstable; urgency=low
 
   [ Stig Sandbeck Mathisen ]
   * New upstream release
@@ -8,7 +8,14 @@ varnish (3.0.3-1) UNRELEASED; urgency=low
     status of status_of_proc to make them useful.  Fixes upstream trac
     #1226.
 
- -- Tollef Fog Heen <tfheen@debian.org>  Tue, 13 Nov 2012 08:09:41 +0100
+  [ Stig Sandbeck Mathisen ]
+  * Do not rewrite /etc/default/varnish on upgrade.
+    Thanks to Andreas Beckmann <anbe@debian.org> (Closes: 698577)
+  * Undo mangling of /etc/default/varnish that happened during lenny->squeeze
+    upgrade.
+    Thanks to Andreas Beckmann <anbe@debian.org> (Closes: 698577)
+
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Sun, 05 May 2013 15:53:14 +0200
 
 varnish (3.0.2-2) unstable; urgency=low
 
