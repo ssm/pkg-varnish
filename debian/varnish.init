@@ -114,7 +114,7 @@ case "$1" in
         $0 start
         ;;
     *)
-        log_success_msg "Usage: $0 {start|stop|restart|force-reload}"
+        log_success_msg "Usage: $0 {start|stop|restart|reload|force-reload}"
         exit 1
         ;;
 esac
