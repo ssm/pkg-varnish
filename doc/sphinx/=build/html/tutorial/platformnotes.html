@@ -8,7 +8,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Running Varnish in a virtualized environment &mdash; Varnish version 3.0.3 documentation</title>
+    <title>Platform specific notes &mdash; Varnish version 3.0.4 documentation</title>
     
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
@@ -16,7 +16,7 @@
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.3',
+        VERSION:     '3.0.4',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -25,7 +25,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.3 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.4 documentation" href="../index.html" />
     <link rel="up" title="Using Varnish" href="index.html" />
     <link rel="next" title="Using Websockets" href="websockets.html" />
     <link rel="prev" title="Edge Side Includes" href="esi.html" /> 
@@ -43,7 +43,7 @@
         <li class="right" >
           <a href="esi.html" title="Edge Side Includes"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.4 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">Using Varnish</a> &raquo;</li> 
       </ul>
     </div>  
@@ -53,22 +53,31 @@
         <div class="bodywrapper">
           <div class="body">
             
-  <div class="section" id="running-varnish-in-a-virtualized-environment">
-<h1>Running Varnish in a virtualized environment<a class="headerlink" href="#running-varnish-in-a-virtualized-environment" title="Permalink to this headline">¶</a></h1>
-<p>It is possible, but not recommended for high performance, to run
-Varnish on virtualised hardware. Reduced disk- and network performance
-will reduce the performance a bit so make sure your system has good IO
-performance.</p>
+  <div class="section" id="platform-specific-notes">
+<h1>Platform specific notes<a class="headerlink" href="#platform-specific-notes" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="transparent-hugepages-on-redhat-enterprise-linux-6">
+<h2>Transparent hugepages on Redhat Enterprise Linux 6<a class="headerlink" href="#transparent-hugepages-on-redhat-enterprise-linux-6" title="Permalink to this headline">¶</a></h2>
+<p>On RHEL6 Transparent Hugepage kernel support is enabled by default.
+This is known to cause sporadic crashes of Varnish.</p>
+<p>It is recommended to disable transparent hugepages on affected systems:</p>
+<div class="highlight-python"><pre>$ echo "never" &gt; /sys/kernel/mm/redhat_transparent_hugepage/enabled</pre>
+</div>
+<p>On Debian/Ubuntu systems running 3.2 kernels the default value is &quot;madvise&quot; and does not need to changed.</p>
+</div>
 <div class="section" id="openvz">
 <h2>OpenVZ<a class="headerlink" href="#openvz" title="Permalink to this headline">¶</a></h2>
+<p>It is possible, but not recommended for high performance, to run
+Varnish on virtualised hardware. Reduced disk and network -performance
+will reduce the performance a bit so make sure your system has good IO
+performance.</p>
 <p>If you are running on 64bit OpenVZ (or Parallels VPS), you must reduce
-the maximum stack size before starting Varnish. The default allocates
-to much memory per thread, which will make varnish fail as soon as the
-number of threads (==traffic) increases.</p>
+the maximum stack size before starting Varnish.</p>
+<p>The default allocates to much memory per thread, which will make varnish fail
+as soon as the number of threads (traffic) increases.</p>
 <p>Reduce the maximum stack size by running:</p>
 <div class="highlight-python"><pre>ulimit -s 256</pre>
 </div>
-<p>in the startup script.</p>
+<p>in the Varnish startup script.</p>
 </div>
 </div>
 
@@ -80,7 +89,8 @@ number of threads (==traffic) increases.</p>
         <div class="sphinxsidebarwrapper">
   <h3><a href="../index.html">Table Of Contents</a></h3>
   <ul>
-<li><a class="reference internal" href="#">Running Varnish in a virtualized environment</a><ul>
+<li><a class="reference internal" href="#">Platform specific notes</a><ul>
+<li><a class="reference internal" href="#transparent-hugepages-on-redhat-enterprise-linux-6">Transparent hugepages on Redhat Enterprise Linux 6</a></li>
 <li><a class="reference internal" href="#openvz">OpenVZ</a></li>
 </ul>
 </li>
@@ -94,7 +104,7 @@ number of threads (==traffic) increases.</p>
                         title="next chapter">Using Websockets</a></p>
   <h3>This Page</h3>
   <ul class="this-page-menu">
-    <li><a href="../_sources/tutorial/virtualised.txt"
+    <li><a href="../_sources/tutorial/platformnotes.txt"
            rel="nofollow">Show Source</a></li>
   </ul>
 <div id="searchbox" style="display: none">
@@ -126,7 +136,7 @@ number of threads (==traffic) increases.</p>
         <li class="right" >
           <a href="esi.html" title="Edge Side Includes"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.4 documentation</a> &raquo;</li>
           <li><a href="index.html" >Using Varnish</a> &raquo;</li> 
       </ul>
     </div>
