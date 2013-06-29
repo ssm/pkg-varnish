@@ -1,4 +1,4 @@
-varnish (3.0.4-1) UNRELEASED; urgency=low
+varnish (3.0.4-1) unstable; urgency=low
 
   [ Stig Sandbeck Mathisen ]
   * New upstream release
@@ -9,7 +9,7 @@ varnish (3.0.4-1) UNRELEASED; urgency=low
   [ Michael Stapelberg ]
   * use dh-systemd for proper systemd-related maintscripts
 
- -- Stig Sandbeck Mathisen <ssm@debian.org>  Sat, 29 Jun 2013 15:20:29 +0200
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Sat, 29 Jun 2013 16:20:51 +0200
 
 varnish (3.0.3-1) unstable; urgency=low
 
