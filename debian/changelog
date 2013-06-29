@@ -1,3 +1,16 @@
+varnish (3.0.4-1) UNRELEASED; urgency=low
+
+  [ Stig Sandbeck Mathisen ]
+  * New upstream release
+  * Add dep8 tests.
+    Thanks to Yolanda Robla <yolanda.robla@canonical.com> (Closes: #710001)
+  * Advertise "reload" in the init script help (Closes: #710525)
+
+  [ Michael Stapelberg ]
+  * use dh-systemd for proper systemd-related maintscripts
+
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Sat, 29 Jun 2013 15:20:29 +0200
+
 varnish (3.0.3-1) unstable; urgency=low
 
   [ Stig Sandbeck Mathisen ]
