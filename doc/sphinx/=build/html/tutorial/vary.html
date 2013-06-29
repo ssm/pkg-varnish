@@ -8,7 +8,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Vary &mdash; Varnish version 3.0.3 documentation</title>
+    <title>Vary &mdash; Varnish version 3.0.4 documentation</title>
     
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
@@ -16,7 +16,7 @@
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.3',
+        VERSION:     '3.0.4',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -25,7 +25,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.3 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.4 documentation" href="../index.html" />
     <link rel="up" title="Using Varnish" href="index.html" />
     <link rel="next" title="Purging and banning" href="purging.html" />
     <link rel="prev" title="Cookies" href="cookies.html" /> 
@@ -43,7 +43,7 @@
         <li class="right" >
           <a href="cookies.html" title="Cookies"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.4 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">Using Varnish</a> &raquo;</li> 
       </ul>
     </div>  
@@ -90,6 +90,13 @@ following VCL code will normalize the Accept-Encoding headers:</p>
 <p>The code sets the Accept-Encoding header from the client to either
 gzip, deflate with a preference for gzip.</p>
 </div>
+<div class="section" id="vary-parse-errors">
+<h1>Vary parse errors<a class="headerlink" href="#vary-parse-errors" title="Permalink to this headline">¶</a></h1>
+<p>Varnish will return a 503 internal server error page when it fails to
+parse the Vary server header, or if any of the client headers listed
+in the Vary header exceeds the limit of 65k characters. An SLT_Error
+log entry is added in these cases.</p>
+</div>
 <div class="section" id="pitfall-vary-user-agent">
 <h1>Pitfall - Vary: User-Agent<a class="headerlink" href="#pitfall-vary-user-agent" title="Permalink to this headline">¶</a></h1>
 <p>Some applications or application servers send <em>Vary: User-Agent</em> along
@@ -112,6 +119,7 @@ code as a template.</p>
   <h3><a href="../index.html">Table Of Contents</a></h3>
   <ul>
 <li><a class="reference internal" href="#">Vary</a></li>
+<li><a class="reference internal" href="#vary-parse-errors">Vary parse errors</a></li>
 <li><a class="reference internal" href="#pitfall-vary-user-agent">Pitfall - Vary: User-Agent</a></li>
 </ul>
 
@@ -155,7 +163,7 @@ code as a template.</p>
         <li class="right" >
           <a href="cookies.html" title="Cookies"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.4 documentation</a> &raquo;</li>
           <li><a href="index.html" >Using Varnish</a> &raquo;</li> 
       </ul>
     </div>

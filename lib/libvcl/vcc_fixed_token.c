@@ -221,6 +221,7 @@ vcl_output_lang_h(struct vsb *sb)
 	    "struct vsb;\nstruct cli;\nstruct director;\nstruct VCL_conf;\n"
 	    "struct sockaddr_storage;\n\n/*\n * A backend probe specification"
 	    "\n */\n\nextern const void * const vrt_magic_string_end;\n"
+	    "extern const void * const vrt_magic_string_unset;\n"
 	    "\nstruct vrt_backend_probe {\n\tconst char\t*url;\n"
 	    "\tconst char\t*request;\n\tdouble\t\ttimeout;\n\tdouble\t\t"
 	    "interval;\n\tunsigned\texp_status;\n\tunsigned\twindow;\n"

@@ -1,4 +1,4 @@
-.\" Man page generated from reStructeredText.
+.\" Man page generated from reStructuredText.
 .
 .TH VCL 7 "2010-06-02" "1.0" ""
 .SH NAME
@@ -117,6 +117,8 @@ file as a quoted string.
 .SS Backend declarations
 .sp
 A backend declaration creates and initializes a named backend object:
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -126,8 +128,12 @@ backend www {
 }
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .sp
 The backend object can later be used to select a backend at request time:
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -136,6 +142,8 @@ if (req.http.host ~ "(?i)^(www.)?example.com$") {
 }
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .sp
 To avoid overloading backend servers, .max_connections can be set to
 limit the maximum number of concurrent backend connections.
@@ -147,6 +155,8 @@ first byte from the backend and .between_bytes_timeout for time to
 wait between each received byte.
 .sp
 These can be set in the declaration like this:
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -159,6 +169,8 @@ backend www {
 }
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .sp
 To mark a backend as unhealthy after number of items have been added
 to its saintmode list \fB.saintmode_threshold\fP can be set to the maximum
@@ -176,6 +188,8 @@ There are several types of directors. The different director types
 use different algorithms to choose which backend to use.
 .sp
 Configuring a director may look like this:
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -196,6 +210,8 @@ director b2 random {
 }
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .SS The family of random directors
 .sp
 There are three directors that share the same logic, called the random
@@ -233,7 +249,7 @@ This is useful is you are using Varnish to load balance in front of
 other Varnish caches or other web accelerators as objects won\(aqt be
 duplicated across caches.
 .sp
-It will use the value of req.hash, just as the normal cache\-lookup methods.
+It will use the value of req.hash, just as the normal cache lookup methods.
 .SS The round\-robin director
 .sp
 The round\-robin director does not take any options.
@@ -248,6 +264,8 @@ The round\-robin director will try all the backends once before giving up.
 .sp
 The DNS director can use backends in two different ways. Either like the
 random or round\-robin director or using .list:
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -264,6 +282,8 @@ director directorname dns {
 }
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .sp
 This will specify 384 backends, all using port 80 and a connection timeout
 of 0.4s. Options must come before the list of IPs in the .list statement.
@@ -290,6 +310,8 @@ considers them in the order in which they are listed in its definition.
 The fallback director does not take any options.
 .sp
 An example of a fallback director:
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -301,6 +323,8 @@ director b3 fallback {
 }
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .SS Backend probes
 .sp
 Backends can be probed to see whether they should be considered
@@ -347,6 +371,8 @@ Default is 2 seconds.
 .sp
 A backend with a probe can be defined like this, together with the
 backend or director:
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -363,8 +389,12 @@ backend www {
 }
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .sp
 Or it can be defined separately and then referenced:
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -385,10 +415,14 @@ backend www {
 }
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .sp
 If you have many backends this can simplify the config a lot.
 .sp
 It is also possible to specify the raw HTTP request:
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -401,10 +435,14 @@ probe rawprobe {
 }
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .SS ACLs
 .sp
 An ACL declaration creates and initializes a named access control list
 which can later be used to match client addresses:
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -415,14 +453,18 @@ acl local {
 }
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .sp
 If an ACL entry specifies a host name which Varnish is unable to
-resolve, it will match any address it is com‐ pared to.  Consequently,
+resolve, it will match any address it is compared to.  Consequently,
 if it is preceded by a negation mark, it will reject any address it is
 compared to, which may not be what you intended.  If the entry is
 enclosed in parentheses, however, it will simply be ignored.
 .sp
 To match an IP address against an ACL, simply use the match operator:
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -431,23 +473,29 @@ if (client.ip ~ local) {
 }
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .SS Regular Expressions
 .sp
-In Varnish 2.1.0 Varnish switched to using PCRE \- Perl\-compatible
-regular expressions. For a complete description of PCRE please see the
-PCRE(3) man page.
+Varnish uses PCRE \- Perl\-compatible regular expressions. For a
+complete description of PCRE please see the pcre(3) man page.
 .sp
 To send flags to the PCRE engine, such as to turn on \fIcase
 insensitivity\fP add the flag within parens following a question mark,
 like this:
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
-if (req.http.host ~ "(?i)example.com$") {
+# If host is NOT example dot com..
+if (req.http.host !~ "(?i)example.com$") {
         ...
 }
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .SS Functions
 .sp
 The following built\-in functions are available:
@@ -466,10 +514,9 @@ matched string.
 .TP
 .B regsuball(str, regex, sub)
 As regsuball() but this replaces all occurrences.
-.UNINDENT
-.sp
-ban(ban expression)
-.INDENT 0.0
+.TP
+.B ban(ban expression)
+Bans all objects in cache that match the expression.
 .TP
 .B ban_url(regex)
 Bans all objects in cache whose URLs match regex.
@@ -477,6 +524,8 @@ Bans all objects in cache whose URLs match regex.
 .SS Subroutines
 .sp
 A subroutine is used to group code for legibility or reusability:
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -487,6 +536,8 @@ sub pipe_if_local {
 }
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .sp
 Subroutines in VCL do not take arguments, nor do they return values.
 .sp
@@ -535,7 +586,8 @@ Switch to pipe mode.  Control will eventually pass to vcl_pipe.
 .B lookup
 Look up the requested object in the cache.  Control will
 eventually pass to vcl_hit or vcl_miss, depending on whether the
-object is in the cache.
+object is in the cache.  The \fBbereq.request\fP value will be set
+to \fBGET\fP regardless of the value of \fBreq.request\fP.
 .UNINDENT
 .TP
 .B vcl_pipe
@@ -558,8 +610,8 @@ Proceed with pipe mode.
 .B vcl_pass
 Called upon entering pass mode.  In this mode, the request is passed
 on to the backend, and the backend\(aqs response is passed on to the
-client, but is not entered into the cache.  Subsequent requests sub‐
-mitted over the same client connection are handled normally.
+client, but is not entered into the cache.  Subsequent requests
+submitted over the same client connection are handled normally.
 .sp
 The vcl_pass subroutine may terminate with calling return() with one of
 the following keywords:
@@ -668,9 +720,6 @@ keywords:
 .B deliver
 Deliver the object to the client.
 .TP
-.B error code [reason]
-Return the specified error code to the client and abandon the request.
-.TP
 .B restart
 Restart the transaction. Increases the restart counter. If the number
 of restarts is higher than \fImax_restarts\fP varnish emits a guru meditation
@@ -719,6 +768,8 @@ The default versions distributed with Varnish will be implicitly
 concatenated as a last resort at the end.
 .sp
 Example:
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -745,6 +796,8 @@ sub vcl_recv {
 }
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .SS Variables
 .sp
 Although subroutines take no arguments, the necessary information is
@@ -892,6 +945,9 @@ Boolean. Gzip the object before storing it. Defaults to false.
 Boolean. Unzip the object before storing it in the cache.  Defaults
 to false.
 .TP
+.B beresp.http.header
+The corresponding HTTP header.
+.TP
 .B beresp.proto
 The HTTP protocol version used the backend replied with.
 .TP
@@ -984,6 +1040,8 @@ The corresponding HTTP header.
 .UNINDENT
 .sp
 Values may be assigned to variables using the set keyword:
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -995,8 +1053,12 @@ sub vcl_recv {
 }
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .sp
 HTTP headers can be removed entirely using the remove keyword:
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -1006,6 +1068,8 @@ sub vcl_fetch {
 }
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .SS Grace and saint mode
 .sp
 If the backend takes a long time to generate an object there is a risk
@@ -1016,6 +1080,8 @@ fresh object is being generated by the backend.
 The following vcl code will make Varnish serve expired objects.  All
 object will be kept up to two minutes past their expiration time or a
 fresh object is generated.
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -1027,6 +1093,8 @@ sub vcl_fetch {
 }
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .sp
 Saint mode is similar to grace mode and relies on the same
 infrastructure but functions differently. You can add VCL code to
@@ -1043,6 +1111,8 @@ Varnish will serve the object, even if it is stale.
 The following code is the equivalent of the default configuration with
 the backend address set to "backend.example.com" and no backend port
 specified:
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -1052,6 +1122,10 @@ backend default {
 }
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -1207,10 +1281,14 @@ sub vcl_fini {
 
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .sp
 The following example shows how to support multiple sites running on
 separate backends in the same Varnish instance, by selecting backends
 based on the request URL:
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -1236,11 +1314,15 @@ sub vcl_recv {
 }
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .sp
 The following snippet demonstrates how to force a minimum TTL for
 all documents.  Note that this is not the same as setting the
 default_ttl run\-time parameter, as that only affects document for
 which the backend did not specify a TTL:
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -1254,9 +1336,13 @@ sub vcl_fetch {
 }
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .sp
 The following snippet demonstrates how to force Varnish to cache
 documents even when cookies are present:
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -1273,9 +1359,13 @@ sub vcl_fetch {
 }
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .sp
 The following code implements the HTTP PURGE method as used by Squid
 for object invalidation:
+.INDENT 0.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -1308,6 +1398,8 @@ sub vcl_miss {
 }
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .SH SEE ALSO
 .INDENT 0.0
 .IP \(bu 2
@@ -1334,5 +1426,4 @@ Copyright (c) 2006\-2011 Varnish Software AS
 .SH AUTHOR
 Dag-Erling Smørgrav, Poul-Henning Kamp, Kristian Lyngstøl, Per Buer
 .\" Generated by docutils manpage writer.
-.\" 
 .

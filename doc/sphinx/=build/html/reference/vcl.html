@@ -8,7 +8,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>VCL &mdash; Varnish version 3.0.3 documentation</title>
+    <title>VCL &mdash; Varnish version 3.0.4 documentation</title>
     
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
@@ -16,7 +16,7 @@
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '3.0.3',
+        VERSION:     '3.0.4',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -25,7 +25,7 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="top" title="Varnish version 3.0.3 documentation" href="../index.html" />
+    <link rel="top" title="Varnish version 3.0.4 documentation" href="../index.html" />
     <link rel="up" title="The Varnish Reference Manual" href="index.html" />
     <link rel="next" title="varnish" href="varnish-cli.html" />
     <link rel="prev" title="The Varnish Reference Manual" href="index.html" /> 
@@ -43,7 +43,7 @@
         <li class="right" >
           <a href="index.html" title="The Varnish Reference Manual"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.4 documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>  
@@ -232,7 +232,7 @@ value.</p>
 <p>This is useful is you are using Varnish to load balance in front of
 other Varnish caches or other web accelerators as objects won't be
 duplicated across caches.</p>
-<p>It will use the value of req.hash, just as the normal cache-lookup methods.</p>
+<p>It will use the value of req.hash, just as the normal cache lookup methods.</p>
 </div>
 </div>
 <div class="section" id="the-round-robin-director">
@@ -376,7 +376,7 @@ which can later be used to match client addresses:</p>
 }</pre>
 </div>
 <p>If an ACL entry specifies a host name which Varnish is unable to
-resolve, it will match any address it is com‐ pared to.  Consequently,
+resolve, it will match any address it is compared to.  Consequently,
 if it is preceded by a negation mark, it will reject any address it is
 compared to, which may not be what you intended.  If the entry is
 enclosed in parentheses, however, it will simply be ignored.</p>
@@ -388,13 +388,13 @@ enclosed in parentheses, however, it will simply be ignored.</p>
 </div>
 <div class="section" id="regular-expressions">
 <h4>Regular Expressions<a class="headerlink" href="#regular-expressions" title="Permalink to this headline">¶</a></h4>
-<p>In Varnish 2.1.0 Varnish switched to using PCRE - Perl-compatible
-regular expressions. For a complete description of PCRE please see the
-PCRE(3) man page.</p>
+<p>Varnish uses PCRE - Perl-compatible regular expressions. For a
+complete description of PCRE please see the pcre(3) man page.</p>
 <p>To send flags to the PCRE engine, such as to turn on <em>case
 insensitivity</em> add the flag within parens following a question mark,
 like this:</p>
-<div class="highlight-python"><pre>if (req.http.host ~ "(?i)example.com$") {
+<div class="highlight-python"><pre># If host is NOT example dot com..
+if (req.http.host !~ "(?i)example.com$") {
         ...
 }</pre>
 </div>
@@ -414,9 +414,8 @@ and \n is replaced with the contents of subgroup n in the
 matched string.</dd>
 <dt>regsuball(str, regex, sub)</dt>
 <dd>As regsuball() but this replaces all occurrences.</dd>
-</dl>
-<p>ban(ban expression)</p>
-<dl class="docutils">
+<dt>ban(ban expression)</dt>
+<dd>Bans all objects in cache that match the expression.</dd>
 <dt>ban_url(regex)</dt>
 <dd>Bans all objects in cache whose URLs match regex.</dd>
 </dl>
@@ -465,7 +464,8 @@ the following keywords:</p>
 <dt>lookup</dt>
 <dd>Look up the requested object in the cache.  Control will
 eventually pass to vcl_hit or vcl_miss, depending on whether the
-object is in the cache.</dd>
+object is in the cache.  The <tt class="docutils literal"><span class="pre">bereq.request</span></tt> value will be set
+to <tt class="docutils literal"><span class="pre">GET</span></tt> regardless of the value of <tt class="docutils literal"><span class="pre">req.request</span></tt>.</dd>
 </dl>
 </dd>
 <dt>vcl_pipe</dt>
@@ -485,8 +485,8 @@ the following keywords:</p>
 <dt>vcl_pass</dt>
 <dd><p class="first">Called upon entering pass mode.  In this mode, the request is passed
 on to the backend, and the backend's response is passed on to the
-client, but is not entered into the cache.  Subsequent requests sub‐
-mitted over the same client connection are handled normally.</p>
+client, but is not entered into the cache.  Subsequent requests
+submitted over the same client connection are handled normally.</p>
 <p>The vcl_pass subroutine may terminate with calling return() with one of
 the following keywords:</p>
 <dl class="last docutils">
@@ -572,8 +572,6 @@ keywords:</p>
 <dl class="last docutils">
 <dt>deliver</dt>
 <dd>Deliver the object to the client.</dd>
-<dt>error code [reason]</dt>
-<dd>Return the specified error code to the client and abandon the request.</dd>
 <dt>restart</dt>
 <dd>Restart the transaction. Increases the restart counter. If the number
 of restarts is higher than <em>max_restarts</em> varnish emits a guru meditation
@@ -747,6 +745,8 @@ only be honored if req.esi is true.</dd>
 <dt>beresp.do_gunzip</dt>
 <dd>Boolean. Unzip the object before storing it in the cache.  Defaults
 to false.</dd>
+<dt>beresp.http.header</dt>
+<dd>The corresponding HTTP header.</dd>
 <dt>beresp.proto</dt>
 <dd>The HTTP protocol version used the backend replied with.</dd>
 <dt>beresp.status</dt>
@@ -1212,7 +1212,7 @@ itself. See LICENSE for details.</p>
         <li class="right" >
           <a href="index.html" title="The Varnish Reference Manual"
              >previous</a> |</li>
-        <li><a href="../index.html">Varnish version 3.0.3 documentation</a> &raquo;</li>
+        <li><a href="../index.html">Varnish version 3.0.4 documentation</a> &raquo;</li>
           <li><a href="index.html" >The Varnish Reference Manual</a> &raquo;</li> 
       </ul>
     </div>

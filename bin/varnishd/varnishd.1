@@ -1,4 +1,4 @@
-.\" Man page generated from reStructeredText.
+.\" Man page generated from reStructuredText.
 .
 .TH VARNISHD 1 "2010-05-31" "1.0" ""
 .SH NAME
@@ -193,13 +193,19 @@ completely lockless.
 .SS Storage Types
 .sp
 The following storage types are available:
-.INDENT 0.0
-.TP
-.B malloc[,size]
-Storage for each object is allocated with malloc(3).
 .sp
-The size parameter specifies the maximum amount of memory varnishd will allocate.  The size is assumed to
-be in bytes, unless followed by one of the following suffixes:
+malloc[,size]
+.INDENT 0.0
+.INDENT 3.5
+Malloc is a memory based backend. Each object will be allocated
+from memory. If your system runs low on memory swap will be
+used. Be aware that the size limitation only limits the actual
+storage and that approximately 1k of memory per object will be
+used for various internal structures.
+.sp
+The size parameter specifies the maximum amount of memory
+varnishd will allocate.  The size is assumed to be in bytes,
+unless followed by one of the following suffixes:
 .sp
 K, k    The size is expressed in kibibytes.
 .sp
@@ -210,15 +216,26 @@ G, g    The size is expressed in gibibytes.
 T, t    The size is expressed in tebibytes.
 .sp
 The default size is unlimited.
-.TP
-.B file[,path[,size[,granularity]]]
-Storage for each object is allocated from an arena backed by a file.  This is the default.
 .sp
-The path parameter specifies either the path to the backing file or the path to a directory in which
-varnishd will create the backing file.  The default is /tmp.
+Mallocs performance is bound by memory speed so it is very fast.
+.UNINDENT
+.UNINDENT
 .sp
-The size parameter specifies the size of the backing file.  The size is assumed to be in bytes, unless fol‐
-lowed by one of the following suffixes:
+file[,path[,size[,granularity]]]
+.INDENT 0.0
+.INDENT 3.5
+The file backend stores objects in memory backed by a file on
+disk with mmap. This is the default storage backend and unless
+you specify another storage this one will used along with
+Transient storage.
+.sp
+The path parameter specifies either the path to the backing file
+or the path to a directory in which varnishd will create the
+backing file.  The default is /tmp.
+.sp
+The size parameter specifies the size of the backing file.  The
+size is assumed to be in bytes, unless fol‐ lowed by one of the
+following suffixes:
 .sp
 K, k    The size is expressed in kibibytes.
 .sp
@@ -227,22 +244,33 @@ M, m    The size is expressed in mebibytes.
 G, g    The size is expressed in gibibytes.
 .sp
 T, t    The size is expressed in tebibytes.
-.sp
-%       The size is expressed as a percentage of the free space on the file system where it resides.
+.INDENT 0.0
+.TP
+.B %       The size is expressed as a percentage of the free space on the
+file system where it resides.
+.UNINDENT
 .sp
 The default size is 50%.
 .sp
-If the backing file already exists, it will be truncated or expanded to the specified size.
+If the backing file already exists, it will be truncated or
+expanded to the specified size.
 .sp
-Note that if varnishd has to create or expand the file, it will not pre\-allocate the added space, leading
-to fragmentation, which may adversely impact performance.  Pre\-creating the storage file using dd(1) will
-reduce fragmentation to a minimum.
+Note that if varnishd has to create or expand the file, it will
+not pre\-allocate the added space, leading to fragmentation,
+which may adversely impact performance.  Pre\-creating the
+storage file using dd(1) will reduce fragmentation to a minimum.
 .sp
-The granularity parameter specifies the granularity of allocation.  All allocations are rounded up to this
-size.  The size is assumed to be in bytes, unless followed by one of the suffixes described for size except
-for %.
+The granularity parameter specifies the granularity of
+allocation.  All allocations are rounded up to this size.  The
+size is assumed to be in bytes, unless followed by one of the
+suffixes described for size except for %.
 .sp
-The default size is the VM page size.  The size should be reduced if you have many small objects.
+The default size is the VM page size.  The size should be
+reduced if you have many small objects.
+.sp
+File performance is typically limited by the write speed of the
+device, and depending on use, the seek time.
+.UNINDENT
 .UNINDENT
 .sp
 persistent,path,size {experimental}
@@ -284,36 +312,47 @@ would use an unlimited malloc backend for this.
 .UNINDENT
 .SS Management Interface
 .sp
-If the \-T option was specified, varnishd will offer a command\-line management interface on the specified address
-and port.  The recommended way of connecting to the command\-line management interface is through varnishadm(1).
+If the \-T option was specified, varnishd will offer a command\-line
+management interface on the specified address and port.  The
+recommended way of connecting to the command\-line management interface
+is through varnishadm(1).
 .sp
 The commands available are documented in varnish(7).
 .SS Run\-Time Parameters
 .sp
-Runtime parameters are marked with shorthand flags to avoid repeating the same text over and over in the table
-below.  The meaning of the flags are:
+Runtime parameters are marked with shorthand flags to avoid repeating
+the same text over and over in the table below.  The meaning of the
+flags are:
 .INDENT 0.0
 .TP
 .B experimental
-We have no solid information about good/bad/optimal values for this parameter.  Feedback with experience
-and observations are most welcome.
+We have no solid information about good/bad/optimal values for
+this parameter.  Feedback with experience and observations are
+most welcome.
 .TP
 .B delayed
-This parameter can be changed on the fly, but will not take effect immediately.
+This parameter can be changed on the fly, but will not take
+effect immediately.
 .TP
 .B restart
-The worker process must be stopped and restarted, before this parameter takes effect.
+The worker process must be stopped and restarted, before this
+parameter takes effect.
 .TP
 .B reload
 The VCL programs must be reloaded for this parameter to take effect.
 .UNINDENT
 .sp
-Here is a list of all parameters, current as of last time we remembered to update the manual page.  This text is
-produced from the same text you will find in the CLI if you use the param.show command, so should there be a new
-parameter which is not listed here, you can find the description using the CLI commands.
+Here is a list of all parameters, current as of last time we
+remembered to update the manual page.  This text is produced from the
+same text you will find in the CLI if you use the param.show command,
+so should there be a new parameter which is not listed here, you can
+find the description using the CLI commands.
 .sp
-Be aware that on 32 bit systems, certain default values, such as sess_workspace (=16k) and thread_pool_stack
-(=64k) are reduced relative to the values listed here, in order to conserve VM space.
+Be aware that on 32 bit systems, certain default values, such as
+workspace_client (=16k), thread_pool_workspace (=16k), http_resp_size
+(=8k), http_req_size (=12k), gzip_stack_buffer (=4k) and
+thread_pool_stack (=64k) are reduced relative to the values listed
+here, in order to conserve VM space.
 .INDENT 0.0
 .TP
 .B acceptor_sleep_decay
@@ -504,6 +543,8 @@ Default: 0
 .UNINDENT
 .sp
 Bitmap controlling diagnostics code:
+.INDENT 7.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -524,6 +565,8 @@ Bitmap controlling diagnostics code:
 0x80000000 \- do edge\-detection on digest.
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .IP "System Message: WARNING/2 (../../doc/sphinx/reference/params.rst:, line 132)"
 Literal block ends without a blank line; unexpected unindent.
 .sp
@@ -538,6 +581,8 @@ Default: 0
 .UNINDENT
 .sp
 Bitmap controlling ESI parsing code:
+.INDENT 7.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -547,6 +592,8 @@ Bitmap controlling ESI parsing code:
 0x00000008 \- Force\-split parser input (debugging)
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .IP "System Message: WARNING/2 (../../doc/sphinx/reference/params.rst:, line 144)"
 Literal block ends without a blank line; unexpected unindent.
 .sp
@@ -646,6 +693,8 @@ Flags: experimental
 .UNINDENT
 .sp
 Where temporary space for gzip/gunzip is allocated:
+.INDENT 7.0
+.INDENT 3.5
 .sp
 .nf
 .ft C
@@ -654,6 +703,8 @@ Where temporary space for gzip/gunzip is allocated:
 2 \- thread workspace
 .ft P
 .fi
+.UNINDENT
+.UNINDENT
 .IP "System Message: WARNING/2 (../../doc/sphinx/reference/params.rst:, line 207)"
 Literal block ends without a blank line; unexpected unindent.
 .sp
@@ -726,7 +777,7 @@ Default: 32768
 .UNINDENT
 .sp
 Maximum number of bytes of HTTP client request we will deal with.  This is a limit on all bytes up to the double blank line which ends the HTTP request.
-The memory for the request is allocated from the session workspace (param: sess_workspace) and this parameter limits how much of that the request is allowed to take up.
+The memory for the request is allocated from the client workspace (param: workspace_client) and this parameter limits how much of that the request is allowed to take up.
 .TP
 .B http_resp_hdr_len
 .INDENT 7.0
@@ -747,7 +798,7 @@ Default: 32768
 .UNINDENT
 .sp
 Maximum number of bytes of HTTP backend resonse we will deal with.  This is a limit on all bytes up to the double blank line which ends the HTTP request.
-The memory for the request is allocated from the worker workspace (param: sess_workspace) and this parameter limits how much of that the request is allowed to take up.
+The memory for the request is allocated from the thread pool workspace (param: thread_pool_workspace) and this parameter limits how much of that the request is allowed to take up.
 .TP
 .B idle_send_timeout
 .INDENT 7.0
@@ -963,19 +1014,6 @@ Default: 5
 .UNINDENT
 .sp
 Idle timeout for persistent sessions. If a HTTP request has not been received in this many seconds, the session is closed.
-.TP
-.B sess_workspace
-.INDENT 7.0
-.IP \(bu 2
-Units: bytes
-.IP \(bu 2
-Default: 65536
-.IP \(bu 2
-Flags: delayed
-.UNINDENT
-.sp
-Bytes of HTTP protocol workspace allocated for sessions. This space must be big enough for the entire HTTP protocol header and any edits done to it in the VCL code.
-Minimum is 1024 bytes.
 .TP
 .B session_linger
 .INDENT 7.0
@@ -1295,7 +1333,7 @@ The varnishd daemon was developed by Poul\-Henning Kamp in cooperation
 with Verdens Gang AS, Varnish Software AS and Varnish Software.
 .sp
 This manual page was written by Dag\-Erling Smørgrav with updates by
-Stig Sandbeck Mathisen ⟨ssm@debian.org⟩
+Stig Sandbeck Mathisen ⟨\fI\%ssm@debian.org\fP⟩
 .SH COPYRIGHT
 .sp
 This document is licensed under the same licence as Varnish
@@ -1307,5 +1345,4 @@ Copyright (c) 2007\-2011 Varnish Software AS
 .SH AUTHOR
 Dag-Erling Smørgrav, Stig Sandbeck Mathisen, Per Buer
 .\" Generated by docutils manpage writer.
-.\" 
 .
