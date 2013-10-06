@@ -4,3 +4,8 @@ usr/sbin/*
 /usr/lib/*/varnish
 usr/share/man
 debian/*.service lib/systemd/system/
+debian/VSF/vcl/build        etc/varnish/security
+debian/VSF/vcl/config.vcl   etc/varnish/security
+debian/VSF/vcl/handlers.vcl etc/varnish/security
+debian/VSF/vcl/rules        etc/varnish/security
+debian/VSF/vcl/vsf.vcl      etc/varnish/security
