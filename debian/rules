@@ -20,7 +20,7 @@ endif
 
 # Main build rule, leave everything to debhelper
 %:
-	dh $@ --parallel --with=systemd
+	dh $@ --parallel --with=systemd,autoreconf
 
 ifeq (,$(filter test,$(LOCAL_BUILD_OPTIONS)))
 # Disable automated build tests

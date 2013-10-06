@@ -12,6 +12,7 @@ Build-Depends:
  automake,
  autotools-dev,
  debhelper (>= 9),
+ dh-autoreconf,
  groff-base,
  libedit-dev,
  libncurses-dev,
