@@ -21,7 +21,7 @@ Build-Depends:
  pkg-config,
  python-docutils,
  xsltproc,
- dh-systemd (>= 1.3)
+ dh-systemd,
 Vcs-Browser: http://git.debian.org/?p=pkg-varnish/pkg-varnish.git;a=summary
 Vcs-Git: git://git.debian.org/pkg-varnish/pkg-varnish.git
 Homepage: http://varnish-cache.org/
@@ -30,7 +30,7 @@ XS-Testsuite: autopkgtest
 
 Package: varnish
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, gcc ( >= 3.3), libc6-dev | libc6.1-dev | libc-dev, adduser
+Depends: ${shlibs:Depends}, ${misc:Depends}, gcc, libc6-dev | libc6.1-dev | libc-dev, adduser
 Suggests: varnish-doc
 Replaces: libvarnishapi1 (<< 3.0.0-5)
 Description: state of the art, high-performance web accelerator
