@@ -1,3 +1,15 @@
+varnish (3.0.4-2~1381172522.gbpa7e2e2) UNRELEASED; urgency=low
+
+  ** SNAPSHOT build @a7e2e2220f32528af4d6b0ee35e31decba7f5105 **
+
+  * use dh-autoreconf
+  * Bump Standards-Version (no changes)
+  * remove unnecessary versions from dependencies
+  * Break and sort dependencies (no changes)
+  * Add packaging infrastructure for extra/vmods
+
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Mon, 07 Oct 2013 21:02:03 +0200
+
 varnish (3.0.4-1) unstable; urgency=low
 
   [ Stig Sandbeck Mathisen ]
