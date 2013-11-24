@@ -1,3 +1,9 @@
+varnish (3.0.4-2+vsf1) UNRELEASED; urgency=low
+
+  * Merge into vsf version
+
+ -- Stig Sandbeck Mathisen <ssm@debian.org>  Sun, 24 Nov 2013 19:08:48 +0100
+
 varnish (3.0.4-2) unstable; urgency=low
 
   * Build against the packaged libjemalloc
