@@ -16,6 +16,7 @@ Build-Depends:
  dh-systemd,
  groff-base,
  libedit-dev,
+ libjemalloc-dev,
  libncurses-dev,
  libpcre3-dev,
  libtool,
