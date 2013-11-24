@@ -1,3 +1,2 @@
-Tests: daemon ncsa
-Depends: varnish
-Restrictions: needs-root
+Tests: run-tests
+Depends: @,perl
